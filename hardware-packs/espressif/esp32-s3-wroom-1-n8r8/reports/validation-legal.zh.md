@@ -1,8 +1,8 @@
 # 硬件约束校验报告
 
 - 结果: **通过**（不完整：有未检查、不支持、未知或冲突的规则）
-- 知识包: espressif/esp32-s3-wroom-1-n8r8 0.1.0 (pack sha256 `fe8e501c86c10840d685ad70167ef46a99fc1df9e6433c93f7f03540bc6c330f`)
-- Constraint IR sha256 `8eb06118983f18c03ad37210e9bf06d1d45debc8622d8f466a59fc21e237b9b7`
+- 知识包: espressif/esp32-s3-wroom-1-n8r8 0.1.0 (pack sha256 `837cf0feddf66c25f50bf78cd616fd926306b633bd4d0390e749fbe3786e8753`)
+- Constraint IR sha256 `e3e34d20d2e007c53260b800d6484061663bfd67bc6f160479c5177a9843f038`
 - 设计: carrier (sha256 `fc9f0fb32489a6c1502c11ef428e34e9b4f6c7666150bb99b91faaf3ff749c90`)
 
 ## 摘要

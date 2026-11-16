@@ -93,6 +93,9 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
     let mut inherited_rule_ids: BTreeMap<String, String> = BTreeMap::new();
     let mut provenance: Map<String, Value> = Map::new();
     let mut resolved_from: Vec<Value> = Vec::new();
+    // upstream source id -> the source of this pack that is the same document; devices it applies to besides its own
+    let mut alias: BTreeMap<String, String> = BTreeMap::new();
+    let mut extra_applies: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
     for (i, u) in wanted.iter().enumerate() {
         let path = format!("$.pack.upstream[{i}]");
@@ -148,7 +151,27 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
         for sid in &taken {
             match up_sources.get(sid.as_str()) {
                 None => errs.push(Diagnostic::error("inherit_unknown_source", path.clone(), Some(sid.clone()), format!("inherited evidence cites {sid}, which {label} does not list"))),
-                Some(src) => sources.push((*src).clone()),
+                Some(src) => {
+                    // the same document (same id, version and digest) that this pack cites itself is one source: the inherited
+                    // evidence is pointed at it, and it applies to the inherited devices as well
+                    match arr(derived, "sources").iter().find(|o| s(o, "document_id") == s(src, "document_id")) {
+                        Some(own) if s(own, "sha256") == s(src, "sha256") && s(own, "version") == s(src, "version") => {
+                            if s(own, "source_id") != s(src, "source_id") {
+                                alias.insert(sid.clone(), s(own, "source_id").unwrap_or("").to_string());
+                            }
+                            for d in arr(src, "applies_to").iter().filter_map(Value::as_str) {
+                                extra_applies.entry(s(own, "source_id").unwrap_or("").to_string()).or_default().insert(d.to_string());
+                            }
+                        }
+                        Some(own) => errs.push(Diagnostic::error(
+                            "source_conflict",
+                            "$.sources",
+                            s(own, "source_id").map(str::to_string),
+                            format!("{} cites the document {} at another version or digest than {label}: the packs disagree about the document", s(own, "source_id").unwrap_or(""), s(src, "document_id").unwrap_or("")),
+                        )),
+                        None => sources.push((*src).clone()),
+                    }
+                }
             }
         }
         resolved_from.push(json!({"id": uid, "version": uver, "kind": ukind, "canonical_sha256": digest, "inherited": Value::Object(counts)}));
@@ -181,12 +204,14 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
             continue;
         }
         let id = s(r, "id").unwrap_or("");
+        // a rule that says `unknown` states nothing: it cannot contradict what was inherited (an id clash is still one)
+        let states_nothing = s(r, "modifiability") == Some("unknown");
         if inherited_rule_ids.contains_key(id) {
             errs.push(Diagnostic::error("id_clash", format!("$.rules[{i}].id"), Some(id.to_string()), format!("the id '{id}' is also an inherited rule: use another id, or `overrides` with evidence")));
             continue;
         }
         let key = (s(r, "kind").unwrap_or("").to_string(), canonical_json(r.get("subject").unwrap_or(&Value::Null)));
-        if let Some(inh) = inherited_by_key.get(&key) {
+        if let Some(inh) = inherited_by_key.get(&key).filter(|_| !states_nothing) {
             if canonical_json(r.get("params").unwrap_or(&Value::Null)) != canonical_json(inh.get("params").unwrap_or(&Value::Null)) {
                 errs.push(Diagnostic::error(
                     "inherit_conflict",
@@ -221,6 +246,12 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
         return Err(errs);
     }
 
+    if !alias.is_empty() {
+        for v in devices.iter_mut().chain(blocks.iter_mut()).chain(regions.iter_mut()).chain(rules.iter_mut()) {
+            realias(v, &alias);
+        }
+    }
+    let device_ids: BTreeSet<String> = devices.iter().chain(arr(derived, "devices")).filter_map(|d| s(d, "id")).map(str::to_string).collect();
     let mut flat = derived.clone();
     let obj = flat.as_object_mut().expect("a pack is an object");
     let prepend = |own: Vec<Value>, mut inherited: Vec<Value>| {
@@ -238,6 +269,17 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
     if !rules.is_empty() || obj.contains_key("rules") {
         obj.insert("rules".into(), Value::Array(prepend(own("rules"), rules)));
     }
+    // a merged document applies to the devices of this pack and to the inherited ones it was cited for (only those that are in the pack)
+    for src in merged_sources.iter_mut() {
+        if let Some(more) = s(src, "source_id").and_then(|id| extra_applies.get(id)) {
+            let list = src["applies_to"].as_array_mut().expect("applies_to");
+            for d in more.iter().filter(|d| device_ids.contains(*d)) {
+                if !list.iter().any(|x| x.as_str() == Some(d.as_str())) {
+                    list.push(json!(d));
+                }
+            }
+        }
+    }
     obj.insert("sources".into(), Value::Array(merged_sources));
     let meta = obj.get_mut("pack").and_then(Value::as_object_mut).expect("pack metadata");
     meta.remove("upstream");
@@ -252,4 +294,24 @@ pub fn resolve(derived: &Value, upstreams: &[Value]) -> Result<Value, Vec<Diagno
         return Err(after);
     }
     Ok(flat)
+}
+
+/// Points the evidence of an inherited object at the source of the derived pack that is the same document.
+fn realias(v: &mut Value, alias: &BTreeMap<String, String>) {
+    match v {
+        Value::Object(m) => {
+            if let Some(Value::Array(ev)) = m.get_mut("evidence") {
+                for e in ev.iter_mut() {
+                    if let Some(new) = e.get("source_id").and_then(Value::as_str).and_then(|id| alias.get(id)) {
+                        e["source_id"] = json!(new);
+                    }
+                }
+            }
+            for c in m.values_mut() {
+                realias(c, alias);
+            }
+        }
+        Value::Array(a) => a.iter_mut().for_each(|c| realias(c, alias)),
+        _ => {}
+    }
 }

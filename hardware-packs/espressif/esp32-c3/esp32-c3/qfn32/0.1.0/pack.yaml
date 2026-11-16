@@ -1,0 +1,60 @@
+# The manifest of this pack. The authored part is above `files`; `files`, `hcp_canonical_sha256`, `source_digests` and the digests
+# of the dependencies are written by `hcp-manager release seal` and checked by `hcp-manager release index` / `packs builtin verify`.
+manifest_version: '1.0'
+id: espressif/esp32-c3/esp32-c3/qfn32
+kind: chip
+identity:
+  vendor: espressif
+  family: esp32-c3
+  device: esp32-c3
+  variant: qfn32
+  part_number: ESP32-C3
+  package: QFN32
+version: 0.1.0
+content: full
+review: draft
+compatibility:
+  hcp_schema_version: '1.1'
+  ir_version: '1.0'
+  min_app_version: 0.1.14
+dependencies: []
+files:
+  hcp:
+    path: hcp.yaml
+    sha256: 5176664f6c8a2f5dcaed5b5952ac6eda6c40d7b6e654ba859af9dbd9a0fac8a7
+  sources:
+    path: sources.yaml
+    sha256: 1a72aaa698b4ecffd44754aea36888a326e9d620a82bb5cbdcd3717d878fec1b
+  reports:
+  - path: reports/pack-report.zh.md
+    sha256: 4fc3a08b059dbd5eb38649b961ede258ed90f730f4efa0dec2eeb1e8337f82e3
+hcp_canonical_sha256: b1127dcd1051fbfca30e77b344740d91e4316daa00c7aab1920a0e8d7952bccb
+source_digests:
+- document_id: DOC-ESP32C3-DS
+  version: v2.5
+  sha256: fede706c39ce663c861136724ffe32dff3f1407fa7f2dac18bbd0d21f0634205
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf
+  redistribution: reference_only
+- document_id: DOC-ESP32C3-HDG-SCH
+  version: latest-2026-11-16
+  sha256: 43cd800e9ab35b5c3d43bb61fce39ea59462e18b200a7597110a88ffc6d933b6
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/schematic-checklist.html
+  redistribution: reference_only
+- document_id: DOC-ESP32C3-HDG-PCB
+  version: latest-2026-11-16
+  sha256: 1dc118cbe00ee1fc6273d751798d64ef95ea53f42666dab962aa0ab433542ba1
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/pcb-layout-design.html
+  redistribution: reference_only
+license:
+  pack: GPL-3.0-or-later
+  documents:
+  - document_id: DOC-ESP32C3-DS
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  - document_id: DOC-ESP32C3-HDG-SCH
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  - document_id: DOC-ESP32C3-HDG-PCB
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  note: The pack states facts with short quotations and page locators; the original documents are not part of it.

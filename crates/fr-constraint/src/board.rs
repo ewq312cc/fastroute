@@ -432,7 +432,7 @@ pub fn embed(board: &Value, bound_sha256: &str, request: &Value) -> Result<Embed
         "carrier_pack_canonical_sha256": sha256_hex(canonical_json(&carrier_pack).as_bytes()),
         "provenance": {
             "from_the_board_pack": {"devices": 1, "blocks": block_ids.len(), "rules": carrier_pack["rules"].as_array().map(Vec::len).unwrap_or(0), "board_regions": own.len(), "header_pins": all_pins.len()},
-            "generated_for_the_carrier": {"regions": regions.len() - own.len() + 1 - 0, "editable_regions": free.len(), "pin_pool": pool.len()},
+            "generated_for_the_carrier": {"regions": regions.len() - own.len() + 1, "editable_regions": free.len(), "pin_pool": pool.len()},
         },
     });
     Ok(Embedding { result, carrier_pack })

@@ -354,7 +354,7 @@ fn another_model_or_dimension_is_a_new_generation_and_the_old_one_is_kept_until_
     assert_eq!(code(&o), 3);
     assert!(err(&o).contains("no embedding profile 'nope'") && err(&o).contains("small"), "{}", err(&o));
     // several profiles and none named: an error that says so
-    write_embedding(&f.ws, &format!("profiles:\n  a: {{provider: hashing}}\n  b: {{provider: hashing, dim: 64}}\n"));
+    write_embedding(&f.ws, "profiles:\n  a: {provider: hashing}\n  b: {provider: hashing, dim: 64}\n");
     let o = run(&f.ws, &["embedding", "show"]);
     assert_eq!(code(&o), 3);
     assert!(err(&o).contains("several profiles"), "{}", err(&o));

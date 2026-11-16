@@ -145,7 +145,7 @@ fn a_pin_that_the_board_says_is_usable_cannot_be_one_the_module_protects() {
     b["pack"]["upstream"] = json!([{"id": "acme/devs/mod/a", "version": "0.1.0", "kind": "module", "canonical_sha256": canonical_sha256(&module), "inherit": {"devices": ["DEV-MOD"], "rules": ["C-MOD-RSVD"]}}]);
     b["board_integration"]["upstream_device"] = json!("DEV-MOD");
     b["board_integration"]["exposed_headers"][0]["pins"][4]["module_pin"] = json!("7");
-    let e = resolve(&b, &[module.clone()]).expect_err("the two packs disagree");
+    let e = resolve(&b, std::slice::from_ref(&module)).expect_err("the two packs disagree");
     assert!(e.iter().any(|d| d.code == "board_pin_conflicts_with_upstream" && d.object.as_deref() == Some("C-MOD-RSVD")), "{e:#?}");
     // marked reserved with the module's evidence behind it, it resolves, and the pin is not in the pool
     b["board_integration"]["exposed_headers"][0]["pins"][4] = pin("J1", 5, "GPIO5", "gpio", "reserved", Some("wired to IO7 of the module, which the module datasheet reserves"), 1.27, 47.84);

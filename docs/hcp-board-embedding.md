@@ -68,6 +68,10 @@ on-board or unknown pin), a block that is not allowed (`unauthorized_block`: for
 work in the body or the keep-outs (`outside_region`), a connection or a track from one free area into another, an operation that the area does not allow, and the
 carrier outline as an area. These are tested on a fictional board (`crates/fr-constraint/tests/board.rs`).
 
+## The sample
+
+`docs/examples/hcp-devboard-sample/` holds a board pack (`board-pack.yaml`) and a request (`request.json`) for a **made-up** board, released under CC0 1.0, so that the command can be run offline and the files redistributed without a licence question. A test keeps the files equal to what the tests build and embeds them. It is not a real board: a pack for a real development board (for example the ESP32-S3-DevKitC-1) has to be written from that board's documents, and the redistribution terms of its schematics and drawings have to be read first. That has not been done.
+
 ## Limits of this version (stated, not hidden)
 
 * The carrier outline is a **rectangle**; the board is placed at **0, 90, 180 or 270°**. Other shapes and angles are not supported.

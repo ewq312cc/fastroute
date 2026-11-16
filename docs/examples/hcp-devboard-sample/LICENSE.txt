@@ -1,0 +1,10 @@
+Creative Commons CC0 1.0 Universal (public domain dedication)
+
+The files in this directory (board-pack.yaml, request.json, README.md) were written for the fastroute project's tests and documentation. They describe a
+made-up development board ("Acme DevBoard rev B"). It is not a product of any company, it copies nothing from any vendor's documents, and the "document" it
+cites does not exist.
+
+To the extent possible under law, the author of these files has waived all copyright and related or neighbouring rights to them. You may copy, modify,
+distribute and use them, including for commercial purposes, without asking and without attribution.
+
+The legal text is at https://creativecommons.org/publicdomain/zero/1.0/legalcode

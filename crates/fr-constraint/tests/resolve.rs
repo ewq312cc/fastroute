@@ -58,7 +58,7 @@ fn errors(r: Result<Value, Vec<fr_constraint::diag::Diagnostic>>) -> Vec<String>
 fn a_module_takes_what_it_lists_from_the_chip_and_nothing_else() {
     let c = chip();
     let m = module(&c);
-    let flat = resolve(&m, &[c.clone()]).expect("resolves");
+    let flat = resolve(&m, std::slice::from_ref(&c)).expect("resolves");
     assert!(hcp::check(&flat).iter().all(|d| d.severity != Severity::Error), "{:?}", hcp::check(&flat));
     let rule_ids: Vec<&str> = flat["rules"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap()).collect();
     assert_eq!(rule_ids, ["C-CX1-GND", "C-CX1-RSVD", "C-CXM1-RSVD"]);
@@ -79,7 +79,7 @@ fn a_module_takes_what_it_lists_from_the_chip_and_nothing_else() {
 fn the_same_inputs_give_the_same_pack_and_the_same_ir() {
     let c = chip();
     let m = module(&c);
-    let a = resolve(&m, &[c.clone()]).unwrap();
+    let a = resolve(&m, std::slice::from_ref(&c)).unwrap();
     let b = resolve(&m, &[c]).unwrap();
     assert_eq!(hcp::canonical_json(&a), hcp::canonical_json(&b));
     let ir_a = serde_json::to_string(&compile::compile(&a).expect("the flat pack compiles")).unwrap();
@@ -131,7 +131,7 @@ fn kinds_cannot_be_mixed() {
     // a chip pack inherits from nothing
     let mut chip_with_upstream = module(&c);
     chip_with_upstream["pack"]["kind"] = json!("chip");
-    assert!(errors(resolve(&chip_with_upstream, &[c.clone()])).contains(&"upstream_kind_not_allowed".to_string()));
+    assert!(errors(resolve(&chip_with_upstream, std::slice::from_ref(&c))).contains(&"upstream_kind_not_allowed".to_string()));
     // the upstream is called a chip but is not
     let mut not_a_chip = c.clone();
     not_a_chip["pack"]["kind"] = json!("module");
@@ -170,7 +170,7 @@ fn an_override_needs_evidence_of_the_pack_that_overrides() {
         "subject": {"device": "DEV-CXM1"}, "params": {"pins": ["3", "4"]},
         "evidence": ev("SRC-CXM1-DS", 10, "Pins 3 and 4 are not available on this module.")
     }));
-    let flat = resolve(&m, &[c.clone()]).expect("with its own evidence");
+    let flat = resolve(&m, std::slice::from_ref(&c)).expect("with its own evidence");
     let rsvd: Vec<&Value> = flat["rules"].as_array().unwrap().iter().filter(|r| r["id"] == "C-CX1-RSVD").collect();
     assert_eq!(rsvd.len(), 1, "the inherited rule is replaced, not duplicated");
     assert_eq!(rsvd[0]["params"]["pins"], json!(["3", "4"]));
@@ -178,7 +178,7 @@ fn an_override_needs_evidence_of_the_pack_that_overrides() {
 
     // evidence from the chip's document is what is being replaced: not enough
     m["rules"][1]["evidence"] = ev("SRC-CX1-DS", 5, "Pin 4 is reserved.");
-    assert_eq!(errors(resolve(&m, &[c.clone()])), ["override_without_own_evidence"]);
+    assert_eq!(errors(resolve(&m, std::slice::from_ref(&c))), ["override_without_own_evidence"]);
 
     // an override of something that is not inherited
     m["rules"][1]["evidence"] = ev("SRC-CXM1-DS", 10, "x");
@@ -195,7 +195,7 @@ fn a_rule_that_contradicts_an_inherited_one_must_say_so() {
         "id": "C-CXM1-GND", "kind": "fixed_net", "modifiability": "fixed", "subject": {"device": "DEV-CX1"}, "params": {"pin": "1", "net_pattern": "AGND*"},
         "evidence": ev("SRC-CXM1-DS", 9, "x")
     }));
-    assert_eq!(errors(resolve(&m, &[c.clone()])), ["inherit_conflict"]);
+    assert_eq!(errors(resolve(&m, std::slice::from_ref(&c))), ["inherit_conflict"]);
     // the same id as an inherited rule
     let mut m = module(&c);
     m["rules"].as_array_mut().unwrap().push(json!({
@@ -214,4 +214,30 @@ fn two_documents_with_one_id_and_different_digests_are_a_conflict() {
         s
     });
     assert!(errors(resolve(&m, &[c])).contains(&"source_conflict".to_string()));
+}
+
+#[test]
+fn the_same_document_cited_by_both_packs_is_one_source_that_applies_to_both_devices() {
+    let c = chip();
+    // the module cites the chip's datasheet itself, as another source id (the same document: same id, version and digest)
+    let mut m = module(&c);
+    m["sources"].as_array_mut().unwrap().push(source("SRC-CXM1-CHIP-DS", "DOC-CX1-DS", "official_manual", json!(["DEV-CXM1"])));
+    m["rules"][0]["evidence"] = json!([
+        {"source_id": "SRC-CXM1-DS", "locator": {"page": 9}, "quote": "Pins 5 and 6 are used by the flash inside the module.", "basis": "explicit"},
+        {"source_id": "SRC-CXM1-CHIP-DS", "locator": {"page": 5}, "quote": "Pin 4 is reserved.", "basis": "explicit"}
+    ]);
+    let flat = resolve(&m, std::slice::from_ref(&c)).expect("resolves");
+    let docs: Vec<&str> = flat["sources"].as_array().unwrap().iter().filter_map(|s| s["document_id"].as_str()).collect();
+    assert_eq!(docs.iter().filter(|d| **d == "DOC-CX1-DS").count(), 1, "one source for one document: {docs:?}");
+    let own = flat["sources"].as_array().unwrap().iter().find(|s| s["document_id"] == "DOC-CX1-DS").unwrap();
+    assert_eq!(own["source_id"], "SRC-CXM1-CHIP-DS");
+    assert_eq!(own["applies_to"], json!(["DEV-CXM1", "DEV-CX1"]), "it applies to the module and to the inherited chip device");
+    // the inherited rules cite the merged source, and the result is valid
+    let gnd = flat["rules"].as_array().unwrap().iter().find(|r| r["id"] == "C-CX1-GND").unwrap();
+    assert_eq!(gnd["evidence"][0]["source_id"], "SRC-CXM1-CHIP-DS");
+    assert!(hcp::check(&flat).iter().all(|d| d.severity != Severity::Error), "{:?}", hcp::check(&flat));
+    // another digest for the same document id is a conflict
+    let mut bad = m.clone();
+    bad["sources"][1]["sha256"] = json!("2".repeat(64));
+    assert!(errors(resolve(&bad, &[c])).contains(&"source_conflict".to_string()));
 }

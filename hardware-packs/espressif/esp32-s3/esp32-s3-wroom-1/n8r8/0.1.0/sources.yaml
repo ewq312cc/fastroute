@@ -1,0 +1,53 @@
+sources_version: '1.0'
+documents:
+- document_id: DOC-ESP32S3-WROOM1-DS
+  title: ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet
+  level: official_manual
+  version: v1.8
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf
+  sha256: 27d71971da07c280c6068d08c74720d1a25b8f20cf8494dc1765bdd28d40d435
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32S3-DS
+  title: ESP32-S3 Series Datasheet
+  level: official_manual
+  version: v2.2
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+  sha256: 2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: The chip datasheet; it applies to the module through its chip (the module datasheet points to it for pin names and boot configuration).
+- document_id: DOC-ESP32S3-HDG-SCH
+  title: ESP32-S3 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html
+  sha256: 6cc621dfa1caec2c39105dfd96ab9917d8748ed4cb449c1544eca63c89c6b6c9
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: A web page that has no version number; the digest is what identifies the text that was read.
+- document_id: DOC-ESP32S3-HDG-PCB
+  title: ESP32-S3 Hardware Design Guidelines - PCB Layout Design
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/pcb-layout-design.html
+  sha256: 92318f21920eb2fc7d2ea0dc158c27edaa735e467a45b0f4e648759feaccc7a6
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: A web page that has no version number; the digest is what identifies the text that was read. The dimensions of the antenna clearance
+    are only in its figure "Keepout Zone for ESP32-S3 Module's Antenna".

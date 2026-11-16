@@ -1,0 +1,403 @@
+# Coverage of the Espressif packs (hardware-packs/espressif/): per series, per kind of pack, per topic. Checked by apps/hcp-manager/tests/espressif.rs:
+# every rule named under `supported` exists in the pack and states something (it is not `unknown`), every `unknown` and `not_applicable` has a reason.
+coverage_version: '1.0'
+vendor: espressif
+statuses:
+  supported: a rule of the pack states it, with evidence from a locked document (rules lists them); what is not checked by the validator is said in the note
+  unknown: 'the documents were not read for it, or do not say: nothing is assumed (reason)'
+  not_applicable: the kind of pack cannot state it (reason)
+  conflict: documents disagree (none at present)
+conflicts: []
+note: This is what the six packs cover, not what the chips support. `supported` means a rule with evidence exists; it does not mean the whole topic is covered, and
+  the packs are drafts that nobody has reviewed. Other variants of a module are not covered (they would be other packs).
+series:
+- family: esp32-s3
+  chip: espressif/esp32-s3/esp32-s3/qfn56
+  module: espressif/esp32-s3/esp32-s3-wroom-1/n8r8
+  topics:
+    power_supply:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-ELECTRICAL-SUPPLY
+      module:
+        status: supported
+        rules:
+        - C-ESP-ELECTRICAL-VDD33
+        note: 'the limits are reported by the validator as unsupported, not checked: it has no electrical model'
+    ground:
+      chip:
+        status: unknown
+        reason: the ground pins of the chip are not listed (the pin table of a chip pack holds only the pins that a rule refers to)
+      module:
+        status: supported
+        rules:
+        - C-ESP-GND-1
+        - C-ESP-GND-40
+    decoupling:
+      chip:
+        status: unknown
+        reason: no statement about decoupling capacitors of the chip's supply pins was read for this pack
+      module:
+        status: supported
+        rules:
+        - C-ESP-NEED-POWER
+        note: the bulk capacitor at the power entrance (Hardware Design Guidelines); per-pin decoupling is not modelled
+    required_external_parts:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-NEED-RESET
+        - C-S3C-NEED-CRYSTAL
+        - C-S3C-NEED-BOOT
+        note: the final RC values are unknown (C-S3C-EN-RC-VALUES)
+      module:
+        status: supported
+        rules:
+        - C-ESP-NEED-RESET
+        - C-ESP-NEED-BOOT
+        - C-ESP-NEED-POWER
+        note: the final RC values are unknown (C-ESP-EN-RC-VALUES)
+    boot_strapping:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-STRAP-GPIO0
+        - C-S3C-STRAP-GPIO45
+        - C-S3C-STRAP-GPIO46
+        - C-S3C-STRAP-GPIO3
+        - C-S3C-BOOT-GPIO0
+      module:
+        status: supported
+        rules:
+        - C-ESP-STRAP-IO0
+        - C-ESP-STRAP-IO45
+        - C-ESP-STRAP-IO46
+        - C-ESP-STRAP-IO3
+        - C-ESP-BOOT-IO0
+    reset:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-RESET
+      module:
+        status: supported
+        rules:
+        - C-ESP-EN
+    download_interface:
+      chip:
+        status: unknown
+        reason: the chip pack states how download mode is entered (boot_strapping) but not which interface a design must provide
+      module:
+        status: supported
+        rules:
+        - C-ESP-NEED-UART
+        note: UART0 is the usual download and log port (Hardware Design Guidelines); the USB download path is not modelled
+    clock:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-NEED-CRYSTAL
+      module:
+        status: unknown
+        reason: the module's own clock is not covered by this pack
+    fixed_reserved_pins:
+      chip:
+        status: unknown
+        reason: 'which chip pins are fixed or reserved depends on the module and the memory variant: stated by module packs, not here'
+      module:
+        status: supported
+        rules:
+        - C-ESP-RESERVED-PSRAM
+        note: IO35, IO36 and IO37 are connected to the Octal SPI PSRAM of the N8R8 variant
+    configurable_pins:
+      chip:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+      module:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+    high_speed:
+      chip:
+        status: supported
+        rules:
+        - C-S3C-USB
+        note: USB pair 90 ohm +-10 %, equal length; the length difference limit is unknown (C-S3C-USB-SKEW)
+      module:
+        status: supported
+        rules:
+        - C-ESP-USB
+        note: the spacing and the length difference limit are unknown (C-ESP-USB-GAP, C-ESP-USB-SKEW); the validator has no impedance model
+    mechanical:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no board geometry
+      module:
+        status: supported
+        rules:
+        - C-ESP-ANT-KEEPOUT
+        note: 'that a keep-out zone exists is explicit; its size was read from a figure of the Hardware Design Guidelines and is marked pending: it needs a person'
+    module_rf:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no antenna
+      module:
+        status: supported
+        rules:
+        - C-ESP-ANT-KEEPOUT
+        note: see mechanical
+- family: esp32
+  chip: espressif/esp32/esp32/d0wd-v3
+  module: espressif/esp32/esp32-wroom-32e/n4
+  topics:
+    power_supply:
+      chip:
+        status: supported
+        rules:
+        - C-ESP32C-ELECTRICAL-SUPPLY
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-ELECTRICAL-VDD33
+        note: 'reported, not checked: no electrical model'
+    ground:
+      chip:
+        status: unknown
+        reason: the ground pins of the chip are not listed (partial pin table)
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-GND-1
+        - C-ESP32M-GND-15
+        - C-ESP32M-GND-38
+    decoupling:
+      chip:
+        status: unknown
+        reason: no statement about decoupling capacitors was found in the locked documents' relevant sections for this pack
+      module:
+        status: unknown
+        reason: no statement about decoupling capacitors of the module's supply was read for this pack
+    required_external_parts:
+      chip:
+        status: supported
+        rules:
+        - C-ESP32C-NEED-RESET
+        - C-ESP32C-NEED-CRYSTAL
+        - C-ESP32C-NEED-BOOT
+        note: the final RC values are unknown (C-ESP32C-EN-RC-VALUES)
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-NEED-RESET
+        - C-ESP32M-NEED-BOOT
+        note: the final RC values are unknown (C-ESP32M-EN-RC-VALUES)
+    boot_strapping:
+      chip:
+        status: supported
+        rules:
+        - C-ESP32C-STRAP-GPIO0
+        - C-ESP32C-STRAP-GPIO2
+        - C-ESP32C-STRAP-MTDI
+        - C-ESP32C-STRAP-MTDO
+        - C-ESP32C-STRAP-GPIO5
+        - C-ESP32C-BOOT-GPIO0
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-STRAP-IO0
+        - C-ESP32M-STRAP-IO2
+        - C-ESP32M-STRAP-IO12
+        - C-ESP32M-STRAP-IO15
+        - C-ESP32M-STRAP-IO5
+        - C-ESP32M-BOOT-IO0
+    reset:
+      chip:
+        status: supported
+        rules:
+        - C-ESP32C-RESET
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-EN
+    download_interface:
+      chip:
+        status: unknown
+        reason: download mode entry is covered (boot_strapping); the download interface a design must provide was not extracted
+      module:
+        status: unknown
+        reason: the download interface a design must provide was not extracted
+    clock:
+      chip:
+        status: supported
+        rules:
+        - C-ESP32C-NEED-CRYSTAL
+      module:
+        status: unknown
+        reason: the module's own clock is not covered by this pack
+    fixed_reserved_pins:
+      chip:
+        status: unknown
+        reason: stated by module packs, not here
+      module:
+        status: supported
+        rules:
+        - C-ESP32M-NC
+        note: 'pins 17 to 22 and 32 are not connected; the flash pins GPIO6 to GPIO11 are not led out. The R2 variants (PSRAM: IO16 not free) are not part of this
+          pack: C-ESP32M-VARIANT-R2 is unknown'
+    configurable_pins:
+      chip:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+      module:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+    high_speed:
+      chip:
+        status: unknown
+        reason: 'the interfaces of this series (SPI, SDIO, Ethernet MAC, ...) have no impedance, spacing or length numbers in the documents read for this pack: none
+          is invented'
+      module:
+        status: unknown
+        reason: same as the chip pack, not covered by the documents read
+    mechanical:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no board geometry
+      module:
+        status: unknown
+        reason: 'the antenna keep-out of the module is drawn in a figure only and no number was read: C-ESP32M-ANT-KEEPOUT is unknown, so no design passes it'
+    module_rf:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no antenna
+      module:
+        status: unknown
+        reason: the antenna keep-out of the module (see the mechanical topic) is not covered by a number
+- family: esp32-c3
+  chip: espressif/esp32-c3/esp32-c3/qfn32
+  module: espressif/esp32-c3/esp32-c3-wroom-02/n4
+  topics:
+    power_supply:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-ELECTRICAL-SUPPLY
+      module:
+        status: supported
+        rules:
+        - C-C3M-ELECTRICAL-VDD33
+        note: 'reported, not checked: no electrical model'
+    ground:
+      chip:
+        status: unknown
+        reason: the ground pins of the chip are not listed (partial pin table)
+      module:
+        status: supported
+        rules:
+        - C-C3M-GND-9
+        - C-C3M-GND-19
+    decoupling:
+      chip:
+        status: unknown
+        reason: the guideline recommends 0.1 uF decoupling capacitors near some supply pins; this was not extracted as a rule
+      module:
+        status: unknown
+        reason: no statement about decoupling capacitors of the module's supply was read for this pack
+    required_external_parts:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-NEED-RESET
+        - C-C3C-NEED-CRYSTAL
+        - C-C3C-NEED-BOOT
+        note: the final RC values are unknown (C-C3C-EN-RC-VALUES)
+      module:
+        status: supported
+        rules:
+        - C-C3M-NEED-RESET
+        - C-C3M-NEED-BOOT
+        note: the final RC values are unknown (C-C3M-EN-RC-VALUES)
+    boot_strapping:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-STRAP-GPIO2
+        - C-C3C-STRAP-GPIO8
+        - C-C3C-STRAP-GPIO9
+        - C-C3C-BOOT-GPIO9
+      module:
+        status: supported
+        rules:
+        - C-C3M-STRAP-IO2
+        - C-C3M-STRAP-IO8
+        - C-C3M-STRAP-IO9
+        - C-C3M-BOOT-IO9
+    reset:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-RESET
+      module:
+        status: supported
+        rules:
+        - C-C3M-EN
+    download_interface:
+      chip:
+        status: unknown
+        reason: download mode entry is covered (boot_strapping); the interface (UART or USB-Serial-JTAG) a design must provide was not extracted
+      module:
+        status: unknown
+        reason: same as the chip pack, not covered by the documents read
+    clock:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-NEED-CRYSTAL
+      module:
+        status: unknown
+        reason: the module's own clock is not covered by this pack
+    fixed_reserved_pins:
+      chip:
+        status: unknown
+        reason: stated by module packs, not here
+      module:
+        status: unknown
+        reason: the flash of the module is internal to its pin table; no reserved or not-connected pin is stated for this variant in the sections read
+    configurable_pins:
+      chip:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+      module:
+        status: unknown
+        reason: the function assignment of the pins (which peripheral may use which pin) is not modelled by these packs beyond the pin classes and the rules listed
+          under boot_strapping, reset and fixed_reserved_pins
+    high_speed:
+      chip:
+        status: supported
+        rules:
+        - C-C3C-USB
+        note: USB pair 90 ohm +-10 %, equal length; the length difference limit is unknown (C-C3C-USB-SKEW)
+      module:
+        status: supported
+        rules:
+        - C-C3M-USB
+        note: same; C-C3M-USB-SKEW is unknown; the validator has no impedance model
+    mechanical:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no board geometry
+      module:
+        status: unknown
+        reason: 'the antenna keep-out of the module is drawn in a figure only and no number was read: C-C3M-ANT-KEEPOUT is unknown, so no design passes it'
+    module_rf:
+      chip:
+        status: not_applicable
+        reason: a chip pack has no antenna
+      module:
+        status: unknown
+        reason: the antenna keep-out of the module (see the mechanical topic) is not covered by a number

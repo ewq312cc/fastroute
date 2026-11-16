@@ -5,8 +5,8 @@
   "ir": {
     "pack_id": "espressif/esp32-s3-wroom-1-n8r8",
     "pack_version": "0.1.0",
-    "pack_sha256": "fe8e501c86c10840d685ad70167ef46a99fc1df9e6433c93f7f03540bc6c330f",
-    "ir_sha256": "8eb06118983f18c03ad37210e9bf06d1d45debc8622d8f466a59fc21e237b9b7",
+    "pack_sha256": "837cf0feddf66c25f50bf78cd616fd926306b633bd4d0390e749fbe3786e8753",
+    "ir_sha256": "e3e34d20d2e007c53260b800d6484061663bfd67bc6f160479c5177a9843f038",
     "ir_version": "1.0",
     "compiler": "0.1.14"
   },

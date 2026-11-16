@@ -499,6 +499,10 @@ pub fn scan(root: &Path) -> Result<Vec<(String, Files)>> {
         let mut entries: Vec<PathBuf> = std::fs::read_dir(dir).map_err(|e| Error::input(format!("{}: {e}", dir.display())))?.filter_map(|e| e.ok()).map(|e| e.path()).collect();
         entries.sort();
         let manifest = dir.join("pack.yaml");
+        // an installed copy (it has a receipt) is not a source pack
+        if dir.join("INSTALL.json").is_file() {
+            return Ok(());
+        }
         if manifest.is_file() && std::fs::read_to_string(&manifest).map(|t| t.lines().any(|l| l.starts_with("manifest_version:"))).unwrap_or(false) {
             let rel = dir.strip_prefix(root).expect("under root").components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
             out.push((rel, read_dir_files(dir)?));
@@ -506,7 +510,7 @@ pub fn scan(root: &Path) -> Result<Vec<(String, Files)>> {
         }
         for p in entries {
             let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            if p.is_dir() && !name.starts_with('.') && name != "schemas" && name != "tools" {
+            if p.is_dir() && !name.starts_with('.') && !matches!(name.as_str(), "schemas" | "tools" | "workspace" | "cache" | "derived") {
                 go(&p, root, out)?;
             }
         }

@@ -160,5 +160,6 @@ and deleting `derived/` (the index) changes none of them (tested). After install
   `SHA256SUMS` and an archive together is not detected; signing a release is left as a later extension.
 * **Packs compiled into the binary.** A release is a directory beside the program.
 * **Automatic upgrade** of installed packs, and ranges between packs: an upgrade is an explicit `install` of a new version.
-* **Real packs.** This mechanism ships with fictional test packs; the content of real chip and module packs is the subject of separate work (the Espressif
-  packs and the ESP32-S3 example are described in their own `acceptance.md`).
+* **Real packs beyond the six.** The release ships with six drafts for Espressif's ESP32, ESP32-S3 and ESP32-C3 (a chip and a module each; what they cover and what is
+  unknown is in `hardware-packs/espressif/coverage.yaml` and `README.md`), plus the fictional packs of the tests. No STC or STM32 pack of real content exists;
+  their metadata-only fixtures show that a pack can be listed without its documents. Nobody has reviewed any of these packs.

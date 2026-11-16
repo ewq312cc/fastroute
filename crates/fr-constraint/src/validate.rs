@@ -620,10 +620,7 @@ fn check_reset(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
             None => out.fail(obj, format!("reset pin {pin} of {} is on no net: a reset input must not float", c.reference), json!({"net": null}), required),
             Some(n) if n.starts_with("unconnected-") => out.fail(obj, format!("reset pin {pin} of {} is unconnected ({n}): a reset input must not float", c.reference), json!({"net": n}), required),
             Some(n) => {
-                let held = match (active, rail_of(rule, n)) {
-                    ("low", Some("ground")) | ("high", Some("power")) => true,
-                    _ => false,
-                };
+                let held = matches!((active, rail_of(rule, n)), ("low", Some("ground")) | ("high", Some("power")));
                 if held {
                     out.fail(obj, format!("reset pin {pin} of {} is tied directly to {n}: the device is held in reset (active {active})", c.reference), json!({"net": n}), required);
                 }

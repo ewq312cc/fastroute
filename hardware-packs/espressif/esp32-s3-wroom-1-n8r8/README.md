@@ -9,13 +9,13 @@ because of the octal PSRAM, and the other variants of the same datasheet differ.
 | File | What it is |
 |---|---|
 | `workspace/sources.yaml` | the inventory of documents, managed by `hcp-manager`: URL, level, version, SHA-256 of what was read |
-| `pack.template.yaml` → `pack.yaml` | the pack (23 rules, 41 pins, 5 blocks, 6 regions, the fixed base design and its editable area; the compiler adds one rule made from the pin table); `pack.yaml` is generated, edit the template |
+| `overlay.template.yaml` → `pack.yaml` | the example's own part (the carrier: outline, mounting holes, the free area, the LED block, the fixed base design). `pack.yaml` is **generated**: this overlay merged with the module pack `espressif/esp32-s3/esp32-s3-wroom-1/n8r8` (its facts: 19 rules, 41 pins, 4 blocks, the antenna keep-out), which itself inherits from the chip pack `espressif/esp32-s3/esp32-s3/qfn56` (`hardware-packs/`). There is one copy of the module's facts, not two; the merged pack has the same 23 rules, 41 pins, 5 blocks and 6 regions as before (compared object by object when this was done) |
 | `ir.json` | the compiled Constraint IR |
 | `reports/pack-report.zh.md` | the Chinese report: fixed / required / configurable / unknown, with the quoted evidence |
 | `reports/validation-legal.{json,zh.md}` | the validation of the legal carrier board |
 | `example/` | the made-up carrier board (`carrier.kicad_pcb`, KiCad 8) and its notes, the `open_board` source |
 | `eval/retrieval-eval.yaml` | what a search must find, and what it must never return |
-| `tools/` | `extract_pin_table.py` (pin table from the datasheet), `build_pack.py`, `regenerate.sh` |
+| `tools/` | `extract_pin_table.py` (pin table from the datasheet; `--check pack.yaml`), `build_pack.py` (calls `hardware-packs/tools/build_espressif.py`), `regenerate.sh` |
 
 The documents are not in the repository (they are Espressif's). The inventory pins their digests; `hcp-manager` downloads them and
 refuses a file that does not match.

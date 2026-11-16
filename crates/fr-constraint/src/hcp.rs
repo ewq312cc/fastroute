@@ -250,6 +250,9 @@ fn version_1_1(pack: &Value, out: &mut Vec<Diagnostic>) {
 
 fn semantic(pack: &Value, out: &mut Vec<Diagnostic>) {
     version_1_1(pack, out);
+    if items(pack, "devices").is_empty() {
+        out.push(Diagnostic::error("no_devices", "$.devices", None, "a pack describes at least one device (a pack that inherits takes its devices from upstream: resolve it first)"));
+    }
     let idx = Index {
         sources: unique(pack, "sources", "source_id", out),
         devices: unique(pack, "devices", "id", out),
@@ -289,7 +292,7 @@ fn semantic(pack: &Value, out: &mut Vec<Diagnostic>) {
     board_integration(pack, &idx, out);
 }
 
-fn pin_numbers<'a>(device: &'a Value) -> BTreeSet<&'a str> {
+fn pin_numbers(device: &Value) -> BTreeSet<&str> {
     items(device, "pins").iter().filter_map(|p| str_at(p, "number")).collect()
 }
 

@@ -225,6 +225,8 @@ enum EvidenceCmd {
 enum ReleaseCmd {
     /// Write the computed part of a pack directory's manifest: digests of the files, the canonical digest of hcp.yaml, the locked sources
     Seal { dir: PathBuf },
+    /// Print the canonical digest of an HCP document (what a pack that inherits from it pins in pack.upstream)
+    Digest { file: PathBuf },
     /// Write (or, with --check, verify) the catalogue index.yaml of the packs in a tree: the lock of what a release contains
     Index {
         #[arg(long, default_value = "hardware-packs")]
@@ -590,6 +592,16 @@ fn run_release(cmd: ReleaseCmd, json: bool) -> Result<u8> {
                 print_json(&m);
             } else {
                 println!("{}: sealed {} {} ({} files)", dir.join("pack.yaml").display(), m["id"].as_str().unwrap_or(""), m["version"].as_str().unwrap_or(""), 2 + m["files"]["reports"].as_array().map(Vec::len).unwrap_or(0) + m["files"]["documents"].as_array().map(Vec::len).unwrap_or(0));
+            }
+            Ok(0)
+        }
+        ReleaseCmd::Digest { file } => {
+            let doc = packs::load(&file)?;
+            let d = fr_constraint::resolve::canonical_sha256(&doc);
+            if json {
+                print_json(&json!({"format": "hcp-manager-digest", "format_version": "1.0", "file": file.display().to_string(), "canonical_sha256": d}));
+            } else {
+                println!("{d}");
             }
             Ok(0)
         }

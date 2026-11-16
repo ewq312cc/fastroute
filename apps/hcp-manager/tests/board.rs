@@ -245,3 +245,47 @@ fn a_pin_the_documents_leave_unknown_needs_attention_and_is_not_in_the_pool() {
     assert!(e["unknown"].to_string().contains("J3.5") && !e["pin_pool"].to_string().contains("J3.5"), "{e}");
     assert!(std::fs::read_to_string(out.join("report.zh.md")).unwrap().contains("J3.5"));
 }
+
+// ---- the sample in docs/examples/hcp-devboard-sample ---------------------------------------------------------------------------------
+
+/// The sample is the fictional board of these tests with the unknown pin settled, plus the request for it. `HCP_WRITE_SAMPLE=1 cargo test -p hcp-manager --test board sample`
+/// rewrites the files; otherwise the committed files must be exactly what is generated here, so the sample cannot drift from the tests.
+fn sample() -> (String, String) {
+    let mut b = board();
+    let pin = &mut b["board_integration"]["exposed_headers"][1]["pins"][4];
+    pin["usability"] = json!("reserved");
+    pin["reason"] = json!("kept free by the board design (stated)");
+    let head = "# SAMPLE, FICTIONAL: a made-up development board, not a product of any company. Written for this project's tests and documentation and released under CC0-1.0\n\
+                # (see LICENSE.txt in this directory). The \"documents\" it cites do not exist; every quotation is invented. It shows the shape of a `kind: board` pack.\n";
+    let yaml = format!("{head}{}", hcp::to_yaml(&b).unwrap());
+    let req = format!("{}\n", serde_json::to_string_pretty(&request(&b, 0, [20.0, 10.0])).unwrap());
+    (yaml, req)
+}
+
+#[test]
+fn the_sample_board_pack_is_what_the_tests_build_and_it_embeds_offline() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/examples/hcp-devboard-sample");
+    let (yaml, req) = sample();
+    if std::env::var("HCP_WRITE_SAMPLE").is_ok() {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("board-pack.yaml"), &yaml).unwrap();
+        std::fs::write(dir.join("request.json"), &req).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(dir.join("board-pack.yaml")).unwrap(), yaml, "run with HCP_WRITE_SAMPLE=1 to regenerate");
+    assert_eq!(std::fs::read_to_string(dir.join("request.json")).unwrap(), req, "run with HCP_WRITE_SAMPLE=1 to regenerate");
+    let licence = std::fs::read_to_string(dir.join("LICENSE.txt")).unwrap();
+    assert!(licence.contains("CC0 1.0"), "the sample says under which licence it may be redistributed");
+    // from the committed files, nothing else: installed by hand into an empty workspace, embedded with no PATH and no network
+    let t = tmp("sample");
+    let ws = t.join("ws");
+    let p = ws.join("packs").join(ID).join("0.1.0").join("pack.yaml");
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    std::fs::copy(dir.join("board-pack.yaml"), &p).unwrap();
+    let out = t.join("out");
+    let o = bare(&ws, &["--json", "packs", "embed", "--board", ID, "--request", dir.join("request.json").to_str().unwrap(), "--out", out.to_str().unwrap()]);
+    assert_eq!(code(&o), 0, "{}{}", out_s(&o), err(&o));
+    assert_eq!(jsn(&o)["pin_pool"], json!(2));
+    for f in ["embedding.json", "carrier-pack.yaml", "ir.json", "diff-report.json", "report.zh.md"] {
+        assert!(out.join(f).is_file(), "{f}");
+    }
+}

@@ -41,7 +41,9 @@ and nothing in a pack, an IR or a verdict depends on a search result.
 | `crates/fr-constraint/` | the library: schema interpreter, pack checks, compiler, validator, KiCad reader, fastroute export, edit boundary, reports |
 | `crates/fastroute/src/constraints_cmd.rs` | `fastroute constraints ...` |
 | `apps/hcp-manager/` | the independent application (command line plus the library `hcp_manager`); its description: [HCP_MANAGER.md](HCP_MANAGER.md) |
-| `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` | the example pack written from locked official documents, with its acceptance record |
+| `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` | the example pack of #16: a board-kind overlay over the S3 module pack, with its acceptance record |
+| `hardware-packs/espressif/` (`esp32/`, `esp32-s3/`, `esp32-c3/`, `coverage.yaml`, `README.md`) | the six official chip and module packs (#23), locked to the documents, in the built-in release; what they cover is in `coverage.yaml` |
+| `docs/examples/hcp-devboard-sample/` | a fictional development board pack and request (CC0), for `hcp-manager packs embed` |
 | `docs/CLI.md` | the command reference (`fastroute constraints`) |
 | `docs/hcp-board-embedding.md` | a development board as a fixed module of a carrier: `board_integration`, the embedding request, `hcp-manager packs embed` |
 | `docs/hcp-pack-release.md`, `hardware-packs/schemas/`, `hardware-packs/tools/` | packs that ship with the software: layout `vendor/family/device/variant/version`, manifest, catalogue, release directory, offline install |
@@ -110,6 +112,15 @@ Reference: `skills/hardware-constraint-design/references/hcp-format.md` (pack, e
 | Vector index and hybrid retrieval, kept apart from the deterministic path (#19): filter by device / version / source level before ranking; a changed source invalidates the old index; different devices and versions never mix; a hit goes back to document, page and section; similarity is never evidence | done, with a lexical default | `tests/vector.rs` (invalidation, delete and rebuild, version isolation, similar-model false recall, offline degradation, remote refused without authorisation), `esp32s3_documents.rs` (84 quotations, 12 paraphrases, isolation cases), `esp32s3_pack.rs` (a recalled block changes no verdict); `fr-constraint` and `fastroute` do not link the manager or the database (a test reads `Cargo.lock`) |
 | Without a vector service or a network, search degrades to keywords; the compile and the validation still run | done | `--mode hybrid` says it fell back (`degraded`); the offline test runs with an empty PATH and a dead proxy |
 | Example pack, schema checks, negative tests and the `.skill` package | done | `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` and its `acceptance.md`; `skill_cli.rs` keeps `skills/hardware-constraint-design.skill` equal to the directory; the package passes skill-creator's validation |
+
+### Follow-up issues (#20 to #23)
+
+| Issue | Status | Where | What is not done |
+|---|---|---|---|
+| #20 development board as a fixed module of a carrier | mechanism done; sample is fictional | [hcp-board-embedding.md](hcp-board-embedding.md); `hcp-manager packs embed`; `fr-constraint/tests/board.rs`, `hcp-manager/tests/board.rs`; sample `docs/examples/hcp-devboard-sample/` (CC0) | no pack for a **real** board (the DevKitC-1 needs the matching module variant and its drawings read and their licence checked); the carrier is a rectangle, the board is placed at 0, 90, 180 or 270 degrees, non-rectangular outlines are replaced by their bounding rectangle; no KiCad file is written |
+| #21 versioned built-in packs | done | [hcp-pack-release.md](hcp-pack-release.md); `packs builtin list/show/verify/install`, `release seal/index/build/digest`; `hcp-manager/tests/release.rs` | no signatures (SHA-256 only); no automatic upgrades; STC and STM32 exist only as metadata-only fixtures |
+| #22 OpenAI-compatible embeddings, profiles, pluggable store | done against a mock | `docs/HCP_MANAGER.md`; `hcp-manager/tests/openai.rs`, `backends.rs` | never run against a real service or a real model; the default vectors stay lexical |
+| #23 official ESP32 / ESP32-S3 / ESP32-C3 packs | six drafts done | `hardware-packs/espressif/README.md`, `coverage.yaml`; `hcp-manager/tests/espressif.rs` (nine offline tests) | all six are drafts that nobody reviewed; antenna keep-outs of the ESP32 and ESP32-C3 modules, RC values, USB length limits and decoupling are `unknown`; no real board was checked |
 
 ### Not part of this work
 

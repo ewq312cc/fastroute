@@ -1,0 +1,36 @@
+{
+  "request_version": "1.0",
+  "board": {
+    "id": "acme/devs/devboard/rev-b",
+    "version": "0.1.0",
+    "hardware_revision": "B",
+    "canonical_sha256": "7dca0313c40bf320696210677bb082adced8691328a57a042580eff4afa00995"
+  },
+  "carrier": {
+    "name": "myboard",
+    "outline": {
+      "x_mm": 0,
+      "y_mm": 0,
+      "width_mm": 100,
+      "height_mm": 100
+    }
+  },
+  "placement": {
+    "ref": "U1",
+    "origin_mm": [
+      20.0,
+      10.0
+    ],
+    "rotation_deg": 0
+  },
+  "targets": [
+    {
+      "name": "temperature sensor",
+      "block": "BLK-SENSOR",
+      "pins": [
+        "J1.4",
+        "J1.5"
+      ]
+    }
+  ]
+}

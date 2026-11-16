@@ -1,0 +1,49 @@
+sources_version: '1.0'
+documents:
+- document_id: DOC-ESP32C3-WROOM02-DS
+  title: ESP32-C3-WROOM-02 & ESP32-C3-WROOM-02U Datasheet
+  level: official_manual
+  version: v1.7
+  applies_to:
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-c3-wroom-02_datasheet_en.pdf
+  sha256: 622db737a711a75e89185aed850f3854c77d515c32ddf0ba9886653663cfdabe
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-HDG-SCH
+  title: ESP32-C3 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/schematic-checklist.html
+  sha256: 43cd800e9ab35b5c3d43bb61fce39ea59462e18b200a7597110a88ffc6d933b6
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-HDG-PCB
+  title: ESP32-C3 Hardware Design Guidelines - PCB Layout Design
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/pcb-layout-design.html
+  sha256: 1dc118cbe00ee1fc6273d751798d64ef95ea53f42666dab962aa0ab433542ba1
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-DS
+  title: ESP32-C3 Series Datasheet
+  level: official_manual
+  version: v2.5
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf
+  sha256: fede706c39ce663c861136724ffe32dff3f1407fa7f2dac18bbd0d21f0634205
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.

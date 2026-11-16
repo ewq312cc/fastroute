@@ -81,7 +81,7 @@ fn the_pack_and_the_inventory_agree_on_every_document_and_the_local_files_match_
     let sha = |f: &Path| fr_constraint::hcp::sha256_hex(&std::fs::read(f).unwrap());
     // the notes that are the open-board source, and the board the pack is bound to
     let notes = inv["documents"].as_array().unwrap().iter().find(|d| d["document_id"] == "DOC-ESP32S3-CARRIER").unwrap();
-    assert_eq!(notes["sha256"].as_str().unwrap(), sha(&pack_dir().join("example/carrier-notes.md")), "carrier-notes.md changed: pin its digest in workspace/sources.yaml and pack.template.yaml");
+    assert_eq!(notes["sha256"].as_str().unwrap(), sha(&pack_dir().join("example/carrier-notes.md")), "carrier-notes.md changed: pin its digest in workspace/sources.yaml and overlay.template.yaml");
     assert_eq!(p["base_design"]["binding"]["files"][0]["sha256"].as_str().unwrap(), sha(&carrier()), "carrier.kicad_pcb changed: run tools/regenerate.sh");
     // the second document of another model is in the inventory and not in the pack
     assert!(inv["documents"].as_array().unwrap().iter().any(|d| d["document_id"] == "DOC-ESP32S3-WROOM2-DS"));
@@ -422,7 +422,7 @@ fn the_carrier_has_no_error_in_kicads_own_drc() {
 #[test]
 fn nothing_of_the_vector_layer_is_in_the_pack_the_ir_or_the_verdict_and_the_checkers_do_not_depend_on_it() {
     // what a vector layer leaves behind (a similarity, an embedding, a rank, a hybrid score) is nowhere in the facts or the results
-    for f in ["pack.yaml", "pack.template.yaml", "ir.json", "reports/validation-legal.json", "reports/validation-legal.zh.md", "reports/pack-report.zh.md"] {
+    for f in ["pack.yaml", "overlay.template.yaml", "ir.json", "reports/validation-legal.json", "reports/validation-legal.zh.md", "reports/pack-report.zh.md"] {
         let text = std::fs::read_to_string(pack_dir().join(f)).unwrap().to_lowercase();
         for word in ["similarity", "embedding", "cosine", "hybrid", "vector_", "matched_by", "keyword_score"] {
             assert!(!text.contains(word), "{f} mentions '{word}'");

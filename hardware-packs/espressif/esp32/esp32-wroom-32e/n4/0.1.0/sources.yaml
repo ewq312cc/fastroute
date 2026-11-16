@@ -1,0 +1,37 @@
+sources_version: '1.0'
+documents:
+- document_id: DOC-ESP32-WROOM32E-DS
+  title: ESP32-WROOM-32E & ESP32-WROOM-32UE Datasheet
+  level: official_manual
+  version: v2.1
+  applies_to:
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf
+  sha256: 4c7a345d1c1bfec34c38665639e39a7f43b79a35a12f6adcc2c7c0f83850f8b8
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32-HDG-SCH
+  title: ESP32 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-D0WD-V3
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/schematic-checklist.html
+  sha256: db4527861d48b04850b0b58d6849edda637b9d4e0def4a0360e36903b2c7991c
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32-DS
+  title: ESP32 Series Datasheet
+  level: official_manual
+  version: v5.3
+  applies_to:
+  - part_number: ESP32-D0WD-V3
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+  sha256: a7917e6b47528c9dcab06837a49d452e582751335797db879f1cf2d17cd29adf
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.

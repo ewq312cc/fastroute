@@ -80,6 +80,7 @@ pub const SPEC: Spec = Spec {
     about: "write a local analysis pack (pictures, data, rules, DRC) for an AI model",
     usage: "ai-pack --input design.dsn [--session routed.ses] --output DIR [options]\n       fastroute ai-pack --verify DIR",
     opts: OPTS,
+    passthrough: &[],
     footer: "Without a region option the region of interest is around the problems that were found\n\
              (unrouted connections, clearance violations, DRC); without problems it is the whole board.\n\
              KiCad's DRC needs the routed board: --kicad-pcb routed.kicad_pcb (and kicad-cli, KiCad 7+).\n\

@@ -76,6 +76,9 @@ pub struct Spec {
     pub about: &'static str,
     pub usage: &'static str,
     pub opts: &'static [Opt],
+    /// Arguments that start with one of these are not parsed but collected unchanged in
+    /// [`Parsed::passthrough`] (`--router.autorouter.max_passes=3`).
+    pub passthrough: &'static [&'static str],
     pub footer: &'static str,
 }
 
@@ -84,6 +87,8 @@ pub struct Parsed {
     values: HashMap<&'static str, Vec<String>>,
     flags: std::collections::HashSet<&'static str>,
     pub positional: Vec<String>,
+    /// Arguments matched by [`Spec::passthrough`], in order.
+    pub passthrough: Vec<String>,
     /// `-h` / `--help` was given.
     pub help: bool,
 }
@@ -163,6 +168,10 @@ impl Spec {
             }
             if a == "-h" || a == "--help" {
                 p.help = true;
+                continue;
+            }
+            if self.passthrough.iter().any(|pre| a.starts_with(pre)) {
+                p.passthrough.push(a.clone());
                 continue;
             }
             let (opt, inline): (&Opt, Option<String>) = if let Some(rest) = a.strip_prefix("--") {
@@ -270,7 +279,7 @@ mod tests {
         opt("quiet", Some('q'), None, "no progress"),
         opt("scale", None, Some("N"), "a number"),
     ];
-    const SPEC: Spec = Spec { name: "demo", about: "a demo", usage: "demo --input FILE [options]", opts: OPTS, footer: "" };
+    const SPEC: Spec = Spec { name: "demo", about: "a demo", usage: "demo --input FILE [options]", opts: OPTS, passthrough: &["--router."], footer: "" };
 
     fn args(a: &[&str]) -> Vec<String> {
         a.iter().map(|s| s.to_string()).collect()
@@ -286,6 +295,10 @@ mod tests {
         assert_eq!(p.f64("scale").unwrap(), Some(-3.0));
         assert_eq!(SPEC.parse(&args(&["-ia.dsn"])).unwrap().value("input"), Some("a.dsn"));
         assert_eq!(SPEC.parse(&args(&["--", "--force"])).unwrap().positional, vec!["--force"]);
+        // settings of the router are passed on as they are, also with a value in the next word
+        let p = SPEC.parse(&args(&["--router.optimizer.enabled=false", "-i", "a", "--router.x=1"])).unwrap();
+        assert_eq!(p.passthrough, vec!["--router.optimizer.enabled=false", "--router.x=1"]);
+        assert_eq!(p.value("input"), Some("a"));
     }
 
     #[test]

@@ -38,6 +38,7 @@ pub const SPEC: Spec = Spec {
     about: "draw the board (or a region of it) as a PNG, offline",
     usage: "render --input design.dsn --output board.png [options]",
     opts: OPTS,
+    passthrough: &[],
     footer: "Coordinates are millimetres, x to the right, y downwards (as in KiCad and --report).\n\
              Every image gets a manifest (board.png -> board.manifest.json) with its region, scale and\n\
              the mm <-> pixel transform; see docs/AI_DATA_FORMAT.md.\n\

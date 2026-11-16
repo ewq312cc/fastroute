@@ -164,7 +164,7 @@ fn keep_in_session_mode(item: &fr_dsn::sexpr::Sexpr) -> bool {
 
 /// The session reader skips what it does not understand, so a wrong file would load as
 /// "no wiring" without a word; check the file really is a session.
-fn check_is_ses(path: &Path, data: &[u8]) -> Result<(), CmdError> {
+pub fn check_is_ses(path: &Path, data: &[u8]) -> Result<(), CmdError> {
     let head: String = String::from_utf8_lossy(&data[..data.len().min(256)]).trim_start_matches('\u{feff}').trim_start().chars().take(20).collect();
     if !head.starts_with("(session") {
         return Err(CmdError::input(format!("{}: not a Specctra session (a .ses file starts with \"(session\"); --session takes the result of a route run", path.display())));
@@ -173,7 +173,7 @@ fn check_is_ses(path: &Path, data: &[u8]) -> Result<(), CmdError> {
 }
 
 /// A KiCad board or an empty file is not a Specctra design; say what to do instead.
-fn check_is_dsn(path: &Path, data: &[u8]) -> Result<(), CmdError> {
+pub fn check_is_dsn(path: &Path, data: &[u8]) -> Result<(), CmdError> {
     let head: String = String::from_utf8_lossy(&data[..data.len().min(256)]).trim_start_matches('\u{feff}').trim_start().chars().take(40).collect();
     if data.is_empty() {
         return Err(CmdError::input(format!("{}: the file is empty", path.display())));

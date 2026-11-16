@@ -207,3 +207,15 @@ pub fn png_pixels(path: &Path) -> (u32, u32, Vec<u8>) {
     buf.truncate(info.buffer_size());
     (info.width, info.height, buf)
 }
+
+pub fn simple_dsn() -> PathBuf {
+    manifest_dir().join("testdata/route_simple.dsn")
+}
+
+/// A scratch directory holding a copy of `dsn`, so that default outputs land next to it.
+pub fn work_copy(name: &str, dsn: &Path) -> (PathBuf, PathBuf) {
+    let d = tmp(name);
+    let copy = d.join(dsn.file_name().unwrap());
+    std::fs::copy(dsn, &copy).unwrap();
+    (d, copy)
+}

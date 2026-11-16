@@ -44,6 +44,19 @@ $PY integrations/kicad/plugins/route_cli.py board.kicad_pcb -o routed.kicad_pcb 
     -- --router.autorouter.ignore_net_classes=GUC
 ```
 
+The input board is **never overwritten by default**: without `-o` the result is written to
+`<board>.routed.kicad_pcb` next to it, and an output file that already exists is refused (exit
+code 4, before any work is done) unless `--force` is given. To replace the board itself, say so:
+`-o board.kicad_pcb --force`. `--json` prints one JSON summary line on standard output (the text
+goes to standard error), `--fail-on-partial` makes the exit code 5 when connections remain
+unrouted (the result is written either way). Exit codes: 0 done, 1 routing failed, 2 the board
+cannot be used, 4 output refused or not writable. Scripts that relied on `route_cli.py` replacing
+its input must now pass `-o <the board> --force`.
+
+`fastroute route board.kicad_pcb` (the unified command, see [docs/CLI.md](../../docs/CLI.md))
+runs this script for you, finds a Python with `pcbnew` and says what is missing if there is none.
+The adapter's tests need no KiCad: `python3 -m unittest discover -s integrations/kicad/tests`.
+
 From Python, `core.Router(board, extra_args=..., max_time=seconds)` does the same.
 fastroute rewrites its session file with the best board so far after every
 improvement; if the process ends abnormally (killed, crashed) the router still

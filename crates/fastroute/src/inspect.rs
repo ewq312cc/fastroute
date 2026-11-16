@@ -509,6 +509,7 @@ pub const SPEC: Spec = Spec {
     about: "describe the board as structured JSON (inspect.json)",
     usage: "inspect --input design.dsn --output inspect.json [options]",
     opts: OPTS,
+    passthrough: &[],
     footer: "inspect.json lists the board outline, layers, components, pads, nets, the routing state\n\
              (unrouted connections with coordinates, clearance violations), the design rules and the\n\
              status of every check. Coordinates are mm, x right, y down. If the run fails, the file\n\

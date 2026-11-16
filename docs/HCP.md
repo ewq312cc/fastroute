@@ -43,6 +43,7 @@ and nothing in a pack, an IR or a verdict depends on a search result.
 | `apps/hcp-manager/` | the independent application (command line plus the library `hcp_manager`); its description: [HCP_MANAGER.md](HCP_MANAGER.md) |
 | `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` | the example pack written from locked official documents, with its acceptance record |
 | `docs/CLI.md` | the command reference (`fastroute constraints`) |
+| `docs/hcp-board-embedding.md` | a development board as a fixed module of a carrier: `board_integration`, the embedding request, `hcp-manager packs embed` |
 | `docs/hcp-pack-release.md`, `hardware-packs/schemas/`, `hardware-packs/tools/` | packs that ship with the software: layout `vendor/family/device/variant/version`, manifest, catalogue, release directory, offline install |
 
 ## Commands
@@ -64,7 +65,7 @@ rejection, 3 invalid input, 4 output refused, 2 usage):
 
 `hcp-manager` (exit codes as above): `init`, `info` (the interface contract, `interface: "1"`), `sources add|import|list|resolve|sync|check`,
 `index build|rebuild|status|prune`, `search` (`--device`, `--revision`, `--version`, `--source-level`, `--mode keyword|vector|hybrid`), `chunk show`,
-`embedding show|test`, `evidence verify`, `packs list|show|create|import|export|resolve`, `packs builtin list|show|verify|install`, `release seal|index|build`.
+`embedding show|test`, `evidence verify`, `packs list|show|create|import|export|resolve|embed`, `packs builtin list|show|verify|install`, `release seal|index|build`.
 The full list and the contract: [HCP_MANAGER.md](HCP_MANAGER.md); shipping packs with a release and installing them offline: [hcp-pack-release.md](hcp-pack-release.md).
 
 `skills/hardware-constraint-design/scripts/hcp_cli.py`: `doctor`, `research ...` (to hcp-manager), `extract`, `check`, `compile`,

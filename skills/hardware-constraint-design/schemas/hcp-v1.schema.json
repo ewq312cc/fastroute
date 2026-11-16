@@ -15,9 +15,78 @@
     "peripheral_blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
     "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
     "regions": { "type": "array", "items": { "$ref": "#/$defs/region" } },
-    "base_design": { "$ref": "#/$defs/base_design" }
+    "base_design": { "$ref": "#/$defs/base_design" },
+    "board_integration": { "$ref": "#/$defs/board_integration" }
   },
   "$defs": {
+    "board_integration": {
+      "description": "hcp_version 1.1, pack.kind board: a ready-made development board that is embedded in a new carrier as a fixed module. The board's outline, mounting holes and keep-outs are `regions` with frame `device` and device = board_device (coordinates in the board's own frame); here are the frame, the header pins that are brought out, what the board already implements, and what a carrier may add. Only the pins listed here can ever be used: pins of the chip that the board does not bring out are not in any pool.",
+      "type": "object",
+      "required": ["hardware_revision", "board_device", "frame", "exposed_headers"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "hardware_revision": { "type": "string", "minLength": 1, "description": "the exact hardware revision of the board this pack is for; a request for another revision is refused" },
+        "board_device": { "$ref": "#/$defs/device_id" },
+        "upstream_device": { "$ref": "#/$defs/device_id", "description": "the device of the upstream (module or chip) pack that the pins' module_pin refer to" },
+        "frame": {
+          "type": "object",
+          "required": ["unit", "origin", "orientation"],
+          "additionalProperties": false,
+          "properties": {
+            "unit": { "const": "mm" },
+            "origin": { "type": "string", "minLength": 1, "description": "in words: where (0, 0) is" },
+            "orientation": { "type": "string", "minLength": 1, "description": "in words: which way x and y point, and which side of the board is seen (top view)" }
+          }
+        },
+        "exposed_headers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "pins"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+              "pitch_mm": { "type": "number", "exclusiveMinimum": 0 },
+              "pins": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["number", "name", "position", "kind", "usability"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "number": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+                    "name": { "type": "string", "minLength": 1 },
+                    "position": { "$ref": "#/$defs/point" },
+                    "kind": { "enum": ["power", "ground", "gpio", "reset", "boot", "uart", "usb", "jtag", "other"] },
+                    "usability": { "enum": ["usable", "reserved", "onboard", "unknown"], "description": "usable: may be used by a carrier circuit (needs evidence); reserved: must not be used (reason); onboard: already used by something the board implements (reason); unknown: the documents do not say (nothing is assumed)" },
+                    "reason": { "type": "string", "minLength": 1 },
+                    "module_pin": { "type": "string", "minLength": 1, "description": "the pin of upstream_device that this header pin is wired to, when the documents say" },
+                    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+                  },
+                  "allOf": [
+                    { "if": { "properties": { "usability": { "const": "usable" } }, "required": ["usability"] }, "then": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } } },
+                    { "if": { "properties": { "usability": { "enum": ["reserved", "onboard", "unknown"] } }, "required": ["usability"] }, "then": { "required": ["reason"] } }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "onboard_blocks": { "type": "array", "items": { "$ref": "#/$defs/block_id" }, "description": "peripheral_blocks the board implements itself (power, reset, boot, clock, USB, LEDs): a carrier never adds them again" },
+        "carrier": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowed_blocks": { "type": "array", "items": { "$ref": "#/$defs/block_id" } },
+            "allowed_ops": { "type": "array", "items": { "enum": ["add_component", "move_component", "remove_component", "connect", "disconnect", "add_track", "add_via"] } },
+            "margin_mm": { "type": "number", "minimum": 0, "description": "free space kept around the board body on the carrier (default 0)" }
+          }
+        }
+      }
+    },
     "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "source_id": { "type": "string", "pattern": "^SRC-[A-Z0-9][A-Z0-9_-]*$" },

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fastroute.invalid/hcp/board-embedding-request-v1.schema.json",
+  "title": "Request to embed a development board in a carrier (v1)",
+  "description": "Input of `hcp-manager packs embed` / fr_constraint::board::embed: the exact board pack and hardware revision, the carrier outline (a rectangle), where the board sits on it (its origin and a rotation of 0, 90, 180 or 270 degrees) and the peripherals the carrier is to get. Nothing in it widens what the pack allows.",
+  "type": "object",
+  "required": ["request_version", "board", "carrier", "placement"],
+  "additionalProperties": false,
+  "properties": {
+    "request_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "recorded as the creation date of the generated carrier pack (default: the date of the board pack, so that the same request always gives the same bytes)" },
+    "board": {
+      "type": "object",
+      "required": ["id", "version", "hardware_revision", "canonical_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$" },
+        "version": { "type": "string", "minLength": 1 },
+        "hardware_revision": { "type": "string", "minLength": 1 },
+        "canonical_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "the canonical digest of the board pack's HCP document (`hcp-manager packs show` prints it): the request is for exactly this content" }
+      }
+    },
+    "carrier": {
+      "type": "object",
+      "required": ["name", "outline"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+        "outline": {
+          "type": "object",
+          "required": ["x_mm", "y_mm", "width_mm", "height_mm"],
+          "additionalProperties": false,
+          "properties": {
+            "x_mm": { "type": "number" },
+            "y_mm": { "type": "number" },
+            "width_mm": { "type": "number", "exclusiveMinimum": 0 },
+            "height_mm": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "required": ["ref", "origin_mm", "rotation_deg"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "description": "the reference of the board as a component of the carrier design" },
+        "origin_mm": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" }, "description": "where the origin (0, 0) of the board's frame is on the carrier" },
+        "rotation_deg": { "enum": [0, 90, 180, 270], "description": "counter-clockwise, about the board's origin" }
+      }
+    },
+    "editable": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "margin_mm": { "type": "number", "minimum": 0, "description": "free space kept around the board body (default: the pack's carrier.margin_mm)" } }
+    },
+    "targets": {
+      "type": "array",
+      "description": "the peripherals the carrier is to get. They are checked against what the pack allows; they widen nothing.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "block": { "type": "string", "pattern": "^BLK-[A-Za-z0-9._-]+$" },
+          "pins": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$" }, "description": "header pins, written <header>.<number>" }
+        }
+      }
+    }
+  }
+}

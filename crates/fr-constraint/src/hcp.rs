@@ -234,9 +234,9 @@ fn unique<'a>(pack: &'a Value, section: &str, key: &str, out: &mut Vec<Diagnosti
 /// Things that exist from `hcp_version` 1.1 on, and what a pack that inherits must have done before anything reads it.
 fn version_1_1(pack: &Value, out: &mut Vec<Diagnostic>) {
     let p = pack.get("pack").cloned().unwrap_or(Value::Null);
-    let uses_11 = p.get("kind").is_some() || p.get("content").is_some() || p.get("upstream").is_some() || items(pack, "rules").iter().any(|r| r.get("overrides").is_some());
+    let uses_11 = p.get("kind").is_some() || p.get("content").is_some() || p.get("upstream").is_some() || pack.get("board_integration").is_some() || items(pack, "rules").iter().any(|r| r.get("overrides").is_some());
     if uses_11 && str_at(pack, "hcp_version") == Some("1.0") {
-        out.push(Diagnostic::error("needs_version_1_1", "$.hcp_version", None, "this pack uses pack.kind, pack.content, pack.upstream or rule.overrides, which exist from hcp_version 1.1 on: a program that reads only 1.0 would refuse it, so say 1.1"));
+        out.push(Diagnostic::error("needs_version_1_1", "$.hcp_version", None, "this pack uses pack.kind, pack.content, pack.upstream, board_integration or rule.overrides, which exist from hcp_version 1.1 on: a program that reads only 1.0 would refuse it, so say 1.1"));
     }
     if p.get("upstream").and_then(Value::as_array).is_some_and(|a| !a.is_empty()) {
         out.push(Diagnostic::error(
@@ -286,6 +286,7 @@ fn semantic(pack: &Value, out: &mut Vec<Diagnostic>) {
     rules(pack, &idx, out);
     regions(pack, &idx, out);
     base_design(pack, &idx, out);
+    board_integration(pack, &idx, out);
 }
 
 fn pin_numbers<'a>(device: &'a Value) -> BTreeSet<&'a str> {
@@ -601,11 +602,106 @@ fn regions(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
     }
 }
 
+/// A development board that is embedded in a carrier as a fixed module: its header pins are the only pins a carrier can use, they are
+/// the pins of the board device, every pin that may be used has evidence, and what the upstream (module / chip) packs protect stays protected.
+fn board_integration(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
+    let Some(bi) = pack.get("board_integration") else { return };
+    let kind = pack.get("pack").and_then(|p| str_at(p, "kind"));
+    if kind != Some("board") {
+        out.push(Diagnostic::error("board_integration_needs_board_kind", "$.board_integration", None, "board_integration belongs to a pack of kind `board` (pack.kind)"));
+    }
+    let dev_id = str_at(bi, "board_device").unwrap_or("");
+    let Some(device) = idx.devices.get(dev_id) else {
+        out.push(Diagnostic::error("unknown_reference", "$.board_integration.board_device", Some(dev_id.to_string()), format!("the board device '{dev_id}' is not in devices")));
+        return;
+    };
+    // exactly one outline of the board, in the board's own frame
+    let outlines = items(pack, "regions").iter().filter(|r| str_at(r, "kind") == Some("board_outline") && str_at(r, "frame") == Some("device") && str_at(r, "device") == Some(dev_id)).count();
+    if outlines != 1 {
+        out.push(Diagnostic::error("board_outline_missing", "$.regions", Some(dev_id.to_string()), format!("the board needs exactly one region of kind board_outline with frame `device` and device {dev_id} (found {outlines}): the outline of the board in its own frame")));
+    }
+    let up_dev = str_at(bi, "upstream_device");
+    let mut header_pins: BTreeSet<String> = BTreeSet::new();
+    let mut headers = BTreeSet::new();
+    for (hi, hdr) in items(bi, "exposed_headers").iter().enumerate() {
+        let hid = str_at(hdr, "id").unwrap_or("");
+        if !headers.insert(hid) {
+            out.push(Diagnostic::error("duplicate_id", format!("$.board_integration.exposed_headers[{hi}].id"), Some(hid.to_string()), format!("the header id '{hid}' is used twice")));
+        }
+        let mut numbers = BTreeSet::new();
+        for (pi, pin) in items(hdr, "pins").iter().enumerate() {
+            let number = str_at(pin, "number").unwrap_or("");
+            let path = format!("$.board_integration.exposed_headers[{hi}].pins[{pi}]");
+            if !numbers.insert(number) {
+                out.push(Diagnostic::error("duplicate_pin", format!("{path}.number"), Some(hid.to_string()), format!("pin number '{number}' of header {hid} is listed twice")));
+            }
+            header_pins.insert(format!("{hid}.{number}"));
+            evidence_list(pack, idx, pin.get("evidence"), &format!("{path}.evidence"), Some(dev_id), Some(hid), out);
+            if let Some(mp) = str_at(pin, "module_pin") {
+                let Some(ud) = up_dev else {
+                    out.push(Diagnostic::error("module_pin_without_upstream_device", format!("{path}.module_pin"), Some(hid.to_string()), "module_pin names a pin of the upstream device: say which device in board_integration.upstream_device"));
+                    continue;
+                };
+                // a pin that the board says may be used cannot be one that the module or chip pack protects
+                if str_at(pin, "usability") == Some("usable") {
+                    for r in items(pack, "rules") {
+                        if r.get("subject").and_then(|s| str_at(s, "device")) == Some(ud) && !matches!(str_at(r, "modifiability"), Some("unknown" | "conflict")) {
+                            let prot = protected_pins_of(str_at(r, "kind").unwrap_or(""), r.get("subject").unwrap_or(&Value::Null), r.get("params").unwrap_or(&Value::Null));
+                            if prot.iter().any(|p| p == mp) {
+                                out.push(Diagnostic::error(
+                                    "board_pin_conflicts_with_upstream",
+                                    path.clone(),
+                                    str_at(r, "id").map(str::to_string),
+                                    format!("header pin {hid}.{number} is marked usable but is wired to pin {mp} of {ud}, which the upstream rule {} protects ({}): the board pack and the upstream pack disagree; mark it reserved, or record the disagreement as a `conflict`", str_at(r, "id").unwrap_or(""), str_at(r, "kind").unwrap_or("")),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // the pins of the board device are the header pins and nothing else: a pin of the chip that is not brought out is not a pin of the board
+    let dev_pins: BTreeSet<String> = items(device, "pins").iter().filter_map(|p| str_at(p, "number").map(str::to_string)).collect();
+    for extra in dev_pins.difference(&header_pins) {
+        out.push(Diagnostic::error("device_pin_not_exposed", "$.devices", Some(dev_id.to_string()), format!("the board device lists pin '{extra}', which no header of the board brings out: only exposed header pins (written <header>.<number>) are pins of the board")));
+    }
+    for missing in header_pins.difference(&dev_pins) {
+        out.push(Diagnostic::error("header_pin_not_in_device", "$.devices", Some(dev_id.to_string()), format!("header pin '{missing}' is not a pin of the board device")));
+    }
+    for (i, b) in items(bi, "onboard_blocks").iter().enumerate() {
+        if let Some(id) = b.as_str() {
+            if !idx.blocks.contains_key(id) {
+                out.push(Diagnostic::error("unknown_reference", format!("$.board_integration.onboard_blocks[{i}]"), Some(id.to_string()), format!("the on-board block '{id}' is not in peripheral_blocks")));
+            }
+        }
+    }
+    if let Some(c) = bi.get("carrier") {
+        for (i, b) in items(c, "allowed_blocks").iter().enumerate() {
+            let Some(id) = b.as_str() else { continue };
+            match idx.blocks.get(id) {
+                None => out.push(Diagnostic::error("unknown_reference", format!("$.board_integration.carrier.allowed_blocks[{i}]"), Some(id.to_string()), format!("the block '{id}' is not in peripheral_blocks"))),
+                Some(bl) if str_at(bl, "modifiability") != Some("ai_editable") => {
+                    out.push(Diagnostic::error("carrier_block_not_editable", format!("$.board_integration.carrier.allowed_blocks[{i}]"), Some(id.to_string()), format!("'{id}' is allowed on the carrier but its modifiability is not ai_editable")))
+                }
+                Some(_) => {}
+            }
+            if items(bi, "onboard_blocks").iter().any(|o| o.as_str() == Some(id)) {
+                out.push(Diagnostic::error("onboard_block_allowed_on_carrier", format!("$.board_integration.carrier.allowed_blocks[{i}]"), Some(id.to_string()), format!("'{id}' is implemented by the board and must not be added again on the carrier")));
+            }
+        }
+    }
+}
+
 fn base_design(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
     let base = pack.get("base_design");
     // the whitelist of what an AI may edit: nothing is editable unless it is listed here
     let mut editable_regions: BTreeSet<&str> = BTreeSet::new();
     let mut allowed_blocks: BTreeSet<&str> = BTreeSet::new();
+    // a board pack has no base design of its own: what a carrier may add is whitelisted by `board_integration.carrier.allowed_blocks`
+    if let Some(c) = pack.get("board_integration").and_then(|b| b.get("carrier")) {
+        allowed_blocks.extend(items(c, "allowed_blocks").iter().filter_map(Value::as_str));
+    }
     if let Some(b) = base {
         for (ei, e) in items(b, "editable_regions").iter().enumerate() {
             let path = format!("$.base_design.editable_regions[{ei}]");

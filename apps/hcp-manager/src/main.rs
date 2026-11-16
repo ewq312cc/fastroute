@@ -272,6 +272,23 @@ enum PacksCmd {
         #[command(subcommand)]
         cmd: BuiltinCmd,
     },
+    /// Embed a development board pack in a carrier: the carrier pack, its IR, the differences and a report; the board stays fixed
+    Embed {
+        /// The board pack: path, id (the highest version) or id@version of the workspace
+        #[arg(long)]
+        board: String,
+        /// The embedding request (JSON or YAML), see schemas/board-embedding-request-v1.schema.json
+        #[arg(long, value_name = "FILE")]
+        request: PathBuf,
+        /// The directory for embedding.json, carrier-pack.yaml, ir.json, diff-report.json and the report
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        #[arg(long)]
+        force: bool,
+        /// The language of the report: zh (default) or en
+        #[arg(long, default_value = "zh")]
+        lang: String,
+    },
     /// A pack that inherits (chip -> module -> board) merged with the exact upstream packs of the workspace into one flat pack
     Resolve {
         pack: String,
@@ -361,7 +378,7 @@ fn run(cli: Cli) -> Result<u8> {
                 "interface": INTERFACE_VERSION,
                 "commands": [
                     "init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status|prune", "search", "chunk show",
-                    "embedding show|test", "evidence verify", "packs list|show|create|import|export|resolve", "packs builtin list|show|verify|install", "release seal|index|build"
+                    "embedding show|test", "evidence verify", "packs list|show|create|import|export|resolve|embed", "packs builtin list|show|verify|install", "release seal|index|build"
                 ],
                 "capabilities": {
                     "keyword_search": true,
@@ -471,6 +488,19 @@ fn run(cli: Cli) -> Result<u8> {
         Cmd::Release { cmd } => run_release(cmd, json),
         Cmd::Packs { cmd } => match cmd {
             PacksCmd::Builtin { release, cmd } => run_builtin(&ws, release, cmd, json),
+            PacksCmd::Embed { board, request, out, force, lang } => {
+                if lang != "zh" && lang != "en" {
+                    return Err(Error::usage("--lang is zh or en"));
+                }
+                let r = packs::embed(&ws, &board, &request, &out, force, lang == "zh")?;
+                if json {
+                    print_json(&r);
+                } else {
+                    println!("{}: {} ({} header pins usable, {} editable areas) -> {}", r.board, r.status, r.pin_pool, r.editable_regions, r.out);
+                    println!("{}", r.files.join(", "));
+                }
+                Ok(if r.status == "ok" { 0 } else { exit::PARTIAL })
+            }
             PacksCmd::Resolve { pack, output } => {
                 let (path, doc) = packs::find(&ws, &pack)?;
                 let flat = packs::resolved_doc(&ws, &doc).map_err(|e| Error::input(format!("{}: not resolved:\n  {}", path.display(), e.join("\n  "))))?;

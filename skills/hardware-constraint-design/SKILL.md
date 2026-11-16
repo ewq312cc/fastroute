@@ -49,7 +49,7 @@ forwards your command and says what to do when something is missing. Start with 
    violations with rule, object, actual and required value, evidence; and the rules that were *not* checked. It is not
    KiCad's DRC and not an electrical review. `export --pack PACK --kicad-pcb BOARD -o DIR` writes what fastroute
    can execute (pairs, length matching, clearance, track width) and lists what it cannot.
-7. **Fixed base board** (`references/editable-base.md`): `edit-request` gives the whitelist; you answer with a
+7. **Fixed base board** (`references/editable-base.md`; a ready-made development board used as a module of a new carrier: `research packs embed`, `docs/hcp-board-embedding.md`): `edit-request` gives the whitelist; you answer with a
    draft (changes in whitelisted regions, blocks, pins, operations - or `stop` with what is missing); `check-edit`
    accepts or rejects it and writes the before/after report. The draft never overwrites the project.
 

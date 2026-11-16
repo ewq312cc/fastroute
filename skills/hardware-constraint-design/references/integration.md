@@ -48,6 +48,7 @@ missing or without the `constraints` commands the script needs.
 | the packs that ship with the software: list, verify, install (offline, with the exact dependencies) | `research packs builtin list\|show\|verify\|install` | hcp-manager |
 | a pack that inherits (module from chip, board from module or chip), merged | `research packs resolve PACK -o flat.yaml` (workspace) or `resolve PACK --upstream ... -o flat.yaml` (files) | hcp-manager / fastroute |
 | seal a pack, make the catalogue and a release (authors, release builders) | `research release seal\|index\|build` | hcp-manager |
+| embed a development board pack in a carrier (a fixed module; the AI edits only the free areas and the usable header pins) | `research packs embed --board ID --request request.json --out DIR`, then `edit-request` / `check-edit` on `DIR/ir.json` | hcp-manager, fastroute |
 | structure, references, evidence form | `check PACK` | fastroute |
 | compile, report | `compile`, `report` | fastroute |
 | validate a design, export to the router | `validate`, `export` | fastroute |

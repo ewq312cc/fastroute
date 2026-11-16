@@ -181,6 +181,8 @@ A changed upstream (`upstream_digest_mismatch`) makes the derived pack stale: it
 rule), `id_clash`, `source_conflict`. A document of the module is not evidence for the chip's pins and the other way round (`source_not_applicable`): that is why
 an override is a rule on the module's device.
 
+A **board** pack (a ready-made development board used as a fixed module of a carrier) adds `board_integration` (hardware revision, the exposed header pins with `usability` and evidence, on-board blocks, what a carrier may add) and its outline and keep-outs as `regions` with `frame: device`: see `docs/hcp-board-embedding.md`. Its device has the header pins as pins (`<header>.<number>`) and nothing else. Codes: `board_integration_needs_board_kind`, `board_outline_missing`, `device_pin_not_exposed`, `header_pin_not_in_device`, `board_pin_conflicts_with_upstream`, `module_pin_without_upstream_device`, `onboard_block_allowed_on_carrier`, `carrier_block_not_editable`.
+
 `pack.content: metadata_only` registers an identity (a device, a vendor or a series that is not covered yet): no pins, rules, blocks, regions or base
 design (`metadata_only_with_facts`). Without it a device has at least one pin (`no_pins`).
 

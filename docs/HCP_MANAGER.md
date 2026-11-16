@@ -41,6 +41,7 @@ Exit codes as in fastroute: 0 ok, 1 failed, 2 usage, 3 input, 4 output refused, 
 | `embedding show\|test` | the configuration in force and whether text would leave this machine; a test embedding |
 | `evidence verify PACK` | every source, digest, version, block id and quotation of a pack against the cached documents (current blocks only) |
 | `packs list\|show\|create\|import\|export\|resolve` | see below |
+| `packs embed --board ID --request FILE --out DIR` | a development board pack embedded in a carrier as a fixed module: the carrier pack, its IR, the differences and a report. [hcp-board-embedding.md](hcp-board-embedding.md) |
 | `packs builtin list\|show\|verify\|install` | the packs that ship with the software (a release directory): verify and install them offline, with the exact dependencies; a locally changed copy is never overwritten silently. [hcp-pack-release.md](hcp-pack-release.md) |
 | `release seal\|index\|build` | for pack authors and release builders: write the digests of a pack's manifest, the committed catalogue (`index.yaml`) and the deterministic release directory. [hcp-pack-release.md](hcp-pack-release.md) |
 

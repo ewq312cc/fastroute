@@ -4,6 +4,7 @@
 //! fastroute adapter consume together with a design snapshot (`snapshot`).
 //! Nothing here uses a network, an AI model, a vector index or the clock.
 
+pub mod board;
 pub mod compile;
 pub mod diag;
 pub mod edit;

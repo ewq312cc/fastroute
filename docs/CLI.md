@@ -1,6 +1,6 @@
 # Command line
 
-fastroute has one program with five commands, and the original flag interface that every
+fastroute has one program with six commands, and the original flag interface that every
 existing script uses. Nothing was removed: old commands keep running as before.
 
 | Command | Does | Reads | Writes |
@@ -10,6 +10,7 @@ existing script uses. Nothing was removed: old commands keep running as before.
 | `fastroute inspect` | describes the board as JSON ([AI_DATA_FORMAT.md](AI_DATA_FORMAT.md)) | `.dsn` [+ `.ses`] | `inspect.json` |
 | `fastroute ai-pack` | writes a local analysis pack ([AI_PACK.md](AI_PACK.md)) | `.dsn` [+ `.ses`, `.kicad_pcb`] | a directory |
 | `fastroute rules` | checks, confirms and applies rule drafts from people, scripts or AI models ([AI_RULES.md](AI_RULES.md)) | drafts (JSON), `inspect.json` / ai-pack | check reports, pairs / tune / `.kicad_dru` files |
+| `fastroute constraints` | checks, compiles and validates hardware constraint packs (HCP) against a design ([HCP.md](HCP.md)) | packs (YAML/JSON), designs | check reports, Constraint IR, validation reports |
 | `fastroute -de … -do …` | the original interface | `.dsn` | `.ses` |
 
 `fastroute --help`, `fastroute <command> --help` and `fastroute help <command>` print the same

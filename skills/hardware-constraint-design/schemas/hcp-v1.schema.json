@@ -1,0 +1,583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ewq312cc/fastroute/skills/hardware-constraint-design/schemas/hcp-v1.schema.json",
+  "title": "Hardware Constraint Pack (HCP) v1",
+  "description": "Facts, constraints and evidence references about a hardware device. No vectors, similarities or retrieval ranks (those belong to hcp-manager and are rebuildable). Everything is read-only unless it is listed as ai_editable. Units are part of a parameter's key (width_mm, impedance_ohm, ...).",
+  "type": "object",
+  "required": ["hcp_version", "pack", "sources", "devices"],
+  "additionalProperties": false,
+  "patternProperties": { "^x_": {} },
+  "properties": {
+    "hcp_version": { "const": "1.0" },
+    "pack": { "$ref": "#/$defs/pack" },
+    "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/source" } },
+    "devices": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/device" } },
+    "peripheral_blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
+    "regions": { "type": "array", "items": { "$ref": "#/$defs/region" } },
+    "base_design": { "$ref": "#/$defs/base_design" }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source_id": { "type": "string", "pattern": "^SRC-[A-Z0-9][A-Z0-9_-]*$" },
+    "document_id": { "type": "string", "pattern": "^DOC-[A-Z0-9][A-Z0-9_-]*$" },
+    "chunk_id": { "type": "string", "pattern": "^CHK-[A-Z0-9][A-Z0-9_-]*@[0-9a-f]{8}:p[0-9]+\\.[0-9]+$" },
+    "device_id": { "type": "string", "pattern": "^DEV-[A-Z0-9][A-Z0-9_-]*$" },
+    "block_id": { "type": "string", "pattern": "^BLK-[A-Z0-9][A-Z0-9_-]*$" },
+    "rule_id": { "type": "string", "pattern": "^C-[A-Z0-9][A-Z0-9_-]*$" },
+    "region_id": { "type": "string", "pattern": "^REG-[A-Z0-9][A-Z0-9_-]*$" },
+    "modifiability": {
+      "enum": ["fixed", "required", "configurable", "derived", "optional", "ai_editable", "unknown", "conflict"]
+    },
+    "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "pack": {
+      "type": "object",
+      "required": ["id", "title", "version", "created", "extractor"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "language": { "enum": ["zh-CN", "en"] },
+        "created": { "$ref": "#/$defs/date" },
+        "extractor": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["ai", "human", "mixed"] },
+            "tool": { "type": "string" },
+            "model": { "type": "string" }
+          }
+        },
+        "review": {
+          "type": "object",
+          "required": ["status"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["draft", "reviewed", "approved"] },
+            "reviewed_by": { "type": "string", "minLength": 1 },
+            "reviewed_on": { "$ref": "#/$defs/date" },
+            "note": { "type": "string" }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["source_id", "document_id", "title", "version", "level", "retrieved", "sha256", "applies_to"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "source_id": { "$ref": "#/$defs/source_id" },
+        "document_id": { "$ref": "#/$defs/document_id" },
+        "title": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "level": {
+          "enum": [
+            "official_manual",
+            "official_errata",
+            "official_guide",
+            "official_reference_design",
+            "official_devkit",
+            "open_board",
+            "community"
+          ]
+        },
+        "url": { "type": "string", "minLength": 1 },
+        "retrieved": { "$ref": "#/$defs/date" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "applies_to": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/device_id" } },
+        "note": { "type": "string" }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["id", "vendor", "part_number", "package", "pins"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "id": { "$ref": "#/$defs/device_id" },
+        "vendor": { "type": "string", "minLength": 1 },
+        "part_number": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "package": { "type": "string", "minLength": 1 },
+        "pins": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/pin" } }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "required": ["number", "name", "class"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "number": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "class": {
+          "enum": ["power", "ground", "gpio", "strapping", "reset", "boot", "usb", "uart", "spi", "rf", "analog", "nc", "reserved", "other"]
+        },
+        "functions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "note": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["source_id", "locator", "quote", "basis"],
+      "additionalProperties": false,
+      "properties": {
+        "source_id": { "$ref": "#/$defs/source_id" },
+        "chunk_id": { "$ref": "#/$defs/chunk_id" },
+        "locator": {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [{ "required": ["page"] }, { "required": ["section"] }],
+          "properties": {
+            "page": { "type": "integer", "minimum": 1 },
+            "section": { "type": "string", "minLength": 1 },
+            "table": { "type": "string" },
+            "figure": { "type": "string" }
+          }
+        },
+        "quote": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "basis": { "enum": ["explicit", "derived", "observed", "pending"] },
+        "extracted": { "$ref": "#/$defs/date" }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": { "$ref": "#/$defs/device_id" },
+        "pin": { "type": "string", "minLength": 1 },
+        "block": { "$ref": "#/$defs/block_id" },
+        "net": { "type": "string", "minLength": 1 },
+        "region": { "$ref": "#/$defs/region_id" }
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": ["id", "title", "kind", "modifiability"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "id": { "$ref": "#/$defs/block_id" },
+        "title": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["power_decoupling", "boot_button", "reset_circuit", "programming_interface", "usb", "crystal", "antenna", "generic"]
+        },
+        "modifiability": { "$ref": "#/$defs/modifiability" },
+        "device": { "$ref": "#/$defs/device_id" },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "kind"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["resistor", "capacitor", "inductor", "connector", "switch", "led", "ic", "other"] },
+              "min_count": { "type": "integer", "minimum": 1 },
+              "min_value_nf": { "type": "number", "minimum": 0 },
+              "max_value_nf": { "type": "number", "minimum": 0 },
+              "value_ohm": { "type": "number", "minimum": 0 },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "connects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pin", "net_pattern"],
+            "additionalProperties": false,
+            "properties": {
+              "pin": { "type": "string", "minLength": 1 },
+              "net_pattern": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "missing": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "modifiability": { "enum": ["fixed", "required", "configurable", "derived", "optional", "ai_editable"] } },
+            "required": ["modifiability"]
+          },
+          "then": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "modifiability": { "const": "unknown" } }, "required": ["modifiability"] },
+          "then": { "required": ["missing"] }
+        }
+      ]
+    },
+    "conflict": {
+      "type": "object",
+      "required": ["candidates"],
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["value", "evidence"],
+            "additionalProperties": false,
+            "properties": {
+              "value": {},
+              "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+            }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "kind", "modifiability"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "properties": {
+        "id": { "$ref": "#/$defs/rule_id" },
+        "kind": {
+          "enum": [
+            "reserved_pin",
+            "nc_pin",
+            "fixed_net",
+            "exclusive_functions",
+            "required_block",
+            "strapping",
+            "reset_pin",
+            "boot_pin",
+            "electrical",
+            "high_speed",
+            "clearance",
+            "trace_width",
+            "keepout",
+            "mechanical_fixed"
+          ]
+        },
+        "modifiability": { "$ref": "#/$defs/modifiability" },
+        "title": { "type": "string" },
+        "severity": { "enum": ["error", "warning"] },
+        "subject": { "$ref": "#/$defs/subject" },
+        "params": { "type": "object" },
+        "applies_when": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "derived_from": { "type": "array", "items": { "$ref": "#/$defs/rule_id" } },
+        "missing": { "type": "string", "minLength": 1 },
+        "conflict": { "$ref": "#/$defs/conflict" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "modifiability": { "enum": ["fixed", "required", "configurable", "derived", "optional", "ai_editable"] } },
+            "required": ["modifiability"]
+          },
+          "then": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "modifiability": { "const": "unknown" } }, "required": ["modifiability"] },
+          "then": { "required": ["missing"] }
+        },
+        {
+          "if": { "properties": { "modifiability": { "const": "conflict" } }, "required": ["modifiability"] },
+          "then": { "required": ["conflict"] }
+        },
+        {
+          "if": { "properties": { "modifiability": { "const": "derived" } }, "required": ["modifiability"] },
+          "then": { "required": ["derived_from"], "properties": { "derived_from": { "minItems": 1 } } }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["reserved_pin", "nc_pin"] }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device"] },
+              "params": { "required": ["pins"], "properties": { "pins": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "fixed_net" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device"] },
+              "params": { "required": ["pin", "net_pattern"], "properties": { "pin": { "type": "string" }, "net_pattern": { "type": "string" } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "exclusive_functions" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device"] },
+              "params": {
+                "required": ["functions"],
+                "properties": { "functions": { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "required_block" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject"],
+            "properties": { "subject": { "required": ["block"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "strapping" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device", "pin"] },
+              "params": {
+                "required": ["sampled_at", "default_level", "external_drive_allowed"],
+                "properties": {
+                  "sampled_at": { "enum": ["reset", "power_up"] },
+                  "default_level": { "enum": ["high", "low", "floating"] },
+                  "external_drive_allowed": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "reset_pin" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device", "pin"] },
+              "params": { "required": ["active_level"], "properties": { "active_level": { "enum": ["high", "low"] } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "boot_pin" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["device", "pin"] },
+              "params": { "required": ["boot_level"], "properties": { "boot_level": { "enum": ["high", "low"] } } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "electrical" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["params"],
+            "properties": { "params": { "required": ["quantity", "condition"], "properties": { "quantity": { "type": "string", "minLength": 1 }, "condition": { "type": "string", "minLength": 1 } } } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "high_speed" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["params"],
+            "properties": {
+              "params": {
+                "required": ["nets", "differential"],
+                "properties": {
+                  "nets": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+                  "differential": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "clearance" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["params"],
+            "properties": { "params": { "required": ["clearance_mm"], "properties": { "clearance_mm": { "type": "number", "minimum": 0 } } } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "trace_width" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["params"],
+            "properties": { "params": { "required": ["width_mm"], "properties": { "width_mm": { "type": "number", "minimum": 0 } } } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "keepout" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject", "params"],
+            "properties": {
+              "subject": { "required": ["region"] },
+              "params": {
+                "required": ["forbid"],
+                "properties": {
+                  "forbid": { "type": "array", "minItems": 1, "items": { "enum": ["track", "via", "component", "zone"] } }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "mechanical_fixed" }, "modifiability": { "not": { "enum": ["unknown", "conflict"] } } },
+            "required": ["kind", "modifiability"]
+          },
+          "then": {
+            "required": ["subject"],
+            "properties": { "subject": { "required": ["region"] } }
+          }
+        }
+      ]
+    },
+    "region": {
+      "type": "object",
+      "required": ["id", "kind", "unit", "modifiability"],
+      "additionalProperties": false,
+      "patternProperties": { "^x_": {} },
+      "anyOf": [{ "required": ["polygon"] }, { "required": ["circle"] }],
+      "properties": {
+        "id": { "$ref": "#/$defs/region_id" },
+        "title": { "type": "string" },
+        "kind": { "enum": ["board_outline", "mount_hole", "connector", "module_body", "antenna_keepout", "keepout", "editable"] },
+        "unit": { "const": "mm" },
+        "frame": { "enum": ["board", "device"] },
+        "device": { "$ref": "#/$defs/device_id" },
+        "polygon": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/point" } },
+        "circle": {
+          "type": "object",
+          "required": ["center", "radius_mm"],
+          "additionalProperties": false,
+          "properties": { "center": { "$ref": "#/$defs/point" }, "radius_mm": { "type": "number", "minimum": 0 } }
+        },
+        "layers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "modifiability": { "$ref": "#/$defs/modifiability" },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+        "missing": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "modifiability": { "enum": ["fixed", "required", "configurable", "derived", "optional", "ai_editable"] } },
+            "required": ["modifiability"]
+          },
+          "then": { "required": ["evidence"], "properties": { "evidence": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "base_design": {
+      "type": "object",
+      "required": ["id", "binding", "immutable", "editable_regions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [{ "required": ["repo"] }, { "required": ["files"] }],
+          "properties": {
+            "repo": {
+              "type": "object",
+              "required": ["url", "commit"],
+              "additionalProperties": false,
+              "properties": {
+                "url": { "type": "string", "minLength": 1 },
+                "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+              }
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["path", "sha256"],
+                "additionalProperties": false,
+                "properties": { "path": { "type": "string", "minLength": 1 }, "sha256": { "$ref": "#/$defs/sha256" } }
+              }
+            }
+          }
+        },
+        "immutable": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "components": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "pins": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "connectors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "board_outline": { "type": "boolean" },
+            "mount_holes": { "type": "boolean" },
+            "regions": { "type": "array", "items": { "$ref": "#/$defs/region_id" } }
+          }
+        },
+        "editable_regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["region"],
+            "additionalProperties": false,
+            "properties": {
+              "region": { "$ref": "#/$defs/region_id" },
+              "allowed_blocks": { "type": "array", "items": { "$ref": "#/$defs/block_id" } },
+              "pin_pool": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["device", "pins"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "device": { "$ref": "#/$defs/device_id" },
+                    "pins": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+                  }
+                }
+              },
+              "allowed_ops": {
+                "type": "array",
+                "items": { "enum": ["add_component", "move_component", "remove_component", "connect", "disconnect", "add_track", "add_via"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

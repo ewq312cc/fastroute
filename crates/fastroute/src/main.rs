@@ -35,6 +35,7 @@ mod render_cmd;
 mod report;
 mod reports;
 mod route_cmd;
+mod constraints_cmd;
 mod rules;
 mod jsonschema;
 
@@ -244,6 +245,7 @@ commands (each has its own --help, e.g. `fastroute route --help`):
   inspect    describe the board as structured JSON
   ai-pack    write a local analysis pack (pictures, data, rules, DRC) for an AI model
   rules      check, confirm and apply rule drafts from people, scripts or AI models
+  constraints  check, compile and validate hardware constraint packs (HCP) against a design
 
 The original interface below keeps working unchanged (docs/CLI.md has the translation table):
 
@@ -838,6 +840,7 @@ fn dispatch(argv: &[String]) -> Option<ExitCode> {
         "ai-pack" => aipack::run(rest),
         "route" => route_cmd::run(rest),
         "rules" => rules::run(rest),
+        "constraints" => constraints_cmd::run(rest),
         "help" => {
             match rest.first().map(String::as_str) {
                 Some("render") => print!("{}", render_cmd::SPEC.help_text()),
@@ -845,6 +848,7 @@ fn dispatch(argv: &[String]) -> Option<ExitCode> {
                 Some("ai-pack") => print!("{}", aipack::SPEC.help_text()),
                 Some("route") => print!("{}", route_cmd::SPEC.help_text()),
                 Some("rules") => print!("{}", rules::help_for(rest.get(1).map(String::as_str))),
+                Some("constraints") => print!("{}", constraints_cmd::help_for(rest.get(1).map(String::as_str))),
                 _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
             }
             Ok(())

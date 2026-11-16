@@ -1,0 +1,13 @@
+[package]
+name = "fr-constraint"
+description = "Hardware Constraint Pack (HCP): schema, Constraint IR compiler and deterministic validator"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+serde_yaml = "0.9"
+sha2 = "0.10"
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-perl"] }

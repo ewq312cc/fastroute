@@ -1,0 +1,909 @@
+{
+  "format": "fastroute-hcp-validation",
+  "format_version": "1.0",
+  "fastroute_version": "0.1.14",
+  "ir": {
+    "pack_id": "espressif/esp32-s3-wroom-1-n8r8",
+    "pack_version": "0.1.0",
+    "pack_sha256": "fe8e501c86c10840d685ad70167ef46a99fc1df9e6433c93f7f03540bc6c330f",
+    "ir_sha256": "8eb06118983f18c03ad37210e9bf06d1d45debc8622d8f466a59fc21e237b9b7",
+    "ir_version": "1.0",
+    "compiler": "0.1.14"
+  },
+  "design": {
+    "name": "carrier",
+    "sha256": "fc9f0fb32489a6c1502c11ef428e34e9b4f6c7666150bb99b91faaf3ff749c90",
+    "snapshot_version": "1.0"
+  },
+  "result": "pass",
+  "complete": false,
+  "summary": {
+    "rules": 24,
+    "passed": 18,
+    "failed": 0,
+    "not_applicable": 0,
+    "unchecked": 2,
+    "unsupported": 1,
+    "unknown": 3,
+    "conflict": 0,
+    "warnings": 0
+  },
+  "findings": [
+    {
+      "rule_id": "C-ESP-ANT-KEEPOUT",
+      "kind": "keepout",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 10,
+            "figure": "Figure 3-1. Pin Layout (Top View)"
+          },
+          "quote": "To learn more about the keepout zone for module’s antenna on the base board, please refer to ESP32-S3 Hardware Design Guidelines > Section General Principles of PCB Layout for Modules.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "General Principles of PCB Layout for Modules"
+          },
+          "quote": "Then cut off the base board on both sides of the antenna and below it to minimize the impact of the base board material on the PCB antenna and provide a sufficiently large clearance area for the PCB antenna.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-BOOT-IO0",
+      "kind": "boot_pin",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "section": "4.1 Chip Boot Mode Control"
+          },
+          "quote": "GPIO0 and GPIO46 control the boot mode after the reset is released.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "table": "Table 4-3. Chip Boot Mode Control"
+          },
+          "quote": "SPI Boot 1 Any value Joint Download Boot 2 0 0",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-ELECTRICAL-VDD33",
+      "kind": "electrical",
+      "verdict": "unsupported",
+      "severity": "error",
+      "message": "validator: there is no electrical model; a limit of the device is reported, not checked",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 27,
+            "table": "Table 6-2. Recommended Operating Conditions"
+          },
+          "quote": "VDD33 Power supply voltage 3.0 3.3 3.6 V",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 27,
+            "table": "Table 6-2. Recommended Operating Conditions"
+          },
+          "quote": "Current delivered by external power supply 0.5",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-EN",
+      "kind": "reset_pin",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "Low: off, the chip powers off.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "Note: Do not leave the EN pin floating.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-EN-RC-VALUES",
+      "kind": "required_block",
+      "verdict": "unknown",
+      "severity": "error",
+      "message": "the documents do not say: Figure 9-1 of the module datasheet v1.8 (page 41) shows R1 and C2 of the EN circuit as \"TBD\". The text of the same page and the Hardware Design Guidelines say \"usually R = 10 kΩ and C = 1 µF\" and tell the designer to adjust the values to the power-up timing of the module and the chip (rule C-ESP-NEED-RESET keeps the usual values as a recommendation). The final values depend on the supply ramp of the project, which no document gives: the project has to decide them and test the power-up.",
+      "evidence": []
+    },
+    {
+      "rule_id": "C-ESP-GND-1",
+      "kind": "fixed_net",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 1 P GND",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-GND-40",
+      "kind": "fixed_net",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 40 P GND",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H1",
+      "kind": "mechanical_fixed",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H1 at (4, 9.25) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H2",
+      "kind": "mechanical_fixed",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H2 at (4, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H3",
+      "kind": "mechanical_fixed",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H3 at (43, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-NEED-BOOT",
+      "kind": "required_block",
+      "verdict": "pass",
+      "severity": "warning",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "table": "Table 4-3. Chip Boot Mode Control"
+          },
+          "quote": "SPI Boot 1 Any value Joint Download Boot 2 0 0",
+          "basis": "derived"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-NEED-POWER",
+      "kind": "required_block",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Power Supply"
+          },
+          "quote": "It is suggested to add an ESD protection diode and at least 10 μF capacitor at the main power entrance (where the external power supply enters the PCB).",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-NEED-RESET",
+      "kind": "required_block",
+      "verdict": "pass",
+      "severity": "warning",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 41,
+            "section": "9 Peripheral Schematics"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 µF.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 41,
+            "section": "9 Peripheral Schematics"
+          },
+          "quote": "However, specific parameters should be adjusted based on the power-up timing of the module and the power-up and reset sequence timing of the chip.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Chip Power-up and Reset Timing"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 μF.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Chip Power-up and Reset Timing"
+          },
+          "quote": "However, specific parameters should be adjusted based on the characteristics of the actual power supply and the power-up and reset timing of the chip.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-NEED-UART",
+      "kind": "required_block",
+      "verdict": "pass",
+      "severity": "warning",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "UART"
+          },
+          "quote": "Usually, UART0 is used as the serial port for download and log printing.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-OUTLINE",
+      "kind": "mechanical_fixed",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Board outline: (0, 5.25), (12, 5.25), (12, 12.25), (47, 12.25), (47, 40), (0, 40).",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-RESERVED-PSRAM",
+      "kind": "reserved_pin",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 3,
+            "table": "Table 1-1. ESP32-S3-WROOM-1 Series Comparison"
+          },
+          "quote": "ESP32-S3-WROOM-1-N8R8 8 MB (Quad SPI) 8 MB (Octal SPI)",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions, note b"
+          },
+          "quote": "pins IO35, IO36, and IO37 are connected to the Octal SPI PSRAM and are not available for other uses.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO0",
+      "kind": "strapping",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO0 Weak pull-up 1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-DS",
+          "locator": {
+            "page": 32,
+            "table": "Table 3-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO0 Weak pull-up 1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "section": "4 Boot Configurations"
+          },
+          "quote": "the strapping pin voltage levels can also be controlled by the host MCU.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO3",
+      "kind": "strapping",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 15,
+            "section": "4.4 JTAG Signal Source Control"
+          },
+          "quote": "This pin does not have any internal pull resistors and the strapping value must be controlled by the external circuit that cannot be in a high impedance state.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO45",
+      "kind": "strapping",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO45 Weak pull-down 0",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO46",
+      "kind": "strapping",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO46 Weak pull-down 0",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-USB",
+      "kind": "high_speed",
+      "verdict": "pass",
+      "severity": "error",
+      "message": "all objects satisfy the rule",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "Use differential pairs and route them in parallel at equal lengths. Maintain a differential pair impedance of 90 Ω with a tolerance of ±10%.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "GPIO19 and GPIO20 can be used as D- and D+ of USB respectively.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-USB",
+      "kind": "high_speed",
+      "verdict": "unchecked",
+      "severity": "error",
+      "message": "the parameter 'impedance_ohm' is not checked",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "Use differential pairs and route them in parallel at equal lengths. Maintain a differential pair impedance of 90 Ω with a tolerance of ±10%.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "GPIO19 and GPIO20 can be used as D- and D+ of USB respectively.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "rule_id": "C-ESP-USB-GAP",
+      "kind": "high_speed",
+      "verdict": "unknown",
+      "severity": "error",
+      "message": "the documents do not say: The gap between the two traces depends on the stack-up and the trace width; the documents read give the 90 Ω target but no spacing. The stack-up of the board is needed (the plugin's impedance tool can derive widths from it).",
+      "evidence": []
+    },
+    {
+      "rule_id": "C-ESP-USB-SKEW",
+      "kind": "high_speed",
+      "verdict": "unknown",
+      "severity": "error",
+      "message": "the documents do not say: The PCB Layout Design guideline says to route the pair \"in parallel at equal lengths\" and gives no number. No document read for this pack gives a skew limit in millimetres; do not use a typical value.",
+      "evidence": []
+    },
+    {
+      "rule_id": "PINMUX-ESP32S3-WROOM1-N8R8",
+      "kind": "pin_functions",
+      "verdict": "unchecked",
+      "severity": "error",
+      "object": "U1",
+      "message": "the design has no pin assignments for U1: pin functions cannot be checked",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 1 P GND",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "3V3 2 P Power supply",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "EN 3 I",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO4 4 I/O/T RTC_GPIO4, GPIO4, TOUCH4, ADC1_CH3",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO5 5 I/O/T RTC_GPIO5, GPIO5, TOUCH5, ADC1_CH4",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO6 6 I/O/T RTC_GPIO6, GPIO6, TOUCH6, ADC1_CH5",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO7 7 I/O/T RTC_GPIO7, GPIO7, TOUCH7, ADC1_CH6",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO15 8 I/O/T RTC_GPIO15, GPIO15, U0RTS, ADC2_CH4, XTAL_32K_P",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO16 9 I/O/T RTC_GPIO16, GPIO16, U0CTS, ADC2_CH5, XTAL_32K_N",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO17 10 I/O/T RTC_GPIO17, GPIO17, U1TXD, ADC2_CH6",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO18 11 I/O/T RTC_GPIO18, GPIO18, U1RXD, ADC2_CH7, CLK_OUT3",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO8 12 I/O/T RTC_GPIO8, GPIO8, TOUCH8, ADC1_CH7, SUBSPICS1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO19 13 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO20 14 I/O/T RTC_GPIO20, GPIO20, U1CTS, ADC2_CH9, CLK_OUT1, USB_D+",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO3 15 I/O/T RTC_GPIO3, GPIO3, TOUCH3, ADC1_CH2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO46 16 I/O/T GPIO46",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO9 17 I/O/T RTC_GPIO9, GPIO9, TOUCH9, ADC1_CH8, FSPIHD, SUBSPIHD",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO10 18 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO11 19 I/O/T RTC_GPIO11, GPIO11, TOUCH11, ADC2_CH0, FSPID, FSPIIO5, SUBSPID",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO12 20 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO13 21 I/O/T RTC_GPIO13, GPIO13, TOUCH13, ADC2_CH2, FSPIQ, FSPIIO7, SUBSPIQ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO14 22 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO21 23 I/O/T RTC_GPIO21, GPIO21",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO47 c 24 I/O/T SPICLK_P_DIFF,GPIO47, SUBSPICLK_P_DIFF",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO48 c 25 I/O/T SPICLK_N_DIFF,GPIO48, SUBSPICLK_N_DIFF",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO45 26 I/O/T GPIO45",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO0 27 I/O/T RTC_GPIO0, GPIO0",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO35 b 28 I/O/T SPIIO6, GPIO35, FSPID, SUBSPID",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO36 b 29 I/O/T SPIIO7, GPIO36, FSPICLK, SUBSPICLK",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO37 b 30 I/O/T SPIDQS, GPIO37, FSPIQ, SUBSPIQ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO38 31 I/O/T GPIO38, FSPIWP, SUBSPIWP ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO39 32 I/O/T MTCK, GPIO39, CLK_OUT3, SUBSPICS1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO40 33 I/O/T MTDO, GPIO40, CLK_OUT2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO41 34 I/O/T MTDI, GPIO41, CLK_OUT1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO42 35 I/O/T MTMS, GPIO42",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "RXD0 36 I/O/T U0RXD, GPIO44, CLK_OUT2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "TXD0 37 I/O/T U0TXD, GPIO43, CLK_OUT1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO2 38 I/O/T RTC_GPIO2, GPIO2, TOUCH2, ADC1_CH1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO1 39 I/O/T RTC_GPIO1, GPIO1, TOUCH1, ADC1_CH0",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 40 P GND",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "EPAD 41 P GND",
+          "basis": "explicit"
+        }
+      ]
+    }
+  ]
+}

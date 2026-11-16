@@ -63,8 +63,14 @@ fn finding_block(lang: Lang, f: &Finding, out: &mut String) {
     if let Some(r) = &f.required {
         out.push_str(&format!("- {}: `{r}`\n", t(lang, "要求值", "Required")));
     }
-    for e in &f.evidence {
+    // a rule made from a long table (the pin functions of a module) has one piece of evidence per row: show the first few,
+    // the JSON has them all
+    const SHOWN: usize = 5;
+    for e in f.evidence.iter().take(SHOWN) {
         out.push_str(&format!("- {}: {}\n", t(lang, "依据", "Evidence"), evidence_line(e)));
+    }
+    if f.evidence.len() > SHOWN {
+        out.push_str(&format!("- {} {} {}\n", t(lang, "另有", "and"), f.evidence.len() - SHOWN, t(lang, "条依据，见 JSON 结果", "more pieces of evidence, all in the JSON result")));
     }
     out.push('\n');
 }

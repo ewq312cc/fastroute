@@ -90,7 +90,6 @@ pub struct ClassRule {
 
 pub struct Analysis {
     pub geometry: BoardGeometry,
-    pub per_mm: f64,
     pub unrouted: Vec<Unrouted>,
     pub violations: Vec<Violation>,
     /// Details of `geometry.components`, same order.
@@ -318,7 +317,7 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
             max_length_mm: positive(c.get_maximum_trace_length()),
         });
     }
-    Analysis { geometry: g, per_mm: conv.per_mm, unrouted, violations, components: comp_info, net_class, classes }
+    Analysis { geometry: g, unrouted, violations, components: comp_info, net_class, classes }
 }
 
 /// Total trace length (mm) per net number, from the extracted geometry.

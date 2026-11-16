@@ -544,7 +544,10 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
     let outcome = build_document(&input, session.as_deref(), drc_report.as_deref());
     let (doc, result) = match outcome {
         Ok(doc) => (doc, Ok(())),
-        Err((doc, e)) => (doc, Err(e)),
+        Err(failed) => {
+            let (doc, e) = *failed;
+            (doc, Err(e))
+        }
     };
     let json = doc.to_json();
     if to_stdout {
@@ -571,9 +574,9 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
 }
 
 /// Loads and describes; on failure returns the error document together with the error.
-fn build_document(input: &Path, session: Option<&Path>, drc_report: Option<&Path>) -> Result<Inspect, (Inspect, CmdError)> {
+fn build_document(input: &Path, session: Option<&Path>, drc_report: Option<&Path>) -> Result<Inspect, Box<(Inspect, CmdError)>> {
     let file_info = |p: &Path| std::fs::read(p).ok().map(|d| FileInfo::of(p, &d));
-    let fail = |e: CmdError| (Inspect::failure(file_info(input), session.and_then(file_info), &e), e);
+    let fail = |e: CmdError| Box::new((Inspect::failure(file_info(input), session.and_then(file_info), &e), e));
 
     let drc = match drc_report {
         Some(p) => match std::fs::read_to_string(p) {
@@ -604,7 +607,7 @@ mod tests {
 
     #[test]
     fn rounding_hides_float_noise_and_negative_zero() {
-        assert_eq!(r6(10.800000000000001), 10.8);
+        assert_eq!(r6(10.8 + 1e-12), 10.8);
         assert_eq!(r6(-0.0000001), 0.0);
         assert!(r6(-0.0000001).is_sign_positive());
         assert_eq!(r6(f64::NAN), 0.0);

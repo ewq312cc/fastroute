@@ -29,6 +29,12 @@ pub struct RegionMm {
     pub height: f64,
 }
 
+impl RegionMm {
+    pub fn to_rect(&self) -> Rect {
+        Rect::new(self.x, self.y, self.x + self.width, self.y + self.height)
+    }
+}
+
 impl From<Rect> for RegionMm {
     fn from(r: Rect) -> Self {
         RegionMm { x: r.x0, y: r.y0, width: r.width(), height: r.height() }

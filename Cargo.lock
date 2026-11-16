@@ -206,6 +206,7 @@ dependencies = [
  "fr-io",
  "fr-render",
  "fr-settings",
+ "libc",
  "log",
  "mimalloc",
  "png",

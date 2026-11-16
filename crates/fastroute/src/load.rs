@@ -38,10 +38,10 @@ pub fn sha256_hex(data: &[u8]) -> String {
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
-pub struct SessionSummary {
-    pub wires: i32,
-    pub vias: i32,
-    pub errors: i32,
+struct SessionSummary {
+    wires: i32,
+    vias: i32,
+    errors: i32,
 }
 
 pub struct Loaded {
@@ -55,7 +55,6 @@ pub struct Loaded {
     pub warnings: Vec<String>,
     pub input: FileInfo,
     pub session: Option<FileInfo>,
-    pub session_summary: Option<SessionSummary>,
 }
 
 /// Reads a DSN file (and the session on top of it, if given).
@@ -118,7 +117,7 @@ pub fn load(dsn_path: &Path, session_path: Option<&Path>) -> Result<Loaded, CmdE
     let synthetic: HashSet<ItemId> = board.get_traces().into_iter().map(|k| board.item(k).id()).filter(|id| !traces_before.contains(id)).collect();
 
     let name = dsn_path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    Ok(Loaded { board, settings, name, synthetic, warnings, input: FileInfo::of(dsn_path, &data), session, session_summary })
+    Ok(Loaded { board, settings, name, synthetic, warnings, input: FileInfo::of(dsn_path, &data), session })
 }
 
 /// Loads the design like `load_from_specctra_dsn`, without its pre-routed traces and vias

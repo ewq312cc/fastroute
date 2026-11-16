@@ -4,6 +4,7 @@
   "fastroute_version": "0.1.14",
   "generated_by": "fastroute render",
   "status": "ok",
+  "drc_status": "not_run",
   "input": {
     "path": "render_demo.dsn",
     "bytes": 2567,

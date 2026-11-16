@@ -20,6 +20,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [features]
 # heap profiling (writes dhat-heap.json; view with https://nnethercote.github.io/dh_view/dh_view.html)
 dhat-heap = ["dep:dhat"]

@@ -23,6 +23,7 @@
 //! board, so a run that is stopped (Ctrl+C / SIGTERM / Ctrl+Break: stop and write the best
 //! result; a second signal exits at once) or killed leaves its best result behind.
 
+mod aipack;
 mod cmd;
 mod drc;
 mod extract;
@@ -798,10 +799,12 @@ fn dispatch(argv: &[String]) -> Option<ExitCode> {
     let result = match name {
         "render" => render_cmd::run(rest),
         "inspect" => inspect::run(rest),
+        "ai-pack" => aipack::run(rest),
         "help" => {
             match rest.first().map(String::as_str) {
                 Some("render") => print!("{}", render_cmd::SPEC.help_text()),
                 Some("inspect") => print!("{}", inspect::SPEC.help_text()),
+                Some("ai-pack") => print!("{}", aipack::SPEC.help_text()),
                 _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
             }
             Ok(())

@@ -7,10 +7,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Exit codes of the subcommands (`docs/CLI.md`).
+/// Exit codes of the subcommands (`docs/CLI.md`); 0 is success.
 pub mod exit {
-    /// Done.
-    pub const OK: u8 = 0;
     /// The command failed (anything not covered below).
     pub const FAILED: u8 = 1;
     /// Wrong command line: unknown option, missing value, conflicting options.

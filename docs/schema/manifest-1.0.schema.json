@@ -3,13 +3,14 @@
   "title": "fastroute manifest (format_version 1.x)",
   "description": "Which images exist, what each shows, and how millimetres map to pixels. Readers must ignore properties they do not know; minor versions only add properties.",
   "type": "object",
-  "required": ["format", "format_version", "fastroute_version", "generated_by", "status", "input", "session", "coordinate_system", "images", "reports", "warnings", "errors"],
+  "required": ["format", "format_version", "fastroute_version", "generated_by", "status", "drc_status", "input", "session", "coordinate_system", "images", "reports", "warnings", "errors"],
   "properties": {
     "format": { "const": "fastroute-manifest" },
     "format_version": { "type": "string", "description": "MAJOR.MINOR; MAJOR changes when a property changes its meaning or is removed" },
     "fastroute_version": { "type": "string" },
     "generated_by": { "type": "string", "description": "the command that wrote the file" },
-    "status": { "enum": ["ok", "partial", "error"], "description": "partial: something could not be produced (see warnings and reports[*].status)" },
+    "status": { "enum": ["ok", "partial", "error"], "description": "partial: something that was asked for could not be produced (see warnings and reports[*].status)" },
+    "drc_status": { "enum": ["not_run", "unavailable", "error", "timeout", "failed", "passed"], "description": "KiCad DRC of the pack; not_run, unavailable, error and timeout are never a pass" },
     "input": { "type": ["object", "null"], "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "type": "string" } }, "required": ["path", "bytes", "sha256"] },
     "session": { "type": ["object", "null"], "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "type": "string" } }, "required": ["path", "bytes", "sha256"] },
     "coordinate_system": {

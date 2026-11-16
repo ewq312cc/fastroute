@@ -87,6 +87,9 @@ pub struct Manifest {
     pub generated_by: String,
     /// `ok`, `partial` (something could not be produced, see `warnings`) or `error`.
     pub status: String,
+    /// The DRC status of the pack (`not_run`, `unavailable`, `error`, `timeout`, `failed`,
+    /// `passed`), the same as `inspect.json` `checks.drc.status`; `passed` only from a real report.
+    pub drc_status: String,
     pub input: Option<FileInfo>,
     pub session: Option<FileInfo>,
     pub coordinate_system: CoordinateSystem,
@@ -105,6 +108,7 @@ impl Manifest {
             fastroute_version: env!("CARGO_PKG_VERSION").into(),
             generated_by: generated_by.into(),
             status: "ok".into(),
+            drc_status: "not_run".into(),
             input,
             session,
             coordinate_system: CoordinateSystem::standard(),

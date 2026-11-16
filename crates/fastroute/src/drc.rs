@@ -212,19 +212,26 @@ struct Finished {
     timed_out: bool,
 }
 
-/// Runs `cmd` for at most `timeout`; the child is killed when the time is up.
+/// Runs `cmd` for at most `timeout`. When the time is up the child **and the processes it
+/// started** (its process group) are killed, and the output is collected for a moment only: a
+/// grandchild that still holds the pipes must not hold us up as well.
 fn run_with_timeout(mut cmd: Command, timeout: Duration) -> std::io::Result<Finished> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
     let drain = |s: Option<Box<dyn Read + Send>>| {
+        let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let mut text = String::new();
+            let mut bytes = Vec::new();
             if let Some(mut r) = s {
-                let mut bytes = Vec::new();
                 let _ = r.read_to_end(&mut bytes);
-                text = String::from_utf8_lossy(&bytes).into_owned();
             }
-            text
-        })
+            let _ = tx.send(String::from_utf8_lossy(&bytes).into_owned());
+        });
+        rx
     };
     let out = drain(child.stdout.take().map(|s| Box::new(s) as Box<dyn Read + Send>));
     let err = drain(child.stderr.take().map(|s| Box::new(s) as Box<dyn Read + Send>));
@@ -234,13 +241,19 @@ fn run_with_timeout(mut cmd: Command, timeout: Duration) -> std::io::Result<Fini
             break (status.code(), false);
         }
         if start.elapsed() >= timeout {
+            #[cfg(unix)]
+            // SAFETY: plain kill(2) on the process group that `process_group(0)` made for the child
+            unsafe {
+                libc::kill(-(child.id() as i32), libc::SIGKILL);
+            }
             let _ = child.kill();
             let _ = child.wait();
             break (None, true);
         }
         std::thread::sleep(Duration::from_millis(20));
     };
-    Ok(Finished { code, out: out.join().unwrap_or_default(), err: err.join().unwrap_or_default(), timed_out })
+    let wait = if timed_out { Duration::from_millis(500) } else { Duration::from_secs(5) };
+    Ok(Finished { code, out: out.recv_timeout(wait).unwrap_or_default(), err: err.recv_timeout(wait).unwrap_or_default(), timed_out })
 }
 
 fn first_line(s: &str) -> String {

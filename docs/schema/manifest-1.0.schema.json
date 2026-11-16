@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fastroute manifest (format_version 1.x)",
+  "description": "Which images exist, what each shows, and how millimetres map to pixels. Readers must ignore properties they do not know; minor versions only add properties.",
+  "type": "object",
+  "required": ["format", "format_version", "fastroute_version", "generated_by", "status", "input", "session", "coordinate_system", "images", "reports", "warnings", "errors"],
+  "properties": {
+    "format": { "const": "fastroute-manifest" },
+    "format_version": { "type": "string", "description": "MAJOR.MINOR; MAJOR changes when a property changes its meaning or is removed" },
+    "fastroute_version": { "type": "string" },
+    "generated_by": { "type": "string", "description": "the command that wrote the file" },
+    "status": { "enum": ["ok", "partial", "error"], "description": "partial: something could not be produced (see warnings and reports[*].status)" },
+    "input": { "type": ["object", "null"], "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "type": "string" } }, "required": ["path", "bytes", "sha256"] },
+    "session": { "type": ["object", "null"], "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "type": "string" } }, "required": ["path", "bytes", "sha256"] },
+    "coordinate_system": {
+      "type": "object",
+      "required": ["unit", "x_axis", "y_axis", "origin", "pixel_origin", "pixel_axes"],
+      "properties": {
+        "unit": { "const": "mm" },
+        "x_axis": { "const": "right" },
+        "y_axis": { "const": "down" },
+        "origin": { "type": "string" },
+        "pixel_origin": { "type": "string" },
+        "pixel_axes": { "type": "string" }
+      }
+    },
+    "images": { "type": "array", "items": { "$ref": "#/$defs/image" } },
+    "reports": { "type": "object", "additionalProperties": { "$ref": "#/$defs/report" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "$ref": "#/$defs/error" } }
+  },
+  "$defs": {
+    "axis_map": {
+      "type": "object",
+      "required": ["scale", "offset"],
+      "properties": { "scale": { "type": "number" }, "offset": { "type": "number" } }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+    },
+    "report": {
+      "type": "object",
+      "required": ["file", "status"],
+      "properties": {
+        "file": { "type": ["string", "null"], "description": "path relative to the manifest; null when the file does not exist" },
+        "status": { "enum": ["present", "not_run", "unavailable", "failed", "timeout"] },
+        "detail": { "type": "string" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["file", "purpose", "selection", "bytes", "sha256", "width_px", "height_px", "region_mm", "px_per_mm", "mm_per_px", "transform", "layers", "annotations", "airlines", "contains", "labels"],
+      "properties": {
+        "file": { "type": "string", "description": "PNG path relative to the manifest" },
+        "purpose": { "enum": ["overview", "region", "region-combined", "region-layer"] },
+        "selection": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["board", "region", "component", "net", "issues"] },
+            "targets": { "type": "array", "items": { "type": "string" } },
+            "padding_mm": { "type": "number", "minimum": 0 }
+          }
+        },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string" },
+        "width_px": { "type": "integer", "minimum": 1 },
+        "height_px": { "type": "integer", "minimum": 1 },
+        "region_mm": {
+          "type": "object",
+          "description": "the area the image really shows; x,y = top-left corner, y points down",
+          "required": ["x", "y", "width", "height"],
+          "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number" }, "height": { "type": "number" } }
+        },
+        "px_per_mm": { "type": "number" },
+        "mm_per_px": { "type": "number" },
+        "transform": {
+          "type": "object",
+          "description": "u = world_to_pixel_u.scale * x + world_to_pixel_u.offset; v likewise from y; the pixel_to_world_* maps are the inverse",
+          "required": ["world_to_pixel_u", "world_to_pixel_v", "pixel_to_world_x", "pixel_to_world_y"],
+          "properties": {
+            "world_to_pixel_u": { "$ref": "#/$defs/axis_map" },
+            "world_to_pixel_v": { "$ref": "#/$defs/axis_map" },
+            "pixel_to_world_x": { "$ref": "#/$defs/axis_map" },
+            "pixel_to_world_y": { "$ref": "#/$defs/axis_map" }
+          }
+        },
+        "layers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "annotations": { "type": "array", "items": { "enum": ["grid", "scale", "layer", "nets", "pads", "refs", "markers"] } },
+        "airlines": { "type": "boolean" },
+        "contains": {
+          "type": "object",
+          "required": ["components", "nets", "issues"],
+          "properties": {
+            "components": { "type": "array", "items": { "type": "string" } },
+            "nets": { "type": "array", "items": { "type": "string" } },
+            "issues": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "labels": {
+          "type": "object",
+          "required": ["drawn", "skipped_overlap", "skipped_small"],
+          "properties": { "drawn": { "type": "integer", "minimum": 0 }, "skipped_overlap": { "type": "integer", "minimum": 0 }, "skipped_small": { "type": "integer", "minimum": 0 } }
+        }
+      }
+    }
+  }
+}

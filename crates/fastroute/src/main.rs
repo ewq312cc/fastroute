@@ -23,8 +23,14 @@
 //! board, so a run that is stopped (Ctrl+C / SIGTERM / Ctrl+Break: stop and write the best
 //! result; a second signal exits at once) or killed leaves its best result behind.
 
+mod cmd;
+mod extract;
 mod live;
+mod load;
+mod manifest;
+mod render_cmd;
 mod report;
+mod reports;
 
 use std::io::Write as _;
 use std::process::ExitCode;
@@ -784,9 +790,39 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: dhat::Alloc = dhat::Alloc;
 
+/// The subcommands (`fastroute render ...`); `None` if `argv` is the legacy flag interface.
+fn dispatch(argv: &[String]) -> Option<ExitCode> {
+    let (name, rest) = (argv.first()?.as_str(), &argv[1..]);
+    let result = match name {
+        "render" => render_cmd::run(rest),
+        "help" => {
+            match rest.first().map(String::as_str) {
+                Some("render") => print!("{}", render_cmd::SPEC.help_text()),
+                _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
+            }
+            Ok(())
+        }
+        _ => return None,
+    };
+    Some(match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("fastroute {name}: {}", e.message);
+            if e.code == cmd::exit::USAGE {
+                eprintln!("(see `fastroute {name} --help`)");
+            }
+            ExitCode::from(e.code)
+        }
+    })
+}
+
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(code) = dispatch(&argv) {
+        return code;
+    }
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

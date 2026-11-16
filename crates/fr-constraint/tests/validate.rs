@@ -28,7 +28,8 @@ fn a_legal_design_passes_and_the_gaps_are_listed_not_hidden() {
     }
     // what this version cannot do, or what the documents do not say, is not a pass
     assert_eq!(verdict_of(&v, "C-USB-GAP"), Verdict::Unknown);
-    assert_eq!(verdict_of(&v, "C-STRAP-IO0"), Verdict::Unsupported);
+    assert_eq!(verdict_of(&v, "C-STRAP-IO0"), Verdict::Pass);
+    assert_eq!(verdict_of(&v, "C-USB"), Verdict::Unchecked, "the impedance is not checked (it needs the stackup)");
     assert!(!v.complete);
     assert_eq!(v.summary.rules, ir().rules.len());
 }

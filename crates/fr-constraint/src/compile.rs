@@ -64,8 +64,11 @@ pub fn execution(kind: &str, params: &Value) -> Execution {
         "trace_width" => mk("supported", "supported", None),
         "clearance" => mk("unsupported", "supported", Some("validator: clearance is the job of KiCad's DRC; this validator has no geometry check for it")),
         "electrical" => mk("unsupported", "not_applicable", Some("validator: there is no electrical model; a limit of the device is reported, not checked")),
+        "strapping" | "reset_pin" | "boot_pin" | "mechanical_fixed" => mk("supported", "not_applicable", None),
         "high_speed" => {
-            let mut e = mk("unsupported", "supported", Some("validator: high-speed checks are not implemented in this version"));
+            let mut e = mk("supported", "supported", None);
+            // what the validator cannot look at stays in the IR as such, rule by rule
+            e.unchecked_params = ["impedance_ohm", "gap_mm"].iter().filter(|k| has_param(params, k)).map(|k| k.to_string()).collect();
             let mappable = ["gap_mm", "skew_mm", "max_length_mm", "length_match_tolerance_mm"].iter().any(|k| has_param(params, k));
             if !mappable {
                 e.fastroute = "unsupported".into();
@@ -74,7 +77,6 @@ pub fn execution(kind: &str, params: &Value) -> Execution {
             e.unmapped_params = ["impedance_ohm", "layers", "min_width_mm"].iter().filter(|k| has_param(params, k)).map(|k| k.to_string()).collect();
             e
         }
-        "strapping" | "reset_pin" | "boot_pin" | "mechanical_fixed" => mk("unsupported", "not_applicable", Some("validator: not implemented in this version")),
         _ => mk("unsupported", "unsupported", Some("unknown kind of rule")),
     }
 }
@@ -83,7 +85,17 @@ fn ir_rule(r: &Value) -> IrRule {
     let kind = s(r, "kind").unwrap_or_default();
     let modifiability = s(r, "modifiability").unwrap_or_default();
     let params = r.get("params").cloned().unwrap_or_else(|| json!({}));
-    let exec = execution(&kind, &params);
+    let mut exec = execution(&kind, &params);
+    if modifiability == "unknown" || modifiability == "conflict" {
+        // never executed, whatever its kind: nothing is known (or the documents disagree)
+        exec = Execution {
+            validator: "unsupported".into(),
+            fastroute: "unsupported".into(),
+            reason: Some(format!("a rule that is {modifiability} is never executed")),
+            unchecked_params: vec![],
+            unmapped_params: vec![],
+        };
+    }
     let status = match modifiability.as_str() {
         "unknown" => "unknown",
         "conflict" => "conflict",

@@ -519,6 +519,277 @@ fn check_trace_width(ctx: &Ctx, rule: &IrRule, out: &mut Out) {
     }
 }
 
+// ---- strapping, reset, boot mode ---------------------------------------------------------------
+
+const GROUND_PATTERNS: &[&str] = &["GND*", "*GND", "AGND*", "DGND*", "PGND*", "VSS*", "*VSS"];
+const POWER_PATTERNS: &[&str] = &["3V3*", "+3V3*", "*3V3", "3.3V*", "+3.3V*", "VCC*", "+VCC*", "*VCC", "VDD*", "+VDD*", "*VDD", "5V*", "+5V*", "VBUS*", "1V8*", "+1V8*", "VIN*"];
+
+/// `ground`, `power` or neither, by net name (the patterns above, plus `ground_nets` / `power_nets`
+/// of the rule's parameters for project-specific names).
+fn rail_of(rule: &IrRule, net: &str) -> Option<&'static str> {
+    let any = |defaults: &[&str], key: &str| defaults.iter().any(|p| net_matches(p, net)) || strings(&rule.params, key).iter().any(|p| net_matches(p, net));
+    if any(GROUND_PATTERNS, "ground_nets") {
+        Some("ground")
+    } else if any(POWER_PATTERNS, "power_nets") {
+        Some("power")
+    } else {
+        None
+    }
+}
+
+/// The other components with a pin on `net` (not the device's own).
+fn on_net<'a>(ctx: &Ctx<'a>, net: &str, except: &str) -> Vec<&'a Component> {
+    let mut v: Vec<&Component> = ctx.snap.components.iter().filter(|k| k.reference != except && ctx.snap.pins.iter().any(|p| p.reference == k.reference && p.net.as_deref() == Some(net))).collect();
+    v.sort_by(|a, b| a.reference.cmp(&b.reference));
+    v
+}
+
+fn check_strapping(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
+    let pin = rule.subject.get("pin").and_then(Value::as_str).unwrap_or("");
+    let allowed = rule.params["external_drive_allowed"].as_bool() == Some(true);
+    let default = rule.params["default_level"].as_str().unwrap_or("");
+    let when = rule.params["sampled_at"].as_str().unwrap_or("reset");
+    for c in instances(ctx, rule, out) {
+        let obj = format!("{}.{pin}", c.reference);
+        let required = json!({"external_drive_allowed": allowed, "default_level": default, "sampled_at": when});
+        if !allowed {
+            for (_, f) in ctx.assignments(&c.reference).into_iter().filter(|(p, f)| *p == pin && f.to_ascii_uppercase().starts_with("GPIO")) {
+                out.fail(
+                    obj.clone(),
+                    format!("pin {pin} of {} is a strapping pin (read at {when}) but the design uses it as {f}: a strapping pin is not a free GPIO, whatever is attached to it can change the boot mode", c.reference),
+                    json!({"assigned_function": f}),
+                    required.clone(),
+                );
+            }
+        }
+        let Some(net) = ctx.net_of(&c.reference, pin) else { continue };
+        if allowed {
+            continue;
+        }
+        if let Some(rail) = rail_of(rule, net) {
+            out.fail(
+                obj.clone(),
+                format!("strapping pin {pin} of {} is tied directly to the {rail} net {net}: its level at {when} is forced, not the default {default}", c.reference),
+                json!({"net": net, "tied_to": rail}),
+                required.clone(),
+            );
+            continue;
+        }
+        let drivers: Vec<String> = on_net(ctx, net, &c.reference).iter().filter(|k| matches!(Snapshot::kind_of(k).as_str(), "ic" | "connector")).map(|k| k.reference.clone()).collect();
+        if !drivers.is_empty() {
+            out.fail(
+                obj,
+                format!("strapping pin {pin} of {} is on net {net}, which {} can drive: an external driver decides the level at {when}", c.reference, drivers.join(", ")),
+                json!({"net": net, "possible_drivers": drivers}),
+                required,
+            );
+        }
+    }
+}
+
+fn check_reset(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
+    let pin = rule.subject.get("pin").and_then(Value::as_str).unwrap_or("");
+    let active = rule.params["active_level"].as_str().unwrap_or("low");
+    for c in instances(ctx, rule, out) {
+        let obj = format!("{}.{pin}", c.reference);
+        let required = json!({"active_level": active, "connected": true, "not_held_active": true});
+        match ctx.net_of(&c.reference, pin) {
+            None => out.fail(obj, format!("reset pin {pin} of {} is on no net: a reset input must not float", c.reference), json!({"net": null}), required),
+            Some(n) if n.starts_with("unconnected-") => out.fail(obj, format!("reset pin {pin} of {} is unconnected ({n}): a reset input must not float", c.reference), json!({"net": n}), required),
+            Some(n) => {
+                let held = match (active, rail_of(rule, n)) {
+                    ("low", Some("ground")) | ("high", Some("power")) => true,
+                    _ => false,
+                };
+                if held {
+                    out.fail(obj, format!("reset pin {pin} of {} is tied directly to {n}: the device is held in reset (active {active})", c.reference), json!({"net": n}), required);
+                }
+            }
+        }
+    }
+}
+
+fn check_boot(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
+    let pin = rule.subject.get("pin").and_then(Value::as_str).unwrap_or("");
+    let level = rule.params["boot_level"].as_str().unwrap_or("low");
+    for c in instances(ctx, rule, out) {
+        let obj = format!("{}.{pin}", c.reference);
+        let required = json!({"boot_level": level, "selectable": "a button, jumper or header that can set the level"});
+        let Some(net) = ctx.net_of(&c.reference, pin) else {
+            out.fail(obj, format!("boot-mode pin {pin} of {} is on no net: there is no way to select the boot mode", c.reference), json!({"net": null}), required);
+            continue;
+        };
+        if let Some(rail) = rail_of(rule, net) {
+            let at = if rail == "ground" { "low" } else { "high" };
+            out.fail(
+                obj,
+                format!("boot-mode pin {pin} of {} is tied directly to {net} ({at}): the boot mode cannot be selected{}", c.reference, if at == level { " (it is always in the mode that level selects)" } else { " (the mode that needs the other level is out of reach)" }),
+                json!({"net": net, "tied_to": rail}),
+                required,
+            );
+            continue;
+        }
+        let means: Vec<String> = on_net(ctx, net, &c.reference).iter().filter(|k| matches!(Snapshot::kind_of(k).as_str(), "switch" | "connector")).map(|k| k.reference.clone()).collect();
+        if means.is_empty() {
+            out.fail(obj, format!("boot-mode pin {pin} of {} (net {net}) has no button, jumper or header: the other boot mode cannot be selected", c.reference), json!({"net": net, "means": []}), required);
+        }
+    }
+}
+
+// ---- mechanical ---------------------------------------------------------------------------------
+
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() <= 0.05
+}
+
+fn bbox(poly: &[Pt]) -> (f64, f64, f64, f64) {
+    let (minx, maxx) = poly.iter().fold((f64::MAX, f64::MIN), |a, p| (a.0.min(p[0]), a.1.max(p[0])));
+    let (miny, maxy) = poly.iter().fold((f64::MAX, f64::MIN), |a, p| (a.0.min(p[1]), a.1.max(p[1])));
+    (minx, miny, maxx, maxy)
+}
+
+fn check_mechanical(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
+    let Some(region) = rule.subject.get("region").and_then(Value::as_str).and_then(|r| ctx.ir.region(r)) else { return };
+    let obj = format!("region {}", region.id);
+    match region.kind.as_str() {
+        "mount_hole" => {
+            let (c, r) = region.circle.as_ref().map(|c| (c["center"].as_array().cloned().unwrap_or_default(), c["radius_mm"].as_f64().unwrap_or(0.0))).unwrap_or_default();
+            let (cx, cy) = (c.first().and_then(Value::as_f64).unwrap_or(0.0), c.get(1).and_then(Value::as_f64).unwrap_or(0.0));
+            let found = ctx.snap.mount_holes.iter().any(|h| close(h.x, cx) && close(h.y, cy) && close(h.radius_mm, r));
+            if !found {
+                let near = ctx.snap.mount_holes.iter().map(|h| json!({"x": h.x, "y": h.y, "radius_mm": h.radius_mm})).collect::<Vec<_>>();
+                out.fail(obj, format!("no mounting hole at ({cx}, {cy}) mm with radius {r} mm (the mounting holes are fixed)"), json!({"mount_holes": near}), json!({"center": [cx, cy], "radius_mm": r}));
+            }
+        }
+        "board_outline" => {
+            let want = region.polygon.clone().unwrap_or_default();
+            let same = !ctx.snap.outline.is_empty()
+                && ctx.snap.outline.len() == want.len()
+                && want.iter().all(|w| ctx.snap.outline.iter().any(|o| close(o[0], w[0]) && close(o[1], w[1])))
+                && (geom::polygon_area(&ctx.snap.outline).abs() - geom::polygon_area(&want).abs()).abs() < 0.5;
+            if !same {
+                let (a, b, c, d) = bbox(&ctx.snap.outline);
+                let (e, f, g, h) = bbox(&want);
+                out.fail(obj, "the board outline is not the fixed one".to_string(), json!({"vertices": ctx.snap.outline.len(), "bbox_mm": [a, b, c, d]}), json!({"vertices": want.len(), "bbox_mm": [e, f, g, h]}));
+            }
+        }
+        "connector" => {
+            let polys = region_polygons(ctx, region);
+            let found = ctx.snap.components.iter().any(|k| Snapshot::kind_of(k) == "connector" && polys.iter().any(|p| geom::point_polygon_distance([k.x, k.y], p) <= 0.5));
+            if !found && !polys.is_empty() {
+                out.fail(obj, format!("no connector in the fixed place {}", region.id), json!({"connectors": ctx.snap.components.iter().filter(|k| Snapshot::kind_of(k) == "connector").map(|k| json!({"ref": k.reference, "x": k.x, "y": k.y})).collect::<Vec<_>>()}), json!("a connector in the region"));
+            }
+        }
+        "module_body" => {
+            let polys = region_polygons(ctx, region);
+            if polys.is_empty() {
+                out.push(Verdict::NotApplicable, Some(obj), format!("region {} has no shape in this design", region.id), None, None);
+            } else if ctx.snap.outline.is_empty() {
+                out.push(Verdict::Unchecked, Some(obj), "the design has no board outline: the module cannot be checked against it".to_string(), None, None);
+            } else {
+                for p in polys {
+                    if let Some(bad) = p.iter().find(|pt| !geom::point_in_polygon(**pt, &ctx.snap.outline)) {
+                        out.fail(obj.clone(), format!("the module body reaches ({:.2}, {:.2}) mm, outside the board outline", bad[0], bad[1]), json!({"point_mm": bad}), json!("inside the board outline"));
+                    }
+                }
+            }
+        }
+        other => out.push(Verdict::Unchecked, Some(obj), format!("a mechanical_fixed rule on a region of kind '{other}' has no check"), None, None),
+    }
+}
+
+// ---- high-speed interfaces -----------------------------------------------------------------------
+
+fn net_length(snap: &Snapshot, net: &str) -> f64 {
+    snap.tracks.iter().filter(|t| t.net.as_deref() == Some(net)).map(|t| ((t.x2 - t.x1).powi(2) + (t.y2 - t.y1).powi(2)).sqrt()).sum()
+}
+
+fn check_high_speed(ctx: &Ctx, rule: &IrRule, out: &mut Out<'_>) {
+    let patterns = strings(&rule.params, "nets");
+    let mut all: BTreeSet<&str> = BTreeSet::new();
+    for n in ctx.net_pins.keys().copied().chain(ctx.snap.tracks.iter().filter_map(|t| t.net.as_deref())) {
+        all.insert(n);
+    }
+    let nets: Vec<&str> = all.into_iter().filter(|n| patterns.iter().any(|p| net_matches(p, n))).collect();
+    if nets.is_empty() {
+        out.push(Verdict::NotApplicable, None, format!("none of the nets {} is in the design: the interface is not used", patterns.join(", ")), None, None);
+        return;
+    }
+    let lengths: BTreeMap<&str, f64> = nets.iter().map(|n| (*n, net_length(ctx.snap, n))).collect();
+    let routed: Vec<&str> = nets.iter().copied().filter(|n| lengths[n] > 0.0).collect();
+    let diff = rule.params["differential"].as_bool() == Some(true);
+    let mut checked = false;
+    let get = |k: &str| rule.params.get(k).and_then(Value::as_f64);
+    if let Some(skew) = get("skew_mm") {
+        checked = true;
+        if !diff || nets.len() != 2 {
+            out.push(Verdict::Unchecked, None, format!("a skew applies to a differential pair of exactly two nets; the rule resolves to {} net(s) ({})", nets.len(), nets.join(", ")), None, None);
+        } else if routed.len() < 2 {
+            out.push(Verdict::Unchecked, Some(format!("nets {} / {}", nets[0], nets[1])), "the pair is not routed yet: the skew cannot be checked".to_string(), None, None);
+        } else {
+            let d = (lengths[nets[0]] - lengths[nets[1]]).abs();
+            if d > skew + 1e-6 {
+                out.fail(
+                    format!("nets {} / {}", nets[0], nets[1]),
+                    format!("the pair {} / {} differs by {:.3} mm in length, at most {skew} mm are allowed", nets[0], nets[1], d),
+                    json!({"skew_mm": (d * 1000.0).round() / 1000.0, "lengths_mm": {nets[0]: (lengths[nets[0]] * 1000.0).round() / 1000.0, nets[1]: (lengths[nets[1]] * 1000.0).round() / 1000.0}}),
+                    json!({"skew_mm": skew}),
+                );
+            }
+        }
+    }
+    if let Some(max) = get("max_length_mm") {
+        checked = true;
+        for n in &routed {
+            if lengths[n] > max + 1e-6 {
+                out.fail(format!("net {n}"), format!("net {n} is {:.3} mm long, at most {max} mm are allowed", lengths[n]), json!({"length_mm": (lengths[n] * 1000.0).round() / 1000.0}), json!({"max_length_mm": max}));
+            }
+        }
+        if routed.is_empty() {
+            out.push(Verdict::Unchecked, None, "no net of the interface is routed yet: the length cannot be checked".to_string(), None, None);
+        }
+    }
+    if let Some(tol) = get("length_match_tolerance_mm") {
+        checked = true;
+        if routed.len() < 2 {
+            out.push(Verdict::Unchecked, None, "fewer than two nets of the group are routed: the length matching cannot be checked".to_string(), None, None);
+        } else {
+            let (lo, hi) = routed.iter().fold((f64::MAX, f64::MIN), |a, n| (a.0.min(lengths[n]), a.1.max(lengths[n])));
+            if hi - lo > tol + 1e-6 {
+                out.fail(
+                    format!("nets {}", routed.join(", ")),
+                    format!("the lengths of {} differ by {:.3} mm, at most {tol} mm are allowed", routed.join(", "), hi - lo),
+                    json!({"spread_mm": ((hi - lo) * 1000.0).round() / 1000.0, "lengths_mm": routed.iter().map(|n| (n.to_string(), (lengths[n] * 1000.0).round() / 1000.0)).collect::<BTreeMap<_, _>>()}),
+                    json!({"length_match_tolerance_mm": tol}),
+                );
+            }
+        }
+    }
+    if let Some(minw) = get("min_width_mm") {
+        checked = true;
+        for n in &nets {
+            let narrow: Vec<f64> = ctx.snap.tracks.iter().filter(|t| t.net.as_deref() == Some(*n) && t.width_mm + 1e-6 < minw).map(|t| t.width_mm).collect();
+            if !narrow.is_empty() {
+                out.fail(format!("net {n}"), format!("{} track(s) of net {n} are narrower than {minw} mm", narrow.len()), json!({"min_width_mm": narrow.iter().cloned().fold(f64::MAX, f64::min), "tracks": narrow.len()}), json!({"min_width_mm": minw}));
+            }
+        }
+    }
+    let layers = strings(&rule.params, "layers");
+    if !layers.is_empty() {
+        checked = true;
+        for n in &nets {
+            let bad: BTreeSet<&str> = ctx.snap.tracks.iter().filter(|t| t.net.as_deref() == Some(*n) && !layers.iter().any(|l| l == &t.layer)).map(|t| t.layer.as_str()).collect();
+            if !bad.is_empty() {
+                out.fail(format!("net {n}"), format!("net {n} has tracks on {}, the rule allows {}", bad.iter().cloned().collect::<Vec<_>>().join(", "), layers.join(", ")), json!({"layers": bad}), json!({"layers": layers}));
+            }
+        }
+    }
+    if !checked && rule.execution.unchecked_params.is_empty() {
+        // a rule with nothing the validator looks at must not pass by default
+        out.push(Verdict::Unchecked, None, "the rule has no parameter that this validator checks (skew, maximum length, length matching, minimum width, layers)".to_string(), None, None);
+    }
+}
+
 fn verdict_note(rule: &IrRule) -> String {
     rule.execution.reason.clone().unwrap_or_else(|| "not supported".into())
 }
@@ -547,13 +818,20 @@ pub fn validate(ir: &Ir, snap: &Snapshot, design_name: &str, design_sha256: Opti
                     "required_block" => check_required_block(&ctx, rule, &mut out),
                     "keepout" => check_keepout(&ctx, rule, &mut out),
                     "trace_width" => check_trace_width(&ctx, rule, &mut out),
+                    "strapping" => check_strapping(&ctx, rule, &mut out),
+                    "reset_pin" => check_reset(&ctx, rule, &mut out),
+                    "boot_pin" => check_boot(&ctx, rule, &mut out),
+                    "mechanical_fixed" => check_mechanical(&ctx, rule, &mut out),
+                    "high_speed" => check_high_speed(&ctx, rule, &mut out),
                     other => out.push(Verdict::Unsupported, None, format!("no check for the kind '{other}'"), None, None),
                 }
                 if !out.has_fail() {
                     out.pass_if_clean("all objects satisfy the rule");
                 }
-                // parameters that this version does not look at are said, not skipped
-                for p in &rule.execution.unchecked_params {
+                // parameters that this version does not look at are said, not skipped (a rule that does not
+                // apply to this design has nothing to say about them)
+                let applies = !out.findings.iter().any(|f| f.verdict == Verdict::NotApplicable);
+                for p in rule.execution.unchecked_params.iter().filter(|_| applies) {
                     out.push(Verdict::Unchecked, None, format!("the parameter '{p}' is not checked"), None, None);
                 }
             }

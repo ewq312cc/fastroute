@@ -72,8 +72,9 @@ def seg(n, layer, w, x1, y1, x2, y2):
 # USB pair to the connector, power and ground tracks; nothing in the antenna keep-out (x 40..60, y 0..10)
 out.append(seg("USB_DP", "F.Cu", 0.2, 36.0, 24.0, 36.0, 36.0))
 out.append(seg("USB_DP", "F.Cu", 0.2, 36.0, 36.0, 51.0, 36.0))
+# the pair is 27.0 mm and 27.2 mm long: within the 0.5 mm skew of the rule
 out.append(seg("USB_DM", "F.Cu", 0.2, 34.0, 24.0, 34.0, 38.0))
-out.append(seg("USB_DM", "F.Cu", 0.2, 34.0, 38.0, 53.0, 38.0))
+out.append(seg("USB_DM", "F.Cu", 0.2, 34.0, 38.0, 47.2, 38.0))
 out.append(seg("3V3", "F.Cu", 0.4, 19.0, 18.0, 24.8, 18.0))
 out.append(seg("GND", "B.Cu", 0.4, 21.0, 18.0, 25.0, 24.0))
 out.append(f'  (via (at 25.0 24.0) (size 0.6) (drill 0.3) (layers "F.Cu" "B.Cu") (net {nid["GND"]}) (uuid "{uuid()}"))')

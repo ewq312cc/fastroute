@@ -1,0 +1,266 @@
+# Rule templates for the topics that general GPIO rules miss: strapping, reset, boot mode, interfaces
+# that need care, mechanical limits. Copy one, replace the ids and the placeholders, and put the exact
+# words of the document in `quote`. A template is not evidence: nothing here may be used without
+# reading the original page.
+#
+# Placeholders: DEV-EXAMPLE (device id), SRC-EXAMPLE (source id), BLK-EXAMPLE, REG-EXAMPLE-* (ids of
+# blocks and regions that you define in the pack), pin numbers "1".. (the numbers of the device's
+# pin table), "<the exact words ...>" (a quotation, at most 400 characters).
+#
+# `fixed` / `required` statements about the chip need an `explicit` quotation from an official source.
+# What a reference board does is `observed` and belongs in `configurable` / `optional` rules.
+template_version: "1.0"
+templates:
+  - name: strapping_pin
+    use_when: "a pin is read at reset or power-up to choose a configuration (boot mode, voltage, ...)"
+    evidence_needed: "official explicit: when it is sampled, the default level, what an external pull or driver does"
+    checks: "the pin is not tied hard to a supply or ground net, not driven by a chip or connector, not used as a free GPIO (unless external_drive_allowed)"
+    rule:
+      id: C-STRAP-PIN
+      kind: strapping
+      modifiability: fixed
+      title: "<pin name> selects <what> at reset"
+      subject: { device: DEV-EXAMPLE, pin: "4" }
+      params: { sampled_at: reset, default_level: high, external_drive_allowed: false }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: reset_pin
+    use_when: "the device has a reset / enable input"
+    evidence_needed: "official explicit: the active level"
+    checks: "the pin is connected, not a floating or unconnected net, not tied to the level that holds the device in reset"
+    rule:
+      id: C-RESET-PIN
+      kind: reset_pin
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE, pin: "3" }
+      params: { active_level: low }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, table: "<pin table>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: boot_mode_pin
+    use_when: "a pin selects between normal start and download / programming mode"
+    evidence_needed: "official explicit: the level for the programming mode"
+    checks: "the pin is on a net with a button, jumper or header, and not tied to a supply or ground net"
+    rule:
+      id: C-BOOT-PIN
+      kind: boot_pin
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE, pin: "4" }
+      params: { boot_level: low, mode: serial download }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: required_circuit
+    use_when: "the document requires a circuit around a pin (reset RC, boot button, decoupling, programming header)"
+    evidence_needed: "official explicit; the block (components, values, connections) is defined in peripheral_blocks"
+    also: "define the block BLK-EXAMPLE in peripheral_blocks with its components and the pins it connects to"
+    checks: "each component of the block is found on the nets the block hangs on, once, with the value limits"
+    rule:
+      id: C-NEED-BLOCK
+      kind: required_block
+      modifiability: required
+      subject: { block: BLK-EXAMPLE }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: reserved_pins
+    use_when: "pins are used inside the module (flash, PSRAM, antenna switch) or must not be used"
+    evidence_needed: "official explicit, for this exact variant of the part"
+    checks: "the pins have no connection and no assigned function"
+    rule:
+      id: C-RESERVED-PINS
+      kind: reserved_pin
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE }
+      params: { pins: ["10", "11"], reason: "<why>" }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, table: "<pin table>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: no_connect_pins
+    use_when: "the document says to leave pins open"
+    evidence_needed: "official explicit"
+    checks: "the pins have no connection"
+    rule:
+      id: C-NC-PINS
+      kind: nc_pin
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE }
+      params: { pins: ["10"] }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, table: "<pin table>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: fixed_net_mapping
+    use_when: "a pin must be on a given net (ground, supply, enable)"
+    evidence_needed: "official explicit"
+    checks: "the pin's net matches the pattern (* and ?, a sheet path is ignored)"
+    rule:
+      id: C-FIXED-NET
+      kind: fixed_net
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE }
+      params: { pin: "1", net_pattern: "GND*" }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, table: "<pin table>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: exclusive_functions
+    use_when: "functions share pins or cannot be in use together"
+    evidence_needed: "official explicit"
+    checks: "at most one of the functions is assigned (needs pin assignments in the design snapshot)"
+    rule:
+      id: C-EXCLUSIVE
+      kind: exclusive_functions
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE }
+      params: { functions: [USB_DP, GPIO4] }
+      applies_when: ["<the condition in words, if the document gives one>"]
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: differential_pair
+    use_when: "an interface is routed as a differential pair"
+    evidence_needed: "official explicit for chip requirements; the reference board's values are `observed` and the rule `configurable`"
+    checks: "skew between the two nets (length), maximum length, minimum width, layers; the impedance and the spacing are reported as not checked"
+    rule:
+      id: C-DIFF-PAIR
+      kind: high_speed
+      modifiability: configurable
+      subject: { device: DEV-EXAMPLE }
+      params: { nets: ["USB_DP", "USB_DM"], differential: true, impedance_ohm: 90, skew_mm: 0.5 }
+      applies_when: ["<the interface is used>"]
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: differential_pair_not_given
+    use_when: "the documents name the interface but give no value (the usual case for spacing)"
+    evidence_needed: "none: say what is missing; never fill in a typical value"
+    checks: "reported as unknown"
+    rule:
+      id: C-DIFF-UNKNOWN
+      kind: high_speed
+      modifiability: unknown
+      title: "<interface> pair spacing"
+      params: { nets: ["USB_DP", "USB_DM"], differential: true, gap_mm: null, impedance_ohm: null }
+      missing: "<what the documents do not give, and which document was read>"
+
+  - name: length_matching_group
+    use_when: "several nets must have equal length within a tolerance (buses, source-synchronous clocks)"
+    evidence_needed: "official explicit"
+    checks: "the spread of the lengths and the maximum length; fastroute: a --tune group"
+    rule:
+      id: C-LENGTH-MATCH
+      kind: high_speed
+      modifiability: configurable
+      subject: { device: DEV-EXAMPLE }
+      params: { nets: ["TXD", "RXD"], differential: false, length_match_tolerance_mm: 1.5 }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: antenna_keepout
+    use_when: "the document gives an area that must stay free of copper, components or zones"
+    evidence_needed: "official explicit; the dimensions must be read from the text or the drawing by a person, otherwise the region is `unknown`"
+    also: "define the region REG-EXAMPLE-KEEPOUT (kind antenna_keepout, polygon in mm, layers) in regions"
+    checks: "no track (with its width), via, component or copper zone of the forbidden kinds inside, on the layers named"
+    rule:
+      id: C-KEEPOUT
+      kind: keepout
+      modifiability: fixed
+      subject: { region: REG-EXAMPLE-KEEPOUT }
+      params: { forbid: [track, via, component, zone] }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, figure: "<figure>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: mounting_hole
+    use_when: "a hole, connector or the outline must stay where it is"
+    evidence_needed: "explicit from the mechanical drawing, or `observed` for a reference board"
+    also: "define the region REG-EXAMPLE-HOLE (kind mount_hole with a circle, or board_outline / connector with a polygon)"
+    checks: "a hole with this centre and radius (0.05 mm), the outline's vertices, a connector in the region"
+    rule:
+      id: C-MECH-FIXED
+      kind: mechanical_fixed
+      modifiability: fixed
+      subject: { region: REG-EXAMPLE-HOLE }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, figure: "<figure>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: electrical_limit
+    use_when: "the document gives a limit (supply range, current, input levels)"
+    evidence_needed: "official explicit, with the condition it holds under"
+    checks: "not checked by the validator (no electrical model); it is written in the report so that nobody has to find it again"
+    rule:
+      id: C-ELECTRICAL
+      kind: electrical
+      modifiability: fixed
+      subject: { device: DEV-EXAMPLE }
+      params: { quantity: supply voltage, condition: "<temperature, mode>", min_v: 3.0, max_v: 3.6 }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, table: "<table>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: clearance
+    use_when: "a minimum clearance is required or recommended"
+    evidence_needed: "a document (`explicit`) or a reference board (`observed`, then configurable)"
+    checks: "not checked by the validator (KiCad's DRC does); handed to the router as a .kicad_dru rule"
+    rule:
+      id: C-CLEARANCE
+      kind: clearance
+      modifiability: configurable
+      params: { clearance_mm: 0.15 }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit
+
+  - name: trace_width
+    use_when: "a minimum trace width is required (supply, high-speed layer)"
+    evidence_needed: "a document (`explicit`) or a reference board (`observed`, then configurable)"
+    checks: "tracks of the named nets are at least this wide; handed to the router as a .kicad_dru rule"
+    rule:
+      id: C-TRACE-WIDTH
+      kind: trace_width
+      modifiability: configurable
+      params: { width_mm: 0.4, nets: ["3V3"] }
+      evidence:
+        - source_id: SRC-EXAMPLE
+          locator: { page: 1, section: "<section>" }
+          quote: "<the exact words of the document>"
+          basis: explicit

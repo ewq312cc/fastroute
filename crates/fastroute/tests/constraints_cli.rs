@@ -85,7 +85,9 @@ fn legal_design(dir: &std::path::Path) -> PathBuf {
             {"ref": "R1", "pin": "1", "net": "3V3", "x": 26.0, "y": 30.0}, {"ref": "R1", "pin": "2", "net": "EN", "x": 26.0, "y": 31.0},
             {"ref": "C3", "pin": "1", "net": "EN", "x": 27.0, "y": 30.0}, {"ref": "C3", "pin": "2", "net": "GND", "x": 27.0, "y": 31.0},
             {"ref": "SW1", "pin": "1", "net": "BOOT", "x": 22.0, "y": 34.0}, {"ref": "SW1", "pin": "2", "net": "GND", "x": 22.0, "y": 35.0}
-        ]
+        ],
+        "outline": [[0.0, 0.0], [60.0, 0.0], [60.0, 40.0], [0.0, 40.0]],
+        "mount_holes": [{"x": 3.0, "y": 3.0, "radius_mm": 1.6}]
     });
     std::fs::write(&f, serde_json::to_string_pretty(&v).unwrap()).unwrap();
     f

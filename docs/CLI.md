@@ -116,6 +116,27 @@ routing that works everywhere.
 * The board is saved through a temporary file. Exit codes: 0 done, 1 routing failed, 2 the board
   cannot be used, 4 output refused or not writable, 5 `--fail-on-partial`.
 
+## `fastroute constraints`
+
+Hardware Constraint Packs (HCP): what a device requires, with evidence, checked deterministically
+and offline (no AI model, network or vector index). Overview and trust boundaries: [HCP.md](HCP.md).
+
+```sh
+fastroute constraints check pack.yaml                     # schema + references, evidence, units, whitelist
+fastroute constraints compile pack.yaml -o ir.json        # the Constraint IR (same bytes every time)
+fastroute constraints validate --ir ir.json --design design.json --report report.md
+```
+
+| Command | Does |
+|---|---|
+| `schema [--ir \| --snapshot]` | prints the JSON Schema of a pack, of the IR, or of a design snapshot |
+| `check PACK` | exit 0 valid (warnings listed), 3 not valid; `--json` for the report as data |
+| `compile PACK -o IR` | exit 3 for a pack with errors (nothing is written); keeps the evidence of every rule and says per rule what the validator and the fastroute adapter can execute |
+| `validate (--ir IR \| --pack PACK) --design SNAPSHOT` | checks a design snapshot: **0** pass and every rule checked, **5** no rule violated but some are unchecked / unsupported / unknown / in conflict, **1** a rule is violated (rule, object, actual and required value, severity, evidence per finding), **3** invalid input (also an IR edited after compilation) |
+
+`--report FILE` writes a readable Markdown report (`--lang zh|en`, default `zh`); `--output FILE`
+the JSON. Outputs follow the usual rules (exit 4 if one exists without `--force`, never an input).
+
 ## Compatibility: the original interface
 
 The original flags are unchanged: same names, same defaults, same behaviour, same exit codes.

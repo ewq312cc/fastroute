@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ewq312cc/fastroute/skills/hardware-constraint-design/schemas/design-snapshot-v1.schema.json",
+  "title": "Design snapshot v1",
+  "description": "What the validator knows about a design: components, pins with their nets, copper, outline. Millimetres, x to the right, y down (KiCad's frame). `fastroute constraints extract-kicad` writes one from a .kicad_pcb; any tool can write one.",
+  "type": "object",
+  "required": ["snapshot_version", "project"],
+  "additionalProperties": false,
+  "properties": {
+    "snapshot_version": { "const": "1.0" },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "source_kind": { "type": "string" },
+        "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "x", "y"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": { "type": "string", "minLength": 1 },
+          "device": { "type": "string" },
+          "value": { "type": "string" },
+          "footprint": { "type": "string" },
+          "kind": { "enum": ["resistor", "capacitor", "inductor", "switch", "led", "connector", "ic", "other"] },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "rotation_deg": { "type": "number" },
+          "side": { "enum": ["top", "bottom"] },
+          "uuid": { "type": "string" },
+          "locked": { "type": "boolean" }
+        }
+      }
+    },
+    "pins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "pin", "x", "y"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": { "type": "string" },
+          "pin": { "type": "string" },
+          "name": { "type": "string" },
+          "net": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" }
+        }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["layer", "width_mm", "x1", "y1", "x2", "y2"],
+        "additionalProperties": false,
+        "properties": {
+          "net": { "type": "string" },
+          "layer": { "type": "string" },
+          "width_mm": { "type": "number", "minimum": 0 },
+          "x1": { "type": "number" },
+          "y1": { "type": "number" },
+          "x2": { "type": "number" },
+          "y2": { "type": "number" },
+          "uuid": { "type": "string" }
+        }
+      }
+    },
+    "vias": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "diameter_mm"],
+        "additionalProperties": false,
+        "properties": {
+          "net": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "diameter_mm": { "type": "number", "minimum": 0 },
+          "uuid": { "type": "string" }
+        }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["layer", "polygon"],
+        "additionalProperties": false,
+        "properties": {
+          "net": { "type": "string" },
+          "layer": { "type": "string" },
+          "polygon": { "type": "array", "minItems": 3, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
+          "keepout": { "type": "boolean" },
+          "uuid": { "type": "string" }
+        }
+      }
+    },
+    "outline": { "type": "array", "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
+    "mount_holes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "radius_mm"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "radius_mm": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "pin", "function"],
+        "additionalProperties": false,
+        "properties": { "ref": { "type": "string" }, "pin": { "type": "string" }, "function": { "type": "string" } }
+      }
+    }
+  }
+}

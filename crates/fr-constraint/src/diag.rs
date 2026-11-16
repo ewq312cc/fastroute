@@ -1,8 +1,8 @@
 //! Diagnostics shared by the schema checks, the compiler and the validator.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
@@ -10,7 +10,7 @@ pub enum Severity {
 }
 
 /// A problem found in a pack (or, for the validator, in a design), with where it is.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     /// A stable code (`schema`, `duplicate_pin`, `unknown_unit`, ...); see docs/HCP.md.
     pub code: String,
@@ -18,7 +18,7 @@ pub struct Diagnostic {
     /// JSON path into the document, `$.rules[3].params`.
     pub path: String,
     /// The id of the rule, block, region, device or source the path is in, when there is one.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub object: Option<String>,
     pub message: String,
 }

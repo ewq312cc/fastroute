@@ -348,6 +348,46 @@ _DERIVED = {}
 _NO_NECKDOWN = set()
 
 
+def _ignored_names(ignored_classes):
+    """The lower-case names of --router.autorouter.ignore_net_classes."""
+    return {c.strip().lower() for c in ignored_classes if c and c.strip()}
+
+
+def class_is_ignored(name, ignored):
+    """Whether the autorouter ignores the net class `name` (a DSN or KiCad name); `ignored` is
+    from _ignored_names(). The router compares the names ignoring case, and its default class
+    is called "default" (the DSN's kicad_default, KiCad's "Default"): an exact mirror, so that a
+    net that stays in its class stays ignored and a net that is moved out does not become routed."""
+    n = name.lower()
+    if n == "kicad_default":
+        n = "default"
+    return n in ignored
+
+
+def _register_derived(created):
+    """Remembers the classes made out of nets of other classes: they are still of that class for
+    rules that name it, and they inherit its width rule (so: no neck-down)."""
+    for new, origin in created:
+        _DERIVED.setdefault(origin, []).append(new)
+        if origin in _NO_NECKDOWN:
+            _NO_NECKDOWN.add(new)
+
+
+def _prune_empty_synthetic(text):
+    """Removes the classes `fr_dru_*` that no net is left in (a net that two rules moved leaves
+    the first class empty); their derived classes take their place in the bookkeeping."""
+    for b in reversed(_dsn_class_blocks(text)):
+        if b["name"].startswith("fr_dru_") and not b["nets"]:
+            text = text[: b["start"]] + text[b["end"] :]
+            _NO_NECKDOWN.discard(b["name"])
+            children = _DERIVED.pop(b["name"], [])
+            for kids in _DERIVED.values():
+                if b["name"] in kids:
+                    at = kids.index(b["name"])
+                    kids[at : at + 1] = children
+    return text
+
+
 def _expand_class(name):
     """`name` and the classes made out of nets of it (and of those), for rules that name a class."""
     out = [name]
@@ -411,12 +451,13 @@ def _dsn_class_blocks(text):
     return blocks
 
 
-def split_nets_into_classes(text, wanted, tag, skip_classes=(), modify=None):
+def split_nets_into_classes(text, wanted, tag, is_ignored=None, modify=None):
     """Moves the nets named in `wanted` out of their DSN classes into classes of their own that
     keep the circuit, rule and layer rules of the class they came from (so the nets are routed as
     before; only class-pair clearances can differ). One new class per class that held such nets.
     `modify(body)` may change the body of the new class. Returns (text, [(new class, class it came
-    from)], the wanted nets that stayed because their class is in `skip_classes`)."""
+    from)], the wanted nets that stayed because their class is ignored by the autorouter:
+    `is_ignored(class name)`)."""
     taken = {b["name"] for b in _dsn_class_blocks(text)}
     safe = re.sub(r"\W", "_", tag) or "rule"
     created, stayed = [], []
@@ -424,7 +465,7 @@ def split_nets_into_classes(text, wanted, tag, skip_classes=(), modify=None):
         moving = [r for r, v in zip(b["nets_raw"], b["nets"]) if v in wanted]
         if not moving:
             continue
-        if b["name"] in skip_classes:
+        if is_ignored and is_ignored(b["name"]):
             stayed += [v for v in b["nets"] if v in wanted]
             continue
         name, i = f"fr_dru_{safe}", 1
@@ -469,7 +510,7 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
     except Exception:
         return []
     text = original = Path(dsn_path).read_text(encoding="utf-8", errors="replace")
-    ignored = set(ignored_classes) | ({"kicad_default"} if "Default" in ignored_classes else set())
+    ignored = _ignored_names(ignored_classes)
 
     rules = []  # (name, body, clearance in mm, condition text or None)
     for name, body in _DRU_RULE.findall(rules_text):
@@ -495,16 +536,16 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
             _HANDLED_RULES.add(name)
             _note(name, "its condition matches no net of the board; nothing to apply")
             continue
-        text, created, stayed = split_nets_into_classes(text, wanted, name, ignored)
+        text, created, stayed = split_nets_into_classes(text, wanted, name, lambda c: class_is_ignored(c, ignored))
         if stayed:
             _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
         _HANDLED_RULES.add(name)
         if created:
             own_classes[name] = [c for c, _ in created]
-            for c, origin in created:
-                _DERIVED.setdefault(origin, []).append(c)
+            _register_derived(created)
         elif not stayed:
             _note(name, "none of its nets is in the DSN")
+    text = _prune_empty_synthetic(text)
 
     classes = re.findall(r"\(class\s+\"?([^\s\"()]+)", text)
     dsn_name = {c: c for c in classes}
@@ -572,7 +613,7 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
                 if type_terms:
                     _TYPE_DROPPED_RULES.add(name)
             continue
-        for a in own_classes.get(name, []):
+        for a in [c for c in own_classes.get(name, []) if c in classes]:
             for b in classes:
                 grow(a, b, um, name)
         if name in own_classes:
@@ -1032,6 +1073,7 @@ def add_hole_clearance_keepouts(board, dsn_path, ignored_classes=()):
     except Exception:
         return 0
     copper = [_dsn_quote(board.GetLayerName(l)) for l in board.GetEnabledLayers().CuStack()]
+    ignored_names = _ignored_names(ignored_classes)
     keepouts, holes = [], 0
     for name, body in _DRU_RULE.findall(rules_text):
         cons = re.search(r"\(constraint\s+hole_clearance\s+\(min\s+([\d.]+)\s*(mm|mil|um)?\)", body)
@@ -1057,7 +1099,7 @@ def add_hole_clearance_keepouts(board, dsn_path, ignored_classes=()):
                 break
         if not usable or not matched:
             continue
-        if any(p.GetNetname() and _net_class_name(p.GetNet()) not in ignored_classes for p in matched):
+        if any(p.GetNetname() and not class_is_ignored(_net_class_name(p.GetNet()), ignored_names) for p in matched):
             continue
         for pad in matched:
             pos = pad.GetPosition()
@@ -1284,7 +1326,7 @@ def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
     except Exception:
         return []
     text = original = Path(dsn_path).read_text(encoding="utf-8", errors="replace")
-    ignored = set(ignored_classes) | ({"kicad_default"} if "Default" in ignored_classes else set())
+    ignored = _ignored_names(ignored_classes)
     unit_um = 1000.0 if re.search(r"\(resolution\s+mm", text) else 1.0
     nets = _board_nets(board)
     done_keys = {(c, l) for c, l, _ in layer_widths}
@@ -1308,12 +1350,12 @@ def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
         dsn_name["Default"] = "kicad_default" if "kicad_default" in classes else "Default"
         targets = None  # DSN classes edited in place
         if cond is None:
-            targets = [c for c in classes if c not in ignored]
+            targets = [c for c in classes if not class_is_ignored(c, ignored)]
         elif only_class:
             c = dsn_name.get(only_class.group(1))
             if c is None:
                 continue
-            targets = [x for x in _expand_class(c) if x in classes and x not in ignored]
+            targets = [x for x in _expand_class(c) if x in classes and not class_is_ignored(x, ignored)]
         if targets is not None:
             if not targets:
                 _note(name, "not applied: the net class is ignored by the autorouter")
@@ -1334,11 +1376,10 @@ def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
             if not wanted:
                 _note(name, "its condition matches no net of the board; nothing to apply")
                 continue
-            text, created, stayed = split_nets_into_classes(text, wanted, "w_" + name, ignored, modify)
+            text, created, stayed = split_nets_into_classes(text, wanted, "w_" + name, lambda c: class_is_ignored(c, ignored), modify)
             if stayed:
                 _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
-            for c, origin in created:
-                _DERIVED.setdefault(origin, []).append(c)
+            _register_derived(created)
             created_names = [c for c, _ in created]
             if not created:
                 continue
@@ -1347,6 +1388,7 @@ def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
         if note:
             _note(name, note)
         out.append((name, created_names, width_mm, layer_kicad))
+    text = _prune_empty_synthetic(text)
     if text != original:
         Path(dsn_path).write_text(text, encoding="utf-8")
     return out

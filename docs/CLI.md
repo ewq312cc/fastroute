@@ -203,6 +203,12 @@ What the real runs found and fixed:
     the middle of `min` and `max`, else `min`. Those classes get no neck-down. Real DRC: three nets
     with 0.6 mm / 0.5-0.7 mm rules (one only on F.Cu) had 6, 5 and 33 `track_width` violations
     before and 0 after.
+  * nets of a net class that the autorouter ignores (`--router.autorouter.ignore_net_classes`) stay
+    in their class and the rules are not applied to them (printed): moving them into a class of
+    their own would make the router route them. The router compares the class names ignoring case
+    and calls the default class `default`; the plugin compared exactly, so with
+    `ignore_net_classes=power` for the class `POWER` a rule moved GND out of it and GND was routed
+    (11 ignored connections instead of 50 on `pic_programmer`). Fixed and tested on that board.
   What still is not applied is printed as `NOT applied`: conditions on item types (`A.Type`), areas,
   and `B.` terms on nets. A `(layer ...)` clearance restriction is applied to all layers and a
   clearance below a class's own lowers it; both are said. When rules overlap, the later one wins for
@@ -213,7 +219,9 @@ What the real runs found and fixed:
 * The demo boards come without a library table, so KiCad's DRC reports `lib_footprint_issues`
   warnings and `drc_status` is `failed` with 0 errors. Read `errors` / `warnings`.
 
-Not run: KiCad 9 and 10.
+Not run: KiCad 9 and 10. Known limit: a clearance rule for a net of an ignored net class is not
+applied (the net stays in its class), so other nets can run closer to that net than the rule says;
+KiCad's DRC reports it.
 
 ## Tests
 

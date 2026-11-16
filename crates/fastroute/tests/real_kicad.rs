@@ -165,18 +165,34 @@ fn drc_violations(k: &Kicad, routed: &Path, dru: &str, kind: &str, net: Option<&
         .count()
 }
 
-/// Routes a copy of the demo board with `dru` next to it (no rules if empty); returns the routed board.
-fn route_with(k: &Kicad, dir: &Path, dru: &str) -> PathBuf {
+/// Routes a copy of the demo board with `dru` next to it (no rules if empty) and, if `project`, its
+/// project file (the net classes); returns the routed board and the JSON summary.
+fn route_with(k: &Kicad, dir: &Path, dru: &str, project: bool, extra: &[&str]) -> (PathBuf, Value) {
     std::fs::create_dir_all(dir).unwrap();
     let board = dir.join("b.kicad_pcb");
     std::fs::copy(&k.demo, &board).unwrap();
+    if project {
+        std::fs::copy(k.demo.with_extension("kicad_pro"), dir.join("b.kicad_pro")).unwrap();
+    }
     if !dru.is_empty() {
         std::fs::write(dir.join("b.kicad_dru"), dru).unwrap();
     }
-    let o = run(&["route", &s(&board), "--python", &s(&k.python), "--clear", "--max-time", "60", "-q", "--allow-partial", "-o", &s(&dir.join("routed.kicad_pcb"))]);
+    let mut args: Vec<String> = ["route", &s(&board), "--python", &s(&k.python), "--clear", "--max-time", "60", "-q", "--allow-partial", "--json", "-o", &s(&dir.join("routed.kicad_pcb"))].iter().map(|a| a.to_string()).collect();
+    args.extend(extra.iter().map(|a| a.to_string()));
+    let o = run(&args);
     assert!(matches!(code(&o), 0 | 5), "{}", stderr(&o));
     assert!(!stderr(&o).contains("NOT applied"), "the rule must be carried over: {}", stderr(&o));
-    dir.join("routed.kicad_pcb")
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap_or_else(|e| panic!("no summary ({e}): {} {}", stdout(&o), stderr(&o)));
+    (dir.join("routed.kicad_pcb"), v)
+}
+
+/// The net with the most tracks on `board` (not `except`).
+fn busiest_net(k: &Kicad, board: &Path, except: &str) -> String {
+    let script = "import sys, pcbnew, collections\nc = collections.Counter(t.GetNetname() for t in pcbnew.LoadBoard(sys.argv[1]).GetTracks() if \"'\" not in t.GetNetname() and t.GetNetname() != sys.argv[2])\nprint(c.most_common(1)[0][0])\n";
+    let o = Command::new(&k.python).args(["-I", "-c", script, &s(board), except]).output().unwrap();
+    let net = String::from_utf8_lossy(&o.stdout).trim().to_string();
+    assert!(!net.is_empty(), "{}", String::from_utf8_lossy(&o.stderr));
+    net
 }
 
 #[test]
@@ -188,8 +204,8 @@ fn a_kicad_dru_clearance_rule_reaches_the_router_and_the_real_drc_agrees() {
     // a rule for every pair of net classes (what `fastroute rules apply` writes for "all nets")
     let dru = "(version 1)\n(rule \"all\" (constraint clearance (min 0.3mm)))\n";
     let d = tmp("real-clearance");
-    let without = drc_violations(&k, &route_with(&k, &d.join("without"), ""), dru, "clearance", None);
-    let with = drc_violations(&k, &route_with(&k, &d.join("with"), dru), dru, "clearance", None);
+    let without = drc_violations(&k, &route_with(&k, &d.join("without"), "", false, &[]).0, dru, "clearance", None);
+    let with = drc_violations(&k, &route_with(&k, &d.join("with"), dru, false, &[]).0, dru, "clearance", None);
     assert!(without > 0, "the demo board should break a 0.3 mm rule that the router did not see ({without})");
     assert!(with < without, "the router did not follow the rule: {with} clearance violations with it, {without} without");
 }
@@ -201,15 +217,50 @@ fn a_kicad_dru_track_width_rule_for_one_net_reaches_the_router_and_the_real_drc_
         return skip("KiCad 7 cannot route headless (see the first test)");
     }
     let d = tmp("real-width");
-    let plain = route_with(&k, &d.join("without"), "");
-    // the net with the most tracks in the plain result
-    let script = "import sys, pcbnew, collections\nc = collections.Counter(t.GetNetname() for t in pcbnew.LoadBoard(sys.argv[1]).GetTracks() if \"'\" not in t.GetNetname())\nprint(c.most_common(1)[0][0])\n";
-    let o = Command::new(&k.python).args(["-I", "-c", script, &s(&plain)]).output().unwrap();
-    let net = String::from_utf8_lossy(&o.stdout).trim().to_string();
-    assert!(!net.is_empty(), "{}", String::from_utf8_lossy(&o.stderr));
+    let plain = route_with(&k, &d.join("without"), "", false, &[]).0;
+    let net = busiest_net(&k, &plain, "");
     let dru = format!("(version 1)\n(rule \"one-net\" (condition \"A.NetName == '{net}'\") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n");
     let without = drc_violations(&k, &plain, &dru, "track_width", Some(&net));
-    let with = drc_violations(&k, &route_with(&k, &d.join("with"), &dru), &dru, "track_width", Some(&net));
+    let with = drc_violations(&k, &route_with(&k, &d.join("with"), &dru, false, &[]).0, &dru, "track_width", Some(&net));
     assert!(without > 0, "the net {net} should break a 0.6 mm rule that the router did not see ({without})");
     assert!(with < without, "the router did not follow the width of {net}: {with} track_width violations with the rule, {without} without");
+}
+
+/// (net class, net) of the demo's project: a class other than Default with a pattern that is a plain
+/// net name (KiCad's `pic_programmer`: POWER, GND).
+fn ignorable_class_and_net(k: &Kicad) -> Option<(String, String)> {
+    let project: Value = serde_json::from_slice(&std::fs::read(k.demo.with_extension("kicad_pro")).ok()?).ok()?;
+    project["net_settings"]["netclass_patterns"].as_array()?.iter().find_map(|p| {
+        let (class, pattern) = (p["netclass"].as_str()?, p["pattern"].as_str()?);
+        (class != "Default" && !pattern.contains(['*', '?', '\'']) && !pattern.is_empty()).then(|| (class.to_string(), pattern.to_string()))
+    })
+}
+
+#[test]
+fn rules_for_nets_of_an_ignored_net_class_leave_those_nets_ignored_on_a_real_board() {
+    let Some(k) = kicad() else { return skip("kicad-cli / pcbnew / a demo board") };
+    if k.major < 8 {
+        return skip("KiCad 7 cannot route headless (see the first test)");
+    }
+    let Some((class, ignored_net)) = ignorable_class_and_net(&k) else { return skip("the demo project has no net class with a plain net name") };
+    let d = tmp("real-ignored");
+    // the router compares the class names ignoring case: the option is spelled in lower case on purpose
+    let ignore = format!("--router.autorouter.ignore_net_classes={}", class.to_lowercase());
+    let (plain, base) = route_with(&k, &d.join("plain"), "", true, &[&ignore]);
+    let other = busiest_net(&k, &plain, &ignored_net);
+    let dru = format!(
+        "(version 1)\n(rule \"w\" (condition \"A.NetName == '{ignored_net}' || A.NetName == '{other}'\") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n\
+         (rule \"c\" (condition \"A.NetName == '{ignored_net}' || A.NetName == '{other}'\") (constraint clearance (min 0.45mm)))\n"
+    );
+    let (routed, with) = route_with(&k, &d.join("with"), &dru, true, &[&ignore]);
+    // the nets of the ignored class were not routed before and are not routed now: the rules did
+    // not move them into a class of their own (which the router does not ignore)
+    assert!(base["unrouted"].as_u64().unwrap() > 0, "the ignored class {class} should leave connections unrouted: {base}");
+    assert_eq!(with["unrouted"], base["unrouted"], "the rules changed which connections are ignored: {with} against {base}");
+    // ... and the net of another class got its width
+    let width_only = format!("(version 1)\n(rule \"w\" (condition \"A.NetName == '{other}'\") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n");
+    let before = drc_violations(&k, &plain, &width_only, "track_width", Some(&other));
+    let after = drc_violations(&k, &routed, &width_only, "track_width", Some(&other));
+    assert!(before > 0, "{other} should break a 0.6 mm rule that the router did not see ({before})");
+    assert_eq!(after, 0, "{other} is not in an ignored class: the router must follow its width rule ({after} violations)");
 }

@@ -408,7 +408,74 @@ class NetWidthRulesTest(unittest.TestCase):
         self.assertEqual(pairs[("HV", "fr_dru_C")], 700.0, "the rule of the class Default still covers SIG")
         self.assertEqual(pairs[("fr_dru_C", "fr_dru_C")], 450.0)
         self.assertEqual({r for r, _ in carried}, {"C", "cls"})
-        self.assertEqual(self.core._NO_NECKDOWN, {"fr_dru_w_W"})
+        # the net moved a second time (by the clearance rule): its class has the width rule, so no
+        # neck-down there either; the class it left is empty and gone
+        self.assertEqual(self.core._NO_NECKDOWN, {"fr_dru_C"})
+        self.assertNotIn("fr_dru_w_W", text)
+        self.assertTrue(all(b["nets"] for b in classes.values() if b["name"].startswith("fr_dru_")), "no empty class left")
+
+    # ---- ignored net classes: an exact mirror of the router ------------------------------------
+
+    def test_the_router_compares_class_names_ignoring_case_and_calls_the_default_class_default(self):
+        names = self.core._ignored_names([" Power ", "", "DEFAULT"])
+        self.assertEqual(names, {"power", "default"})
+        for cls, ignored in (("POWER", True), ("power", True), ("Default", True), ("kicad_default", True), ("HV", False), ("fr_dru_x", False)):
+            self.assertEqual(self.core.class_is_ignored(cls, names), ignored, cls)
+        # (the router has no class that is called kicad_default, so naming it ignores nothing)
+        self.assertFalse(self.core.class_is_ignored("kicad_default", self.core._ignored_names(["kicad_default"])))
+        self.assertFalse(self.core.class_is_ignored("HV", self.core._ignored_names([])))
+
+    def test_width_and_clearance_rules_leave_the_nets_of_an_ignored_class_alone_whatever_its_case(self):
+        for spelled in ("HV", "hv", "Hv"):
+            self.dsn.write_text(DSN)
+            self.core._HANDLED_RULES.clear()
+            self.core._RULE_NOTES.clear()
+            self.core._DERIVED.clear()
+            self.core._NO_NECKDOWN.clear()
+            (self.dir / "b.kicad_dru").write_text(
+                """(version 1)
+(rule "W" (condition "A.NetName == 'HV+' || A.NetName == 'SIG'") (constraint track_width (min 0.6mm)))
+(rule "C" (condition "A.NetName == 'HV+' || A.NetName == 'SIG'") (constraint clearance (min 0.5mm)))
+"""
+            )
+            self.core.add_dru_net_widths(self.board, self.dsn, {spelled}, ())
+            self.core.add_dru_class_clearances(self.board, self.dsn, {spelled})
+            classes = {b["name"]: b for b in self.core._dsn_class_blocks(self.dsn.read_text())}
+            self.assertEqual(classes["HV"]["nets"], ["HV+"], f"HV+ stays in its ignored class ({spelled})")
+            self.assertEqual(self.width_of(classes["HV"]), 300.0)
+            holder = next(n for n, b in classes.items() if "SIG" in b["nets"])
+            self.assertTrue(holder.startswith("fr_dru_"), "SIG is not in an ignored class: the rules apply")
+            self.assertEqual(sum(1 for b in classes.values() for n in b["nets"] if n == "HV+"), 1)
+            warned = [w for w in self.warnings() if "ignored by the autorouter" in w]
+            self.assertEqual(len(warned), 2, (spelled, self.warnings()))
+
+    def test_the_default_class_is_ignored_as_default_in_any_case(self):
+        for spelled in ("Default", "default", "DEFAULT"):
+            self.dsn.write_text(DSN)
+            self.core._HANDLED_RULES.clear()
+            self.core._RULE_NOTES.clear()
+            self.core._DERIVED.clear()
+            self.core._NO_NECKDOWN.clear()
+            (self.dir / "b.kicad_dru").write_text(
+                """(version 1)
+(rule "all" (constraint track_width (min 0.6mm)))
+(rule "one" (condition "A.NetName == 'SIG' || A.NetName == 'HV+'") (constraint clearance (min 0.5mm)))
+"""
+            )
+            self.core.add_dru_net_widths(self.board, self.dsn, {spelled}, ())
+            self.core.add_dru_class_clearances(self.board, self.dsn, {spelled})
+            classes = {b["name"]: b for b in self.core._dsn_class_blocks(self.dsn.read_text())}
+            self.assertEqual(self.width_of(classes["kicad_default"]), 200.0, f"the ignored default class keeps its width ({spelled})")
+            self.assertEqual(self.width_of(classes["HV"]), 600.0, "the other class gets the rule for every class")
+            self.assertIn("SIG", classes["kicad_default"]["nets"])
+            self.assertEqual(sum(1 for b in classes.values() for n in b["nets"] if n == "SIG"), 1)
+
+    def test_a_class_rule_does_not_touch_an_ignored_class_either(self):
+        (self.dir / "b.kicad_dru").write_text("""(version 1)\n(rule "hv" (condition "A.NetClass == 'HV'") (constraint track_width (min 0.8mm)))\n""")
+        done = self.core.add_dru_net_widths(self.board, self.dsn, {"hv"}, ())
+        self.assertEqual(done, [])
+        self.assertEqual(self.dsn.read_text(), DSN)
+        self.assertTrue(any("ignored by the autorouter" in w for w in self.warnings()), self.warnings())
 
     def test_the_dsn_stays_balanced_and_every_net_in_one_class(self):
         self.widths(

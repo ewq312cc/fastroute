@@ -169,3 +169,38 @@ fn validate_refuses_bad_inputs_before_anything_is_written() {
     assert_eq!(code(&run(&["constraints", "compile", &s(&bad), "-o", &s(&ir_bad)])), 3);
     assert!(!ir_bad.exists());
 }
+
+#[test]
+fn report_writes_the_sections_in_the_requested_language_and_refuses_an_invalid_pack() {
+    let d = tmp("constraints-report");
+    let zh = d.join("report-zh.md");
+    let en = d.join("report-en.md");
+    assert_eq!(code(&run(&["constraints", "report", &s(&example()), "-o", &s(&zh), "--lang", "zh"])), 0);
+    // without --lang the language of the pack is used (the example says `language: en`; a pack
+    // without a language gets Chinese)
+    assert_eq!(code(&run(&["constraints", "report", &s(&example()), "-o", &s(&en)])), 0);
+    let text = std::fs::read_to_string(&zh).unwrap();
+    assert!(text.contains("硬件约束知识包报告") && text.contains("## 7. 来源列表") && text.contains("C-RESERVED"), "{text}");
+    assert!(std::fs::read_to_string(&en).unwrap().contains("## 1. What must not be changed (fixed)"));
+    // standard output, usage, input and output problems
+    let o = run(&["constraints", "report", &s(&example()), "-o", "-"]);
+    assert_eq!(code(&o), 0);
+    assert!(stdout(&o).starts_with("# Acme FM-100 example module (fictional)"));
+    assert_eq!(code(&run(&["constraints", "report", &s(&example())])), 2);
+    assert_eq!(code(&run(&["constraints", "report", &s(&example()), "-o", &s(&d.join("x.md")), "--lang", "fr"])), 2);
+    assert_eq!(code(&run(&["constraints", "report", &s(&example()), "-o", &s(&zh), "--lang", "zh"])), 4);
+    let mut no_lang: Value = serde_json::from_str(&serde_json::to_string(&fr_constraint::hcp::parse(&std::fs::read_to_string(example()).unwrap()).unwrap()).unwrap()).unwrap();
+    no_lang["pack"].as_object_mut().unwrap().remove("language");
+    let f = d.join("no-lang.json");
+    std::fs::write(&f, serde_json::to_string(&no_lang).unwrap()).unwrap();
+    let o = run(&["constraints", "report", &s(&f), "-o", "-"]);
+    assert!(stdout(&o).contains("硬件约束知识包报告"), "a pack without a language gets a Chinese report");
+    // an invalid pack has no report, and nothing is written
+    let bad = d.join("bad.json");
+    let mut pack: Value = serde_json::from_str(&serde_json::to_string(&fr_constraint::hcp::parse(&std::fs::read_to_string(example()).unwrap()).unwrap()).unwrap()).unwrap();
+    pack["rules"][0].as_object_mut().unwrap().remove("evidence");
+    std::fs::write(&bad, serde_json::to_string(&pack).unwrap()).unwrap();
+    let out = d.join("bad.md");
+    assert_eq!(code(&run(&["constraints", "report", &s(&bad), "-o", &s(&out)])), 3);
+    assert!(!out.exists());
+}

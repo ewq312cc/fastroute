@@ -3,6 +3,8 @@
 //! ```text
 //! constraints schema        the JSON Schema of a pack (or of the IR, or of a design snapshot)
 //! constraints check PACK    the schema and the semantic checks of a pack (exit 3 if it is not valid)
+//! constraints report PACK   a readable report of a pack (Chinese or English): what must not be
+//!                           changed, what must stay, what may change, and the evidence
 //! constraints compile PACK  the Constraint IR: deterministic, with the evidence of every rule
 //! constraints validate      the IR (or a pack) against a design snapshot: exit 0 pass, 5 pass with
 //!                           gaps, 1 violations, 3 invalid input
@@ -37,6 +39,13 @@ const SCHEMA_OPTS: &[Opt] = &[
     opt("ir", None, None, "print the schema of the Constraint IR instead"),
     opt("snapshot", None, None, "print the schema of a design snapshot instead"),
 ];
+const REPORT_OPTS: &[Opt] = &[
+    opt("pack", None, Some("FILE"), "the pack, YAML or JSON (also the first positional argument)"),
+    opt("output", Some('o'), Some("FILE"), "the report (Markdown) to write ('-' = standard output)"),
+    opt("lang", None, Some("zh|en"), "language of the report (default: the pack's language, else zh)"),
+    opt("force", None, None, "replace an existing output file"),
+    opt("quiet", Some('q'), None, "no diagnostics on standard error"),
+];
 const COMPILE_OPTS: &[Opt] = &[
     opt("pack", None, Some("FILE"), "the pack, YAML or JSON (also the first positional argument)"),
     opt("output", Some('o'), Some("FILE"), "the Constraint IR to write ('-' = standard output)"),
@@ -60,6 +69,13 @@ const fn spec(name: &'static str, about: &'static str, usage: &'static str, opts
 }
 
 const SCHEMA_SPEC: Spec = spec("constraints schema", "print the JSON Schema of a hardware constraint pack (or IR, or design snapshot)", "constraints schema [--ir | --snapshot]", SCHEMA_OPTS, "The same files are in skills/hardware-constraint-design/schemas/; the commands enforce them.");
+const REPORT_SPEC: Spec = spec(
+    "constraints report",
+    "write a readable report of a pack: what must not be changed, what must stay, what may change, and the evidence",
+    "constraints report PACK --output report.md [--lang zh|en]",
+    REPORT_OPTS,
+    "Sections, always in this order: 1 cannot be changed, 2 must stay, 3 may be configured, 4 where an AI may edit (the\nwhitelist), 5 high-speed / mechanical / routing, 6 conflicts and gaps, 7 sources. Every item cites document, version, page /\nsection and the quoted words; derivations, observations and pending notes are labelled. A pack with errors has no report (exit 3).",
+);
 const COMPILE_SPEC: Spec = spec(
     "constraints compile",
     "compile a pack to the Constraint IR (deterministic; evidence kept; unsupported rules marked)",
@@ -88,6 +104,7 @@ const SUBCOMMANDS: &str = "\
 commands:
   schema              print the JSON Schema of a pack (or the IR, or a design snapshot)
   check               check a pack (exit 3 if it is not valid)
+  report              a readable report of a pack (zh or en)
   compile             compile a pack to the Constraint IR
   validate            check a design snapshot against the IR
 
@@ -102,6 +119,7 @@ pub fn help_for(sub: Option<&str>) -> String {
     match sub {
         Some("schema") => SCHEMA_SPEC.help_text(),
         Some("check") => CHECK_SPEC.help_text(),
+        Some("report") => REPORT_SPEC.help_text(),
         Some("compile") => COMPILE_SPEC.help_text(),
         Some("validate") => VALIDATE_SPEC.help_text(),
         _ => help_text(),
@@ -120,9 +138,10 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
         }
         "schema" => cmd_schema(rest),
         "check" => cmd_check(rest),
+        "report" => cmd_report(rest),
         "compile" => cmd_compile(rest),
         "validate" => cmd_validate(rest),
-        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, compile, validate)"))),
+        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate)"))),
     }
 }
 
@@ -343,4 +362,36 @@ fn cmd_validate(args: &[String]) -> Result<(), CmdError> {
         (_, false) => Err(CmdError::new(cmd::exit::PARTIAL, "no rule is violated, but some rules are unchecked, unsupported, unknown or in conflict (see the report)")),
         _ => Ok(()),
     }
+}
+
+fn cmd_report(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&REPORT_SPEC, args)? else { return Ok(()) };
+    let path = pack_path(&p)?;
+    let output = p.path("output").ok_or_else(|| CmdError::usage("no output (--output report.md, or - for standard output)"))?;
+    let to_stdout = output == Path::new("-");
+    let explicit_lang = match p.value("lang") {
+        None => None,
+        Some(l) => Some(Lang::parse(l).ok_or_else(|| CmdError::usage(format!("unknown language '{l}' (zh or en)")))?),
+    };
+    if !to_stdout {
+        check_output(&output, &[&path], p.flag("force"))?;
+    }
+    let (_, doc) = read_pack(&path)?;
+    let diagnostics = hcp::check(&doc);
+    let errors = diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
+    if errors > 0 {
+        print_diagnostics(&diagnostics);
+        return Err(CmdError::input(format!("{}: the pack is not valid ({errors} errors): there is no report of an invalid pack", path.display())));
+    }
+    let lang = explicit_lang.unwrap_or(if doc["pack"]["language"] == "en" { Lang::En } else { Lang::Zh });
+    let text = fr_constraint::pack_report::pack_report(&doc, lang);
+    if to_stdout {
+        print!("{text}");
+    } else {
+        write_output(&output, text.as_bytes(), &[&path], p.flag("force"))?;
+    }
+    if !p.flag("quiet") {
+        print_diagnostics(&diagnostics);
+    }
+    Ok(())
 }

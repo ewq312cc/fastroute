@@ -10,6 +10,7 @@ pub mod geom;
 pub mod hcp;
 pub mod ir;
 pub mod jsonschema;
+pub mod pack_report;
 pub mod report;
 pub mod snapshot;
 pub mod validate;

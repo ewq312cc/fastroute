@@ -60,7 +60,7 @@ KiCad's DRC is the authority on whether a board passes; fastroute's own clearanc
 (`checks.fastroute_clearance` in `inspect.json`) is a different tool and is never mixed with it.
 
 * `--kicad-pcb routed.kicad_pcb` runs `kicad-cli pcb drc --format json --units mm
-  --severity-all` on that board (KiCad 7 or newer; it must be the routed board that matches the
+  --severity-all` on that board (KiCad 8 or newer — KiCad 7's `kicad-cli` has no `pcb drc` and gives `drc_status: "unavailable"`; it must be the routed board that matches the
   session — the KiCad plugin writes it). `kicad-cli` is looked up in `--kicad-cli PATH`,
   `$FASTROUTE_KICAD_CLI`, `PATH` and the usual install places. `--drc-timeout SECONDS` (default
   300) stops a hanging run, including the processes it started.
@@ -113,7 +113,7 @@ DRC result, 1 anything else.
 
 `crates/fastroute/tests/aipack_cli.rs` generates real packs from `testdata/render_demo.dsn`
 with an empty `PATH` and no display, and uses a scripted stand-in for `kicad-cli` for every
-outcome: findings, a clean board, missing tool, a hang (killed within the timeout, with its
+outcome: findings, a clean board, missing tool, a `kicad-cli` of KiCad 7 without `pcb drc`, a hang (killed within the timeout, with its
 child processes), a crash, a non-zero exit, garbage output, and no output at all. It checks
 that none of the failures is ever `passed`, the overwrite rules, `--verify` on damaged packs
 (changed picture, missing files, wrong status, unknown issue id, stray report), error

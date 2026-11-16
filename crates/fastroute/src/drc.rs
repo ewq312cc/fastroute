@@ -202,7 +202,7 @@ pub fn find_kicad_cli(configured: Option<&Path>) -> Result<PathBuf, String> {
             }
         }
     }
-    Err("kicad-cli was not found (install KiCad 7 or newer, put kicad-cli on PATH, or use --kicad-cli / FASTROUTE_KICAD_CLI)".into())
+    Err("kicad-cli was not found (install KiCad 8 or newer, put kicad-cli on PATH, or use --kicad-cli / FASTROUTE_KICAD_CLI)".into())
 }
 
 struct Finished {
@@ -267,6 +267,24 @@ pub fn run_kicad_cli(tool: &Path, pcb: &Path, report_path: &Path, timeout: Durat
         c.arg("--version");
         run_with_timeout(c, Duration::from_secs(10)).ok().filter(|f| f.code == Some(0)).map(|f| first_line(&f.out)).filter(|v| !v.is_empty())
     };
+    // KiCad 7's `kicad-cli pcb` has only `export`; `pcb drc` came with KiCad 8. Ask the tool
+    // (a real drc help lists --output; KiCad 7 prints the generic `pcb` usage and exits 1)
+    // instead of guessing from a version number.
+    let mut probe = Command::new(tool);
+    probe.args(["pcb", "drc", "--help"]);
+    if let Ok(f) = run_with_timeout(probe, Duration::from_secs(15)) {
+        if !f.timed_out && f.code != Some(0) && !f.out.contains("--output") && !f.err.contains("--output") {
+            return DrcOutcome::failure(
+                DrcStatus::Unavailable,
+                tool,
+                version.clone(),
+                format!(
+                    "this kicad-cli{} has no `pcb drc` command: the design rule check from the command line needs KiCad 8 or newer",
+                    version.as_ref().map(|v| format!(" ({v})")).unwrap_or_default()
+                ),
+            );
+        }
+    }
     let _ = std::fs::remove_file(report_path);
     let mut c = Command::new(tool);
     c.args(["pcb", "drc", "--format", "json", "--units", "mm", "--severity-all", "--output"]).arg(report_path).arg(pcb);

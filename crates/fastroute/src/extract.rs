@@ -182,6 +182,7 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
                     (String::new(), String::new())
                 };
                 let net = first_net(basic, key);
+                let center = conv.fp(&it.center(basic).to_float());
                 for layer in it.first_layer(basic)..=it.last_layer(basic) {
                     let Some(shape) = it.drill_shape_on_layer(basic, layer) else { continue };
                     let shape = match &shape {
@@ -194,7 +195,7 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
                             PadShape::Poly(pts)
                         }
                     };
-                    g.pads.push(Pad { layer: layer as usize, net, component: component.clone(), pin: pin.clone(), shape });
+                    g.pads.push(Pad { layer: layer as usize, net, component: component.clone(), pin: pin.clone(), center, shape });
                 }
             }
             ItemKind::Trace(tr) => {

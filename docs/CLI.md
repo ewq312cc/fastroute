@@ -93,7 +93,7 @@ command checks the dependencies first and names what is missing:
 
 ```
 fastroute route: no Python with KiCad's pcbnew module: python3 (python3 on PATH): ModuleNotFoundError:
-No module named 'pcbnew'. Routing a .kicad_pcb needs KiCad's Python (KiCad 7 or newer): give it with
+No module named 'pcbnew'. Routing a .kicad_pcb needs KiCad's Python (KiCad 8 or newer, which can import a session headless): give it with
 --python or $FASTROUTE_KICAD_PYTHON ...
 ```
 
@@ -155,14 +155,34 @@ connections. Nothing has to be migrated; the original form keeps working.
 | Needed by | Program | Why | If missing |
 |---|---|---|---|
 | nothing | — | `route` / `render` / `inspect` / `ai-pack` on `.dsn` / `.ses`, no browser, window system or network | — |
-| `route` on `.kicad_pcb` | **KiCad's Python with `pcbnew`** (KiCad 7+) and `route_cli.py` | read the board, export the DSN, import the SES, refill zones | exit 3 naming `--python` / `--route-cli` |
-| `ai-pack --kicad-pcb` | **`kicad-cli`** (KiCad 7+) | KiCad's own DRC | `drc_status: "unavailable"`, a warning, the pack is still written |
+| `route` on `.kicad_pcb` | **KiCad's Python with `pcbnew`** (**KiCad 8 or newer**) and `route_cli.py` | read the board, export the DSN, import the SES, refill zones | exit 3 naming `--python` / `--route-cli`, or the KiCad version that cannot import a session headless |
+| `ai-pack --kicad-pcb` | **`kicad-cli`** (**KiCad 8 or newer**: `pcb drc` does not exist in 7) | KiCad's own DRC | `drc_status: "unavailable"`, a warning that names the version, the pack is still written |
 | `--live` | a web browser (`xdg-open` / `open` / `start`; `FASTROUTE_LIVE_NO_OPEN=1` skips opening) | the live view | the URL is printed; routing is unaffected |
 
 `pcbnew` and `kicad-cli` come with KiCad; they are not Rust crates and are not bundled. On
 Linux `python3` can import `pcbnew` if the distribution's KiCad Python module is installed
 (check with `python3 -c "import pcbnew"`); on macOS and Windows use the Python inside the KiCad
 installation (see the plugin README for the paths).
+
+## Checked against a real KiCad
+
+The stand-ins in the tests prove the logic; these were also run against a real **KiCad 7.0.11**
+(Ubuntu `kicad` package, 12 of KiCad's demo boards):
+
+| What | Result |
+|---|---|
+| `inspect` / `render` / `ai-pack` on the DSN that KiCad's own exporter writes | all boards exit 0; pad, outline and via coordinates agree with `pcbnew` exactly (same frame: mm, y down, board origin) |
+| `ai-pack --kicad-pcb` | KiCad 7's `kicad-cli pcb` has no `drc` command, so `drc_status` is `unavailable` with the version in the message, the pack is `partial`, `--verify` passes, and `--require-drc` exits 5. No false "passed" |
+| `route board.kicad_pcb` | refused in 0.2 s with exit 3 and the reason: in KiCad 7 `ImportSpecctraSES` takes only a file name and needs the PCB editor, so the routed session could not be imported headless. Before this check the run would route first and fail afterwards |
+| `route_cli.py --export-only` | works |
+
+Not run for lack of a KiCad 8+ in the environment (the stand-in tests cover the code paths):
+the `kicad-cli pcb drc` success path and the parsing of a real DRC report, the coordinate frame of
+DRC items, a complete headless `route` ending in an imported board, and `.kicad_dru` files read by
+KiCad. Two things seen in the real data are documented in
+[AI_DATA_FORMAT.md](AI_DATA_FORMAT.md): KiCad's DSN export renames duplicate pad names and omits
+mounting holes without copper, and `pads[].x/y` is the pad centre as the router uses it, which for
+custom-shaped pads is not KiCad's pad position.
 
 ## Tests
 
@@ -171,7 +191,8 @@ installation (see the plugin README for the paths).
   default output next to the input, `--quiet`, every usage and input error with its exit code,
   help of every command, legacy flags and a byte-identical session from both interfaces, a
   headless run (empty `PATH`, no display), and the KiCad adapter with a stand-in Python:
-  argument forwarding, exit-code mapping, missing `pcbnew` / interpreter / `route_cli.py`.
+  argument forwarding, exit-code mapping, missing `pcbnew` / interpreter / `route_cli.py`, and a
+  KiCad whose Python API cannot import a session headless (refused before the adapter starts).
 * `integrations/kicad/tests/test_route_cli.py` — `route_cli.py` with a stand-in `pcbnew`:
   default output, refusal and `--force`, writing over the input, temporary file on a failed
   save, `--json`, `--fail-on-partial`. Run by `cargo test` (via `crates/fastroute/tests/kicad_adapter_py.rs`) and by

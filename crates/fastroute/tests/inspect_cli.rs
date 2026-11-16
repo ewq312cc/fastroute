@@ -349,3 +349,39 @@ fn the_published_example_is_what_the_tool_writes() {
         assert_eq!(std::fs::metadata(dir.join(img["file"].as_str().unwrap())).unwrap().len(), img["bytes"].as_u64().unwrap());
     }
 }
+
+#[test]
+fn a_pad_is_where_its_connections_end_even_when_its_copper_is_off_centre() {
+    // Found by comparing with a real KiCad board (JP1 of pic_programmer, a custom-shaped pad): the
+    // router centres a pad on its copper, and the pad's x,y has to be that same point, because
+    // that is where the unrouted connections end. (It is then not KiCad's pad position.)
+    let d = tmp("offset-pad");
+    let dsn = d.join("offset.dsn");
+    std::fs::write(
+        &dsn,
+        "(pcb offset (resolution um 10) (unit um)\n\
+         (structure (layer F.Cu (type signal)) (layer B.Cu (type signal)) (boundary (path pcb 0 0 0 20000 0 20000 -10000 0 -10000 0 0)) (via \"V\"))\n\
+         (placement (component \"C\" (place A 5000 -5000 front 0) (place B 15000 -5000 front 0)))\n\
+         (library (image \"C\" (pin O 1 0 0))\n\
+           (padstack O (shape (rect F.Cu 0 -450 1600 450)) (attach off))\n\
+           (padstack \"V\" (shape (circle F.Cu 600)) (shape (circle B.Cu 600)) (attach off)))\n\
+         (network (net N (pins A-1 B-1)) (class kicad_default \"\" N (circuit (use_via \"V\")) (rule (width 250) (clearance 200))))\n\
+         (wiring))\n",
+    )
+    .unwrap();
+    let out = d.join("i.json");
+    let o = run(&["inspect", "-i", &s(&dsn), "-o", &s(&out), "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let v = json(&out);
+    let pad = |c: &str| v["pads"].as_array().unwrap().iter().find(|p| p["component"] == c).unwrap().clone();
+    let (a, b) = (pad("A"), pad("B"));
+    // the copper runs from x = 5.0 to 6.6 mm; the pad's centre is the middle of it
+    assert_eq!((a["bbox_mm"]["x"].as_f64(), a["bbox_mm"]["width"].as_f64()), (Some(5.0), Some(1.6)), "{a}");
+    assert_eq!((a["x"].as_f64(), a["y"].as_f64()), (Some(5.8), Some(5.0)), "{a}");
+    assert_eq!(b["x"].as_f64(), Some(15.8));
+    // the unrouted connection ends at exactly those points, as it must
+    let u = &v["unrouted"][0];
+    let mut ends: Vec<f64> = ["from", "to"].iter().map(|k| u[*k]["x"].as_f64().unwrap()).collect();
+    ends.sort_by(f64::total_cmp);
+    assert!((ends[0] - 5.8).abs() < 1e-3 && (ends[1] - 15.8).abs() < 1e-3, "{ends:?}");
+}

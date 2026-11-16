@@ -117,6 +117,25 @@ def export_dsn(board, path):
     return bool(ok) and Path(path).is_file()
 
 
+def headless_import_problem():
+    """Why this KiCad cannot import a session without the PCB editor, or None.
+
+    In KiCad 7's Python API `ImportSpecctraSES` takes only a file name and works on the board
+    open in the editor, so the `(board, file)` form that headless use needs raises TypeError
+    (KiCad 8 and newer have it). Anything else unexpected is not a reason to refuse.
+    """
+    try:
+        pcbnew.ImportSpecctraSES(pcbnew.BOARD(), "/nonexistent.ses")
+    except TypeError:
+        return (
+            f"KiCad {pcbnew.GetBuildVersion()}: its Python API cannot import a Specctra session "
+            "without the PCB editor; routing a board headless needs KiCad 8 or newer"
+        )
+    except Exception:
+        pass
+    return None
+
+
 def import_ses(board, path, in_editor=False):
     """Loads a Specctra session into the board. Returns True on success.
 
@@ -1519,6 +1538,9 @@ class Router:
         if not import_ses(self.board, self._ses, self.in_editor):
             result.ok = False
             result.message = "KiCad could not import the routed session"
+            problem = None if self.in_editor else headless_import_problem()
+            if problem:
+                result.message += f" ({problem})"
             return result
         if self.refill:
             refill_zones(self.board)

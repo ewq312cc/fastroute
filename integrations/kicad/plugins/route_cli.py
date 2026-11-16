@@ -167,6 +167,11 @@ def main(argv=None):
     board = pcbnew.LoadBoard(str(args.board))
     if board is None or not core.has_board_outline(board):
         return finish(2, "failed", f"{args.board}: not a board with an outline on Edge.Cuts")
+    if not args.export_only:
+        # before a route that can take hours, not after it
+        problem = core.headless_import_problem()
+        if problem:
+            return finish(2, "failed", problem)
     if args.work_dir:
         args.work_dir.mkdir(parents=True, exist_ok=True)
 

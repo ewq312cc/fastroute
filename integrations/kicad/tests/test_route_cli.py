@@ -30,6 +30,8 @@ class State:
         self.router_result = {"ok": True, "unrouted": 0, "violations": 0, "score": 12.5}
         self.router_calls = 0
         self.saved = []
+        # KiCad 7's Python API: ImportSpecctraSES takes only a file name (raises TypeError for two)
+        self.old_api = False
 
 
 STATE = State()
@@ -50,8 +52,16 @@ def setUpModule():
         Path(path).write_text(ROUTED)
         STATE.saved.append(path)
 
+    def import_ses(*args):
+        if STATE.old_api and len(args) == 2:
+            raise TypeError("ImportSpecctraSES() takes 1 positional argument but 2 were given")
+        return False
+
     pcbnew.LoadBoard = load_board
     pcbnew.SaveBoard = save_board
+    pcbnew.BOARD = lambda: types.SimpleNamespace()
+    pcbnew.ImportSpecctraSES = import_ses
+    pcbnew.GetBuildVersion = lambda: "7.0.11"
     sys.modules["pcbnew"] = pcbnew
     sys.path.insert(0, str(PLUGINS))
     import core
@@ -264,6 +274,40 @@ class RouteCliTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("routed in", out)
         self.assertNotIn('"status"', out)
+
+    # ---- a KiCad that cannot import a session headless fails before the long run ---------------
+
+    def test_kicad_7_style_api_is_refused_before_routing(self):
+        STATE.old_api = True
+        code, out, err = self.cli("--json")
+        self.assertEqual(code, 2, err)
+        self.assertEqual(STATE.router_calls, 0, "no route may start that cannot be imported afterwards")
+        s = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual((s["status"], s["exit_code"]), ("failed", 2))
+        self.assertIn("KiCad 7.0.11", s["error"])
+        self.assertIn("KiCad 8 or newer", s["error"])
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["board.kicad_pcb"])
+
+    def test_the_export_only_mode_does_not_need_the_import(self):
+        STATE.old_api = True
+        code, out, err = self.cli("--export-only", "--work-dir", self.dir / "work")
+        self.assertEqual(code, 0, err)
+
+    def test_a_pcbnew_without_the_probe_calls_is_not_refused(self):
+        import core
+
+        # (anything but the TypeError of the old API is no reason to refuse)
+        import pcbnew
+
+        saved = pcbnew.BOARD
+        del pcbnew.BOARD
+        try:
+            self.assertIsNone(core.headless_import_problem())
+        finally:
+            pcbnew.BOARD = saved
+        self.assertIsNone(core.headless_import_problem())
+        STATE.old_api = True
+        self.assertIn("KiCad 8 or newer", core.headless_import_problem())
 
     def test_help_mentions_the_safe_defaults(self):
         code, out, err = self.cli("--help")

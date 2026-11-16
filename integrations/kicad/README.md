@@ -159,6 +159,10 @@ KiCad 10 DRC after re-routing from scratch (unconnected items / routing violatio
 
 - Uses the classic `pcbnew` Python action-plugin API (KiCad 7–10). The KiCad 10
   IPC plugin API has no Specctra export yet.
+- `route_cli.py` (no GUI) needs **KiCad 8 or newer**: in KiCad 7 `pcbnew.ImportSpecctraSES` takes only
+  a file name and works on the board open in the PCB editor, so the headless import is impossible.
+  `route_cli.py` checks this first and exits 2 with that message instead of failing after the
+  routing run (`--export-only` still works). The action plugin inside the editor is not affected.
 - Differential pairs run side by side where there is room next to the first net's
   path; pad pairs in swapped order, branches and intra-pair length matching are not
   handled (see docs/IMPROVEMENTS.md).

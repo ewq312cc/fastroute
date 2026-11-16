@@ -15,9 +15,9 @@ fn board() -> BoardGeometry {
         nets: vec!["".into(), "GND".into(), "SIG".into()],
         outline: vec![vec![Pt::new(0.0, 0.0), Pt::new(40.0, 0.0), Pt::new(40.0, 30.0), Pt::new(0.0, 30.0)]],
         pads: vec![
-            Pad { layer: 0, net: 1, component: "U1".into(), pin: "1".into(), shape: sq(10.0, 10.0, 1.0) },
-            Pad { layer: 0, net: 2, component: "U1".into(), pin: "2".into(), shape: sq(10.0, 14.0, 1.0) },
-            Pad { layer: 1, net: 1, component: "J1".into(), pin: "1".into(), shape: PadShape::Circle { c: Pt::new(30.0, 20.0), r: 1.0 } },
+            Pad { layer: 0, net: 1, component: "U1".into(), pin: "1".into(), center: Pt::new(10.0, 10.0), shape: sq(10.0, 10.0, 1.0) },
+            Pad { layer: 0, net: 2, component: "U1".into(), pin: "2".into(), center: Pt::new(10.0, 14.0), shape: sq(10.0, 14.0, 1.0) },
+            Pad { layer: 1, net: 1, component: "J1".into(), pin: "1".into(), center: Pt::new(30.0, 20.0), shape: PadShape::Circle { c: Pt::new(30.0, 20.0), r: 1.0 } },
         ],
         traces: vec![
             Trace { layer: 0, net: 2, width: 0.5, pts: vec![Pt::new(5.0, 20.0), Pt::new(35.0, 20.0)], fixed: false },

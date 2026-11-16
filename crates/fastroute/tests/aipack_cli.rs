@@ -37,7 +37,12 @@ mod fake {
         std::fs::write(
             &script,
             format!(
-                "#!/bin/sh\nPATH=/usr/bin:/bin\nif [ \"$1\" = \"--version\" ]; then echo '9.0.0-fake'; exit 0; fi\n\
+                "#!/bin/sh\nPATH=/usr/bin:/bin\nv=9.0.0-fake; [ -f \"$0.version\" ] && read v < \"$0.version\"\n\
+                 if [ \"$1\" = \"--version\" ]; then echo \"$v\"; exit 0; fi\n\
+                 if [ \"$3\" = \"--help\" ]; then\n\
+                   if [ -f \"$0.no-drc\" ]; then echo 'Usage: pcb [-h] {{export}}'; echo 'Maximum number of positional arguments exceeded' >&2; exit 1; fi\n\
+                   echo 'usage: kicad-cli pcb drc [--output OUTPUT_FILE]'; exit 0\n\
+                 fi\n\
                  echo \"$@\" > \"$0.args\"\n\
                  if [ \"$1\" != pcb ] || [ \"$2\" != drc ]; then echo \"unexpected arguments: $*\" >&2; exit 9; fi\n\
                  out=\"\"\nwhile [ $# -gt 0 ]; do if [ \"$1\" = --output ]; then out=\"$2\"; shift; fi; shift; done\n{body}\n"
@@ -511,4 +516,28 @@ fn help_and_usage() {
         assert_eq!(code(&o), want, "{args:?}: {}", stderr(&o));
         assert!(stderr(&o).contains(text), "{args:?}: {}", stderr(&o));
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_kicad_cli_without_pcb_drc_is_unavailable_with_the_real_reason() {
+    // KiCad 7's kicad-cli has `pcb export` only; `pcb drc` came with KiCad 8 (seen with a real
+    // KiCad 7.0.11). Ask the tool: it is "unavailable" with a message that says so, not an
+    // "error: exit code 1: Maximum number of positional arguments exceeded", and the DRC never starts.
+    let t = tmp("drc-old");
+    let tool = fake::kicad_cli(&t, fake::CLEAN);
+    std::fs::write(format!("{}.no-drc", tool.display()), "").unwrap();
+    std::fs::write(format!("{}.version", tool.display()), "7.0.11\n").unwrap();
+    let d = t.join("pack");
+    let o = run(&pack_args(&d, &["--kicad-pcb", &s(&pcb(&t)), "--kicad-cli", &s(&tool)]));
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let m = manifest(&d);
+    assert_eq!((m["status"].as_str(), m["drc_status"].as_str()), (Some("partial"), Some("unavailable")));
+    let detail = m["reports"]["drc_report"]["detail"].as_str().unwrap();
+    assert!(detail.contains("7.0.11") && detail.contains("no `pcb drc` command") && detail.contains("KiCad 8 or newer"), "{detail}");
+    assert!(!d.join("drc-report.json").exists());
+    assert!(!Path::new(&format!("{}.args", tool.display())).exists(), "the DRC itself must not have been started");
+    assert_eq!(code(&run(&["ai-pack", "--verify", &s(&d)])), 0);
+    let o = run(&pack_args(&t.join("pack2"), &["--kicad-pcb", &s(&pcb(&t)), "--kicad-cli", &s(&tool), "--require-drc"]));
+    assert_eq!(code(&o), 5, "{}", stderr(&o));
 }

@@ -314,8 +314,10 @@ fn pad_groups(g: &BoardGeometry) -> Vec<PadOut> {
             let pads = &groups[&key];
             let boxes: Vec<Rect> = pads.iter().filter_map(|p| p.shape.bbox()).collect();
             let bbox = boxes.iter().skip(1).fold(*boxes.first()?, |a, b| a.union(b));
-            let c = bbox.center();
             let first = pads[0];
+            // x, y: the pad's centre as the router uses it (the same point that unrouted
+            // connections end at), see the docs for custom-shaped pads
+            let c = first.center;
             Some(PadOut {
                 component: key.0.clone(),
                 pin: key.1.clone(),

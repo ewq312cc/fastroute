@@ -351,18 +351,29 @@ fn python_candidates(p: &Parsed) -> Vec<(String, PathBuf)> {
     v
 }
 
+/// What a session import needs from `pcbnew` (the plugin's `core.import_ses` call): in KiCad 7's
+/// Python API `ImportSpecctraSES` takes only a file name and works on the board open in the PCB
+/// editor, so it raises `TypeError` for the `(board, file)` form that headless use needs (KiCad 8+).
+/// Exit code 3 is the probe's "cannot", everything else lets the route go on.
+const SESSION_IMPORT_PROBE: &str = "import sys, pcbnew\n\
+try:\n    pcbnew.ImportSpecctraSES(pcbnew.BOARD(), '/nonexistent.ses')\n\
+except TypeError:\n    print(pcbnew.GetBuildVersion()); sys.exit(3)\n\
+except Exception:\n    pass\n";
+
 fn can_import_pcbnew(python: &Path) -> Result<(), String> {
-    let out = Command::new(python)
-        .args(["-c", "import pcbnew"])
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("cannot run it: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
+    let out = Command::new(python).args(["-c", "import pcbnew"]).stdin(Stdio::null()).output().map_err(|e| format!("cannot run it: {e}"))?;
+    if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("import pcbnew failed").trim().to_string())
+        return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("import pcbnew failed").trim().to_string());
     }
+    let probe = Command::new(python).args(["-c", SESSION_IMPORT_PROBE]).stdin(Stdio::null()).output().map_err(|e| format!("cannot run it: {e}"))?;
+    if probe.status.code() == Some(3) {
+        let version = String::from_utf8_lossy(&probe.stdout).trim().to_string();
+        return Err(format!(
+            "KiCad {version}: its Python API cannot import a Specctra session without the PCB editor (ImportSpecctraSES takes only a file name there); routing a board headless needs KiCad 8 or newer"
+        ));
+    }
+    Ok(())
 }
 
 fn find_route_cli(p: &Parsed) -> Result<PathBuf, CmdError> {
@@ -405,7 +416,7 @@ fn route_kicad(p: &Parsed, input: &Path, output: &Path) -> Result<Done, CmdError
     }
     let Some(python) = python else {
         return Err(CmdError::input(format!(
-            "no Python with KiCad's pcbnew module: {}. Routing a .kicad_pcb needs KiCad's Python (KiCad 7 or newer): give it with --python or $FASTROUTE_KICAD_PYTHON (macOS: <KiCad.app>/Contents/Frameworks/Python.framework/Versions/Current/bin/python3, Windows: C:\\Program Files\\KiCad\\<version>\\bin\\python.exe). A .dsn file needs no Python: export one from KiCad and route that",
+            "no Python with KiCad's pcbnew module: {}. Routing a .kicad_pcb needs KiCad's Python (KiCad 8 or newer, which can import a session headless): give it with --python or $FASTROUTE_KICAD_PYTHON (macOS: <KiCad.app>/Contents/Frameworks/Python.framework/Versions/Current/bin/python3, Windows: C:\\Program Files\\KiCad\\<version>\\bin\\python.exe). A .dsn file needs no Python: export one from KiCad and route that",
             failures.join("; ")
         )));
     };

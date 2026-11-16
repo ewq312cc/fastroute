@@ -226,7 +226,9 @@ mod kicad_adapter {
         std::fs::write(
             &script,
             format!(
-                "#!/bin/sh\nif [ \"$1\" = \"-c\" ]; then {check}; fi\n\
+                "#!/bin/sh\nif [ \"$1\" = \"-c\" ]; then\n\
+                 case \"$2\" in *ImportSpecctraSES*) if [ -f \"$0.old-api\" ]; then echo 7.0.11; exit 3; fi; exit 0;; esac\n\
+                 {check}; fi\n\
                  echo \"$@\" > \"$0.argv\"\n\
                  n=0; [ -f \"$0.calls\" ] && read n < \"$0.calls\"; echo $((n+1)) > \"$0.calls\"\n\
                  echo '{stdout}'\nexit {exit}\n"
@@ -350,6 +352,33 @@ mod kicad_adapter {
         assert_eq!(code(&o), 3);
         assert!(stderr(&o).contains("/no/such/route_cli.py"), "{}", stderr(&o));
         assert_eq!(calls(&py), 0);
+    }
+
+    #[test]
+    fn a_kicad_that_cannot_import_a_session_headless_is_refused_before_any_routing() {
+        // Seen with a real KiCad 7.0.11: pcbnew.ImportSpecctraSES takes only a file name, so the
+        // adapter would route (for minutes or hours) and then fail at the import. Say so first.
+        let (d, board, cli) = setup("kicad-oldapi");
+        let py = fake_python(&d, "py-old", false, "{}", 0);
+        std::fs::write(format!("{}.old-api", py.display()), "").unwrap();
+        let o = run(&["route", &s(&board), "--python", &s(&py), "--route-cli", &s(&cli), "--json"]);
+        assert_eq!(code(&o), 3, "{}", stderr(&o));
+        let e = stderr(&o);
+        for needle in ["KiCad 7.0.11", "cannot import a Specctra session without the PCB editor", "KiCad 8 or newer", "export one from KiCad"] {
+            assert!(e.contains(needle), "{needle}\n{e}");
+        }
+        assert_eq!(calls(&py), 0, "the adapter must not run");
+        assert!(!d.join("board.routed.kicad_pcb").exists());
+        assert_eq!(summary(&o)["status"], "failed");
+        // a second Python that can do it is used instead
+        let good = fake_python(&d, "py-good", false, r#"{"status":"complete","exit_code":0,"unrouted":0,"violations":0}"#, 0);
+        let o = std::process::Command::new(env!("CARGO_BIN_EXE_fastroute"))
+            .args(["route", &s(&board), "--route-cli", &s(&cli), "--json"])
+            .env("PATH", s(&d))
+            .env("FASTROUTE_KICAD_PYTHON", s(&good))
+            .output()
+            .unwrap();
+        assert_eq!(code(&o), 0, "{}", stderr(&o));
     }
 
     #[test]

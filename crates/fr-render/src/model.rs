@@ -104,6 +104,10 @@ pub struct Pad {
     pub net: usize,
     pub component: String,
     pub pin: String,
+    /// The pad's centre as the router uses it: where connections and unrouted connections end.
+    /// For a pad whose copper is not centred on its anchor (a KiCad custom-shaped pad) this is
+    /// the centre of the copper, not KiCad's pad position.
+    pub center: Pt,
     pub shape: PadShape,
 }
 

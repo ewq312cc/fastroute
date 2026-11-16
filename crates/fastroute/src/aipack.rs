@@ -83,7 +83,7 @@ pub const SPEC: Spec = Spec {
     passthrough: &[],
     footer: "Without a region option the region of interest is around the problems that were found\n\
              (unrouted connections, clearance violations, DRC); without problems it is the whole board.\n\
-             KiCad's DRC needs the routed board: --kicad-pcb routed.kicad_pcb (and kicad-cli, KiCad 7+).\n\
+             KiCad's DRC needs the routed board: --kicad-pcb routed.kicad_pcb (and kicad-cli of KiCad 8 or newer).\n\
              If that is missing the pack says drc_status \"unavailable\" or \"not_run\" - never \"passed\" -\n\
              warns, and carries on. Nothing is uploaded anywhere. Format: docs/AI_DATA_FORMAT.md.",
 };

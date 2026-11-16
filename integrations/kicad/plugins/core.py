@@ -456,17 +456,18 @@ def split_nets_into_classes(text, wanted, tag, is_ignored=None, modify=None):
     keep the circuit, rule and layer rules of the class they came from (so the nets are routed as
     before; only class-pair clearances can differ). One new class per class that held such nets.
     `modify(body)` may change the body of the new class. Returns (text, [(new class, class it came
-    from)], the wanted nets that stayed because their class is ignored by the autorouter:
-    `is_ignored(class name)`)."""
+    from)], the wanted nets that stayed because their class is ignored by the autorouter
+    (`is_ignored(class name)`), the classes they stayed in)."""
     taken = {b["name"] for b in _dsn_class_blocks(text)}
     safe = re.sub(r"\W", "_", tag) or "rule"
-    created, stayed = [], []
+    created, stayed, stayed_in = [], [], []
     for b in reversed(_dsn_class_blocks(text)):
         moving = [r for r, v in zip(b["nets_raw"], b["nets"]) if v in wanted]
         if not moving:
             continue
         if is_ignored and is_ignored(b["name"]):
             stayed += [v for v in b["nets"] if v in wanted]
+            stayed_in.append(b["name"])
             continue
         name, i = f"fr_dru_{safe}", 1
         while name in taken:
@@ -478,7 +479,7 @@ def split_nets_into_classes(text, wanted, tag, is_ignored=None, modify=None):
         new = f"(class {name} " + " ".join(moving) + (modify(b["body"]) if modify else b["body"]) + ")"
         text = text[: b["start"]] + old + "\n    " + new + text[b["end"] :]
         created.append((name, b["name"]))
-    return text, created[::-1], stayed
+    return text, created[::-1], stayed, stayed_in[::-1]
 
 
 def _board_nets(board):
@@ -525,6 +526,7 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
     # the class pairs below can name them
     nets = _board_nets(board)
     own_classes = {}  # rule name -> new DSN classes
+    whole_class = {}  # rule name -> ignored classes that keep their nets and get the clearance as a whole
     for name, body, mm, cond in rules:
         if cond is None or _class_terms(cond) is not None:
             continue
@@ -536,9 +538,11 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
             _HANDLED_RULES.add(name)
             _note(name, "its condition matches no net of the board; nothing to apply")
             continue
-        text, created, stayed = split_nets_into_classes(text, wanted, name, lambda c: class_is_ignored(c, ignored))
+        text, created, stayed, stayed_in = split_nets_into_classes(text, wanted, name, lambda c: class_is_ignored(c, ignored))
         if stayed:
-            _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
+            # the autorouter does not route those nets, but it routes the others past their pads
+            # and copper: a class of their own would be routed, so the whole class gets the clearance
+            whole_class[name] = stayed_in
         _HANDLED_RULES.add(name)
         if created:
             own_classes[name] = [c for c, _ in created]
@@ -569,6 +573,15 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
         for b in names[i + 1:]:
             if own[a] != own[b]:
                 pairs[tuple(sorted((a, b)))] = max(own[a], own[b])
+
+    def raise_to(a, b, um):
+        """Only ever raises a pair (for a class that gets a rule meant for some of its nets)."""
+        key = tuple(sorted((a, b)))
+        clearance = um / unit_um
+        if clearance > max(own.get(a, 0.0), own.get(b, 0.0)) and clearance > pairs.get(key, 0.0):
+            pairs[key] = clearance
+            return True
+        return False
 
     def grow(a, b, um, rule):
         key = tuple(sorted((a, b)))
@@ -619,6 +632,15 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
         if name in own_classes:
             carried.append((name, own_classes[name]))
             _HANDLED_RULES.add(name)
+        whole = [c for c in whole_class.get(name, []) if c in classes]
+        if whole:
+            raised = any([raise_to(a, b, um) for a in whole for b in classes])
+            listed = ", ".join(whole)
+            if raised:
+                _note(name, f"applied to the whole net class {listed} because the autorouter ignores it (its nets cannot be moved into a class of their own): the other nets of the class get the clearance too, which is stricter")
+                carried.append((name, whole))
+            else:
+                _note(name, f"not applied to the net class {listed} (ignored by the autorouter): the rule asks for no more than the clearance of the class")
     if not pairs:
         if text != original:
             Path(dsn_path).write_text(text, encoding="utf-8")
@@ -1376,7 +1398,7 @@ def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
             if not wanted:
                 _note(name, "its condition matches no net of the board; nothing to apply")
                 continue
-            text, created, stayed = split_nets_into_classes(text, wanted, "w_" + name, lambda c: class_is_ignored(c, ignored), modify)
+            text, created, stayed, _ = split_nets_into_classes(text, wanted, "w_" + name, lambda c: class_is_ignored(c, ignored), modify)
             if stayed:
                 _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
             _register_derived(created)

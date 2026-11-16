@@ -226,6 +226,13 @@ fn a_kicad_dru_track_width_rule_for_one_net_reaches_the_router_and_the_real_drc_
     assert!(with < without, "the router did not follow the width of {net}: {with} track_width violations with the rule, {without} without");
 }
 
+/// The number of tracks of `net` on `board`.
+fn track_count(k: &Kicad, board: &Path, net: &str) -> usize {
+    let script = "import sys, pcbnew\nprint(sum(1 for t in pcbnew.LoadBoard(sys.argv[1]).GetTracks() if t.GetNetname() == sys.argv[2]))\n";
+    let o = Command::new(&k.python).args(["-I", "-c", script, &s(board), net]).output().unwrap();
+    String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&o.stderr)))
+}
+
 /// (net class, net) of the demo's project: a class other than Default with a pattern that is a plain
 /// net name (KiCad's `pic_programmer`: POWER, GND).
 fn ignorable_class_and_net(k: &Kicad) -> Option<(String, String)> {
@@ -253,10 +260,17 @@ fn rules_for_nets_of_an_ignored_net_class_leave_those_nets_ignored_on_a_real_boa
          (rule \"c\" (condition \"A.NetName == '{ignored_net}' || A.NetName == '{other}'\") (constraint clearance (min 0.45mm)))\n"
     );
     let (routed, with) = route_with(&k, &d.join("with"), &dru, true, &[&ignore]);
-    // the nets of the ignored class were not routed before and are not routed now: the rules did
-    // not move them into a class of their own (which the router does not ignore)
+    // the autorouter still does not route the ignored class: no track on its net (the rules did not
+    // move it into a class of their own, which the router does not ignore)
     assert!(base["unrouted"].as_u64().unwrap() > 0, "the ignored class {class} should leave connections unrouted: {base}");
-    assert_eq!(with["unrouted"], base["unrouted"], "the rules changed which connections are ignored: {with} against {base}");
+    assert_eq!(track_count(&k, &plain, &ignored_net), 0, "{ignored_net} is in the ignored class {class}");
+    assert_eq!(track_count(&k, &routed, &ignored_net), 0, "the rules made the router route {ignored_net}: {with}");
+    // ... and the clearance rule for its net holds for the whole class: the other nets keep away
+    let clearance_only = format!("(version 1)\n(rule \"c\" (condition \"A.NetName == '{ignored_net}'\") (constraint clearance (min 0.45mm)))\n");
+    let before = drc_violations(&k, &plain, &clearance_only, "clearance", Some(&ignored_net));
+    let after = drc_violations(&k, &routed, &clearance_only, "clearance", Some(&ignored_net));
+    assert!(before >= after, "{before} clearance violations against {ignored_net} without the rule, {after} with it");
+    assert_eq!(after, 0, "the clearance rule for {ignored_net} did not reach the router for its ignored class");
     // ... and the net of another class got its width
     let width_only = format!("(version 1)\n(rule \"w\" (condition \"A.NetName == '{other}'\") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n");
     let before = drc_violations(&k, &plain, &width_only, "track_width", Some(&other));

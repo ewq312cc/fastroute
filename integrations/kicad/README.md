@@ -168,8 +168,9 @@ KiCad 10 DRC after re-routing from scratch (unconnected items / routing violatio
   with a `(layer ...)` only that layer. The width is `opt`, else the middle of `min` and `max`, else
   `min`. These classes get no neck-down, so the width holds up to the pads. A rule on nets overrides
   the per-class and layer widths of the impedance rules.
-- Nets of a net class in `--router.autorouter.ignore_net_classes` stay in their class: the clearance
-  and width rules are not applied to them (printed), because a class of their own would be routed.
+- Nets of a net class in `--router.autorouter.ignore_net_classes` stay in their class, because a class
+  of their own would be routed. A width rule is not applied to them (printed); a clearance rule is
+  applied to the whole class and only raises it (printed: the other nets of the class get it too).
   The names are compared as the router does, ignoring case, with `Default` for the default class.
 - `route_cli.py` (no GUI) needs **KiCad 8 or newer**: in KiCad 7 `pcbnew.ImportSpecctraSES` takes only
   a file name and works on the board open in the PCB editor, so the headless import is impossible.

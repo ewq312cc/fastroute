@@ -204,8 +204,12 @@ What the real runs found and fixed:
     with 0.6 mm / 0.5-0.7 mm rules (one only on F.Cu) had 6, 5 and 33 `track_width` violations
     before and 0 after.
   * nets of a net class that the autorouter ignores (`--router.autorouter.ignore_net_classes`) stay
-    in their class and the rules are not applied to them (printed): moving them into a class of
-    their own would make the router route them. The router compares the class names ignoring case
+    in their class: moving them into a class of their own would make the router route them. A width
+    rule is then not applied to them (nothing is routed there); a clearance rule is applied to the
+    whole class, and only ever raises it (printed), because the router routes the other nets past
+    the pads and copper of that class. On `pic_programmer` with `POWER` ignored, a 0.45 mm rule for
+    GND left 15 clearance violations against GND / VCC before and none after (one more connection
+    stays unrouted under the stricter clearance). The router compares the class names ignoring case
     and calls the default class `default`; the plugin compared exactly, so with
     `ignore_net_classes=power` for the class `POWER` a rule moved GND out of it and GND was routed
     (11 ignored connections instead of 50 on `pic_programmer`). Fixed and tested on that board.
@@ -219,9 +223,7 @@ What the real runs found and fixed:
 * The demo boards come without a library table, so KiCad's DRC reports `lib_footprint_issues`
   warnings and `drc_status` is `failed` with 0 errors. Read `errors` / `warnings`.
 
-Not run: KiCad 9 and 10. Known limit: a clearance rule for a net of an ignored net class is not
-applied (the net stays in its class), so other nets can run closer to that net than the rule says;
-KiCad's DRC reports it.
+Not run: KiCad 9 and 10.
 
 ## Tests
 

@@ -200,14 +200,42 @@ class ClearanceRulesTest(unittest.TestCase):
         self.assertEqual(pairs[("HV", "kicad_default")], 600.0)
         self.assertEqual(pairs[("HV", "fr_dru_R1")], 600.0)
 
-    def test_nets_of_a_class_the_autorouter_ignores_stay_and_are_said(self):
+    def test_a_rule_for_nets_of_an_ignored_class_applies_to_the_whole_class_and_only_raises(self):
+        # the autorouter does not route the class, but it routes the other nets past its pads: the
+        # nets stay in the class (a class of their own would be routed) and the class gets the clearance
         carried, pairs, text = self.translate(
-            """(rule "R1" (condition "A.NetName == 'SIG'") (constraint clearance (min 0.3mm)))\n""", ignored={"Default"}
+            """(rule "R1" (condition "A.NetName == 'HV+'") (constraint clearance (min 0.5mm)))\n""", ignored={"hv"}
         )
         names = {b["name"]: b["nets"] for b in self.core._dsn_class_blocks(text)}
-        self.assertIn("SIG", names["kicad_default"])
+        self.assertEqual(names["HV"], ["HV+"])
         self.assertNotIn("fr_dru_R1", names)
-        self.assertTrue(any("ignored by the autorouter" in w for w in self.warnings()), self.warnings())
+        self.assertEqual((pairs[("HV", "HV")], pairs[("HV", "kicad_default")]), (500.0, 500.0))
+        self.assertNotIn(("kicad_default", "kicad_default"), pairs, "the other class is not touched")
+        self.assertEqual(carried, [("R1", ["HV"])])
+        notes = [w for w in self.warnings() if w.startswith("rule 'R1'")]
+        self.assertTrue(any("whole net class HV" in w and "stricter" in w for w in notes), notes)
+        self.assertFalse([w for w in self.warnings() if "NOT applied" in w], self.warnings())
+
+    def test_a_clearance_that_is_not_above_the_ignored_class_is_not_applied_to_it(self):
+        # (a rule must not loosen the other nets of the class just because it names one net)
+        carried, pairs, text = self.translate(
+            """(rule "R1" (condition "A.NetName == 'HV+'") (constraint clearance (min 0.3mm)))\n""", ignored={"HV"}
+        )
+        self.assertEqual(carried, [])
+        self.assertEqual(pairs, {("HV", "kicad_default"): 400.0}, "only the pair that is always written")
+        self.assertTrue(any("no more than the clearance of the class" in w for w in self.warnings()), self.warnings())
+
+    def test_a_rule_for_nets_in_and_out_of_ignored_classes_does_both(self):
+        carried, pairs, text = self.translate(
+            """(rule "R1" (condition "A.NetName == 'HV+' || A.NetName == 'SIG'") (constraint clearance (min 0.55mm)))\n""", ignored={"HV"}
+        )
+        names = {b["name"]: b["nets"] for b in self.core._dsn_class_blocks(text)}
+        self.assertEqual(names["HV"], ["HV+"])
+        self.assertEqual(names["fr_dru_R1"], ["SIG"], "SIG is routed: it gets a class of its own")
+        self.assertEqual({r for r, _ in carried}, {"R1"})
+        self.assertEqual(pairs[("HV", "HV")], 550.0)
+        self.assertEqual(pairs[("fr_dru_R1", "fr_dru_R1")], 550.0)
+        self.assertEqual(pairs[("HV", "fr_dru_R1")], 550.0)
 
     def test_a_condition_that_matches_no_net_is_said_not_silently_dropped(self):
         carried, pairs, text = self.translate("""(rule "typo" (condition "A.NetName == 'SGI'") (constraint clearance (min 0.3mm)))\n""")
@@ -446,8 +474,9 @@ class NetWidthRulesTest(unittest.TestCase):
             holder = next(n for n, b in classes.items() if "SIG" in b["nets"])
             self.assertTrue(holder.startswith("fr_dru_"), "SIG is not in an ignored class: the rules apply")
             self.assertEqual(sum(1 for b in classes.values() for n in b["nets"] if n == "HV+"), 1)
-            warned = [w for w in self.warnings() if "ignored by the autorouter" in w]
-            self.assertEqual(len(warned), 2, (spelled, self.warnings()))
+            notes = self.warnings()
+            self.assertTrue(any(w.startswith("rule 'W'") and "not applied to HV+" in w for w in notes), (spelled, notes))
+            self.assertTrue(any(w.startswith("rule 'C'") and "whole net class HV" in w for w in notes), (spelled, notes))
 
     def test_the_default_class_is_ignored_as_default_in_any_case(self):
         for spelled in ("Default", "default", "DEFAULT"):

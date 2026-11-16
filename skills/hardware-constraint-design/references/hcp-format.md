@@ -125,7 +125,8 @@ A rule never states a number without its condition when the document gave one.
   a repository commit and/or file SHA-256 digests (a changed base is detected and needs review);
   `immutable` lists the components, pins, connectors, regions that must not change; each
   `editable_regions` entry names the region, the blocks that may be added there, the pin pool the
-  new circuit may use and the operations allowed. Anything not listed is read-only.
+  new circuit may use and the operations allowed. Anything not listed is read-only. The draft, the
+  request and the checks are in `editable-base.md`.
 
 ## Ids and the link to hcp-manager
 
@@ -171,4 +172,6 @@ data. The codes are stable.
 | `derived_basis` / `derived_cycle` | a derived rule without derived evidence / derived from itself |
 | `degenerate_region` / `wrong_region_kind` | a polygon without area, a region of the wrong kind for its use |
 | `editable_not_whitelisted` | `ai_editable` without an entry in `base_design.editable_regions` |
+| `pool_pin_protected` | a pin pool lists a pin that a rule protects (reserved, no-connect, strapping, reset, boot, fixed net) |
+| `no_allowed_ops` (warning) | an editable region without `allowed_ops`: nothing may be done there until operations are listed |
 | `review_incomplete` | reviewed or approved without who and when |

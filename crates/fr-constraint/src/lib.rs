@@ -6,6 +6,7 @@
 
 pub mod compile;
 pub mod diag;
+pub mod edit;
 pub mod export;
 pub mod geom;
 pub mod hcp;

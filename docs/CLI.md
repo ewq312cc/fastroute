@@ -129,13 +129,34 @@ fastroute constraints validate --ir ir.json --design design.json --report report
 
 | Command | Does |
 |---|---|
-| `schema [--ir \| --snapshot]` | prints the JSON Schema of a pack, of the IR, or of a design snapshot |
+| `schema [--ir \| --snapshot \| --edit-draft \| --edit-request]` | prints the JSON Schema of a pack, of the IR, of a design snapshot, of an AI edit draft or of an edit request |
 | `check PACK` | exit 0 valid (warnings listed), 3 not valid; `--json` for the report as data |
 | `compile PACK -o IR` | exit 3 for a pack with errors (nothing is written); keeps the evidence of every rule and says per rule what the validator and the fastroute adapter can execute |
 | `validate (--ir IR \| --pack PACK) --design SNAPSHOT` | checks a design snapshot: **0** pass and every rule checked, **5** no rule violated but some are unchecked / unsupported / unknown / in conflict, **1** a rule is violated (rule, object, actual and required value, severity, evidence per finding), **3** invalid input (also an IR edited after compilation) |
 
 `--report FILE` writes a readable Markdown report (`--lang zh|en`, default `zh`); `--output FILE`
 the JSON. Outputs follow the usual rules (exit 4 if one exists without `--force`, never an input).
+
+### A fixed base design that an AI may edit around
+
+```sh
+fastroute constraints edit-request --pack pack.yaml --requirement "add a status LED" -o request.json
+fastroute constraints check-edit draft.json --pack pack.yaml --kicad-pcb carrier.kicad_pcb \
+    --base-dir ./carrier-repo --report diff.md
+```
+
+* `edit-request` computes the whitelist from the pack (editable regions, allowed blocks, pin pools
+  without protected pins, allowed operations, immutable objects, fixed regions) and binds the request to
+  the pack and the base design by SHA-256. Same pack, same bytes.
+* `check-edit` checks an AI's **draft** (a list of changes, never a rewritten board) against the
+  whitelist and the pack's rules, and writes what would change. **0** accepted and fully checked, **5**
+  accepted but not everything was checked / the pack or the base design changed since the draft was made
+  (review) / the generator stopped, **1** rejected (outside the regions, a fixed object, a protected pin,
+  an unauthorised block, cross-region copper, a keep-out, a rule of the pack newly broken), **3** not a
+  draft, **4** an output that would overwrite an input, a bound file or anything inside `--base-dir`.
+* The base design is only read. A search result in the draft (keyword or vector) is information: it
+  never adds a region, block, pin or operation. Details and finding codes:
+  `skills/hardware-constraint-design/references/editable-base.md`.
 
 ### KiCad boards and fastroute
 

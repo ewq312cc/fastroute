@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fastroute.invalid/hcp/edit-request-v1.schema.json",
+  "title": "HCP edit request v1",
+  "description": "What a semantic generation run is given: the fixed knowledge pack, the fixed base design, the requirement, and the whitelist (regions, blocks, pins, operations) computed from the pack. Written by `fastroute constraints edit-request`; deterministic. The whitelist in it is information for the generator: the checker recomputes it from the pack and trusts nothing in a draft.",
+  "type": "object",
+  "required": ["format", "request_version", "pack", "base", "requirement", "authorization", "rules", "contract"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "fastroute-hcp-edit-request" },
+    "request_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "pack": {
+      "type": "object",
+      "required": ["id", "version", "sha256", "review"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" }, "version": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "review": { "type": "string" }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["id", "binding", "binding_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "binding": { "type": "object" },
+        "binding_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "requirement": { "type": "string" },
+    "authorization": {
+      "type": "object",
+      "required": ["regions", "immutable", "protected_pins"],
+      "additionalProperties": false,
+      "properties": {
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "polygon", "layers", "allowed_ops", "blocks", "pin_pool"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "polygon": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+              "layers": { "type": "array", "items": { "type": "string" } },
+              "allowed_ops": { "type": "array", "items": { "type": "string" } },
+              "blocks": { "type": "array", "items": { "type": "object" } },
+              "pin_pool": { "type": "array", "items": { "type": "object" } }
+            }
+          }
+        },
+        "immutable": { "type": "object" },
+        "fixed_regions": { "type": "array", "items": { "type": "object" } },
+        "protected_pins": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "rules": { "type": "array", "items": { "type": "object" } },
+    "contract": {
+      "type": "object",
+      "required": ["draft_format", "draft_schema", "instructions"],
+      "additionalProperties": false,
+      "properties": {
+        "draft_format": { "type": "string" },
+        "draft_schema": { "type": "string" },
+        "instructions": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

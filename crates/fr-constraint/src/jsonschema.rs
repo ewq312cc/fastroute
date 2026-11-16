@@ -126,6 +126,16 @@ fn check(root: &Value, schema: &Value, value: &Value, path: &str, errors: &mut V
                 err(errors, path, format!("{x} is above the maximum {max}"));
             }
         }
+        if let Some(min) = obj.get("exclusiveMinimum").and_then(Value::as_f64) {
+            if x <= min {
+                err(errors, path, format!("{x} is not above the exclusive minimum {min}"));
+            }
+        }
+        if let Some(max) = obj.get("exclusiveMaximum").and_then(Value::as_f64) {
+            if x >= max {
+                err(errors, path, format!("{x} is not below the exclusive maximum {max}"));
+            }
+        }
     }
     if let Some(map) = value.as_object() {
         if let Some(Value::Array(req)) = obj.get("required") {

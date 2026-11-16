@@ -333,3 +333,250 @@ fn export_fastroute_writes_the_inputs_and_the_pairs_file_is_accepted_by_the_rout
     assert_eq!(code(&run(&["constraints", "export-fastroute", "--pack", &s(&pack_file)])), 2);
     assert_eq!(code(&run(&["constraints", "export-fastroute", "-o", &s(&out)])), 2);
 }
+
+// ---- a fixed base design and the regions an AI may edit -----------------------------------------------
+
+/// A working copy of the base design, a pack bound to exactly that file, and the design snapshot.
+struct EditEnv {
+    dir: PathBuf,
+    base_dir: PathBuf,
+    pack: PathBuf,
+    design: PathBuf,
+}
+
+fn edit_env(name: &str) -> EditEnv {
+    let dir = tmp(name);
+    let base_dir = dir.join("base");
+    std::fs::create_dir_all(&base_dir).unwrap();
+    std::fs::write(base_dir.join("carrier.kicad_pcb"), "(kicad_pcb (version 20240108))\n").unwrap();
+    let digest = fr_constraint::hcp::sha256_hex(&std::fs::read(base_dir.join("carrier.kicad_pcb")).unwrap());
+    let mut pack = fr_constraint::hcp::parse(&std::fs::read_to_string(example()).unwrap()).unwrap();
+    pack["base_design"]["binding"]["files"][0]["sha256"] = json!(digest);
+    let pack_path = dir.join("pack.json");
+    std::fs::write(&pack_path, serde_json::to_string_pretty(&pack).unwrap()).unwrap();
+    let design = legal_design(&dir);
+    EditEnv { dir, base_dir, pack: pack_path, design }
+}
+
+fn make_draft(env: &EditEnv, changes: Value) -> PathBuf {
+    let req = env.dir.join("request.json");
+    if !req.exists() {
+        let o = run(&["constraints", "edit-request", "--pack", &s(&env.pack), "--requirement", "add a status LED", "-o", &s(&req), "-q"]);
+        assert_eq!(code(&o), 0, "{}", stderr(&o));
+    }
+    let r = json(&req);
+    let d = json!({
+        "format": "fastroute-hcp-edit-draft", "draft_version": "1.0",
+        "pack": {"id": r["pack"]["id"], "version": r["pack"]["version"], "sha256": r["pack"]["sha256"]},
+        "base": {"id": r["base"]["id"], "binding_sha256": r["base"]["binding_sha256"]},
+        "changes": changes
+    });
+    let f = env.dir.join("draft.json");
+    std::fs::write(&f, serde_json::to_string_pretty(&d).unwrap()).unwrap();
+    f
+}
+
+fn led() -> Value {
+    json!([
+        {"id": "CH-1", "op": "add_component", "region": "REG-USER", "block": "BLK-LED", "role": "led", "ref": "D1", "value": "LED", "at": [10.0, 20.0]},
+        {"id": "CH-2", "op": "connect", "region": "REG-USER", "ref": "U1", "pin": "5", "net": "LED_DRIVE"},
+        {"id": "CH-3", "op": "connect", "region": "REG-USER", "ref": "D1", "pin": "1", "net": "LED_DRIVE"}
+    ])
+}
+
+#[test]
+fn edit_request_is_deterministic_and_the_schemas_are_the_published_files() {
+    let env = edit_env("constraints-edit-request");
+    let (a, b) = (env.dir.join("a.json"), env.dir.join("b.json"));
+    for f in [&a, &b] {
+        assert_eq!(code(&run(&["constraints", "edit-request", "--pack", &s(&env.pack), "--requirement", "add a status LED", "-o", &s(f), "-q"])), 0);
+    }
+    assert_eq!(std::fs::read(&a).unwrap(), std::fs::read(&b).unwrap());
+    let req = json(&a);
+    assert_eq!(req["format"], "fastroute-hcp-edit-request");
+    assert_eq!(req["authorization"]["regions"][0]["id"], "REG-USER");
+    assert_eq!(req["authorization"]["regions"][0]["blocks"][0]["id"], "BLK-LED");
+    assert_eq!(req["authorization"]["regions"][0]["pin_pool"][0]["pins"], json!(["5"]));
+    assert!(fr_constraint::jsonschema::validate(&fr_constraint::edit::request_schema(), &req).is_empty());
+    for (flag, file) in [("--edit-draft", "edit-draft-v1.schema.json"), ("--edit-request", "edit-request-v1.schema.json")] {
+        let o = run(&["constraints", "schema", flag]);
+        assert_eq!(code(&o), 0);
+        assert_eq!(stdout(&o), std::fs::read_to_string(skill().join("schemas").join(file)).unwrap());
+    }
+    assert_eq!(code(&run(&["constraints", "schema", "--ir", "--edit-draft"])), 2);
+    // a pack without a base design has nothing to hand out
+    let mut pack = json(&env.pack);
+    pack.as_object_mut().unwrap().remove("base_design");
+    pack["regions"].as_array_mut().unwrap().retain(|g| g["id"] != "REG-USER");
+    pack["peripheral_blocks"].as_array_mut().unwrap().retain(|b| b["id"] != "BLK-LED");
+    let p = env.dir.join("no-base.json");
+    std::fs::write(&p, serde_json::to_string(&pack).unwrap()).unwrap();
+    let o = run(&["constraints", "edit-request", "--pack", &s(&p), "-o", &s(&env.dir.join("none.json"))]);
+    assert_eq!(code(&o), 3, "{}", stderr(&o));
+    assert!(stderr(&o).contains("no base_design"), "{}", stderr(&o));
+}
+
+#[test]
+fn check_edit_accepts_a_draft_inside_the_whitelist_and_never_touches_the_base() {
+    let env = edit_env("constraints-edit-ok");
+    let draft = make_draft(&env, led());
+    let before = std::fs::read(env.base_dir.join("carrier.kicad_pcb")).unwrap();
+    let (out, md) = (env.dir.join("check.json"), env.dir.join("diff.md"));
+    let o = run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir), "-o", &s(&out), "--report", &s(&md), "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let v = json(&out);
+    assert_eq!((v["status"].as_str(), v["complete"].as_bool(), v["base"]["verified"].as_bool()), (Some("accepted"), Some(true), Some(true)));
+    assert_eq!(v["diff"]["components"]["added"][0]["ref"], "D1");
+    let text = std::fs::read_to_string(&md).unwrap();
+    assert!(text.contains("AI 修改草案校验报告") && text.contains("D1") && text.contains("BLK-LED"), "{text}");
+    // the base design is exactly what it was
+    assert_eq!(std::fs::read(env.base_dir.join("carrier.kicad_pcb")).unwrap(), before);
+    assert_eq!(std::fs::read_dir(&env.base_dir).unwrap().count(), 1);
+    // an English report on request
+    let en = env.dir.join("diff-en.md");
+    assert_eq!(code(&run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir), "--report", &s(&en), "--lang", "en", "-q"])), 0);
+    assert!(std::fs::read_to_string(&en).unwrap().contains("AI edit draft check report"));
+}
+
+#[test]
+fn check_edit_exits_5_when_the_base_changed_or_could_not_be_compared() {
+    let env = edit_env("constraints-edit-review");
+    let draft = make_draft(&env, led());
+    // no comparison of the base files: accepted, but not complete
+    let o = run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "-q"]);
+    assert_eq!(code(&o), 5, "{}", stderr(&o));
+    // the open board was updated since the pack was made
+    std::fs::write(env.base_dir.join("carrier.kicad_pcb"), "(kicad_pcb (version 20240108) (generator newer))\n").unwrap();
+    let out = env.dir.join("review.json");
+    let o = run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir), "-o", &s(&out)]);
+    assert_eq!(code(&o), 5, "{}", stderr(&o));
+    assert!(stderr(&o).contains("base_changed") && stderr(&o).contains("carrier.kicad_pcb"), "{}", stderr(&o));
+    assert_eq!(json(&out)["status"], "needs_review");
+    // a draft made for another version of the pack
+    let mut d = json(&draft);
+    d["pack"]["sha256"] = json!("a".repeat(64));
+    let old = env.dir.join("old-draft.json");
+    std::fs::write(&old, serde_json::to_string(&d).unwrap()).unwrap();
+    let o = run(&["constraints", "check-edit", &s(&old), "--pack", &s(&env.pack), "--design", &s(&env.design), "-q"]);
+    assert_eq!(code(&o), 5);
+    // the generator stopped
+    let mut d = json(&draft);
+    d["changes"] = json!([]);
+    d["stop"] = json!({"reason": "no block provides 5 V", "missing": ["a boost block"]});
+    let stop = env.dir.join("stop.json");
+    std::fs::write(&stop, serde_json::to_string(&d).unwrap()).unwrap();
+    let o = run(&["constraints", "check-edit", &s(&stop), "--pack", &s(&env.pack), "--design", &s(&env.design), "-q", "--json"]);
+    assert_eq!(code(&o), 5);
+    assert_eq!(serde_json::from_slice::<Value>(&o.stdout).unwrap()["status"], "stopped");
+}
+
+#[test]
+fn check_edit_exits_1_for_every_kind_of_overreach_and_names_the_rule() {
+    let env = edit_env("constraints-edit-reject");
+    let cases: Vec<(&str, Value, &str)> = vec![
+        ("an unauthorised block found by a search", json!([{"id": "CH-1", "op": "add_component", "region": "REG-USER", "block": "BLK-RESET", "role": "pull_up", "ref": "R9", "at": [10.0, 20.0]}]), "unauthorized_block"),
+        ("a reserved pin", json!([{"id": "CH-1", "op": "connect", "region": "REG-USER", "ref": "U1", "pin": "10", "net": "X"}]), "reserved_pin_used"),
+        ("a track out of the region", json!([{"id": "CH-1", "op": "add_track", "region": "REG-USER", "net": "X", "layer": "F.Cu", "width_mm": 0.25, "points": [[10.0, 20.0], [45.0, 20.0]]}]), "crosses_region"),
+        ("a fixed region", json!([{"id": "CH-1", "op": "add_component", "region": "REG-ANT", "block": "BLK-LED", "role": "led", "ref": "D1", "at": [50.0, 5.0]}]), "region_not_editable"),
+        ("moving the module", json!([{"id": "CH-1", "op": "move_component", "region": "REG-USER", "ref": "U1", "to": [20.0, 20.0]}]), "op_not_allowed"),
+    ];
+    for (what, changes, expected) in cases {
+        let draft = make_draft(&env, changes);
+        let out = env.dir.join("reject.json");
+        let o = run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir), "-o", &s(&out), "--force"]);
+        assert_eq!(code(&o), 1, "{what}: {}", stderr(&o));
+        assert!(stderr(&o).contains(expected), "{what}: {}", stderr(&o));
+        let v = json(&out);
+        assert_eq!(v["status"], "rejected", "{what}");
+        assert!(v["findings"].as_array().unwrap().iter().any(|f| f["code"] == expected), "{what}: {v}");
+    }
+}
+
+#[test]
+fn check_edit_refuses_bad_inputs_and_outputs_before_writing_anything() {
+    let env = edit_env("constraints-edit-io");
+    let draft = make_draft(&env, led());
+    let base = |extra: &[&str]| -> Vec<String> {
+        let mut a: Vec<String> = ["constraints", "check-edit"].iter().map(|x| x.to_string()).collect();
+        a.push(s(&draft));
+        a.extend(["--pack", &s(&env.pack), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir), "-q"].iter().map(|x| x.to_string()));
+        a.extend(extra.iter().map(|x| x.to_string()));
+        a
+    };
+    let go = |extra: &[&str]| run(&base(extra).iter().map(String::as_str).collect::<Vec<_>>());
+    // the base design is never an output: not a bound file, not a file in its directory
+    let o = go(&["--report", &s(&env.base_dir.join("carrier.kicad_pcb")), "--force"]);
+    assert_eq!(code(&o), 4, "{}", stderr(&o));
+    let o = go(&["-o", &s(&env.base_dir.join("diff.json"))]);
+    assert_eq!(code(&o), 4, "{}", stderr(&o));
+    assert!(stderr(&o).contains("never written"), "{}", stderr(&o));
+    assert!(!env.base_dir.join("diff.json").exists());
+    // nor the draft, the design or the pack
+    assert_eq!(code(&go(&["-o", &s(&draft), "--force"])), 4);
+    assert_eq!(code(&go(&["--report", &s(&env.design), "--force"])), 4);
+    // a draft that is not a draft: exit 3, with the schema problems on standard error
+    let mut d = json(&draft);
+    d["changes"][0]["op"] = json!("rewrite_board");
+    let bad = env.dir.join("bad.json");
+    std::fs::write(&bad, serde_json::to_string(&d).unwrap()).unwrap();
+    let o = run(&["constraints", "check-edit", &s(&bad), "--pack", &s(&env.pack), "--design", &s(&env.design)]);
+    assert_eq!(code(&o), 3, "{}", stderr(&o));
+    assert!(stderr(&o).contains("error[schema]"), "{}", stderr(&o));
+    assert_eq!(code(&run(&["constraints", "check-edit", "/nonexistent/draft.json", "--pack", &s(&env.pack)])), 3);
+    // usage
+    assert_eq!(code(&run(&["constraints", "check-edit", "--pack", &s(&env.pack)])), 2);
+    assert_eq!(code(&run(&["constraints", "check-edit", &s(&draft)])), 2);
+    assert_eq!(code(&run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--ir", &s(&env.pack)])), 2);
+    assert_eq!(code(&run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&env.pack), "--design", &s(&env.design), "--kicad-pcb", &s(&env.design)])), 2);
+    assert_eq!(code(&run(&["constraints", "check-edit", "--help"])), 0);
+    assert_eq!(code(&run(&["help", "constraints", "edit-request"])), 0);
+    // a pack that binds a file outside the working copy is refused
+    let mut pack = json(&env.pack);
+    pack["base_design"]["binding"]["files"][0]["path"] = json!("../outside.kicad_pcb");
+    let p = env.dir.join("escape.json");
+    std::fs::write(&p, serde_json::to_string(&pack).unwrap()).unwrap();
+    let o = run(&["constraints", "check-edit", &s(&draft), "--pack", &s(&p), "--design", &s(&env.design), "--base-dir", &s(&env.base_dir)]);
+    assert_eq!(code(&o), 3, "{}", stderr(&o));
+}
+
+#[test]
+fn check_edit_reads_a_kicad_board_as_the_base_and_compares_its_digest_with_the_pack() {
+    let env = edit_env("constraints-edit-kicad");
+    let board = skill().join("../../crates/fr-constraint/tests/data/fm100-demo.kicad_pcb");
+    let before = std::fs::read(&board).unwrap();
+    let digest = fr_constraint::hcp::sha256_hex(&before);
+    let bind = |sha: &str, name: &str| {
+        let mut pack = json(&env.pack);
+        pack["base_design"]["binding"]["files"][0] = json!({"path": "fm100-demo.kicad_pcb", "sha256": sha});
+        let p = env.dir.join(name);
+        std::fs::write(&p, serde_json::to_string(&pack).unwrap()).unwrap();
+        p
+    };
+    let bound = bind(&digest, "bound.json");
+    let other = bind(&"e".repeat(64), "other.json");
+    let args = |pack: &std::path::Path| {
+        let o = run(&["constraints", "edit-request", "--pack", &s(pack), "-o", &s(&env.dir.join(format!("{}.req.json", pack.file_stem().unwrap().to_string_lossy()))), "-q"]);
+        assert_eq!(code(&o), 0, "{}", stderr(&o));
+        let r = json(&env.dir.join(format!("{}.req.json", pack.file_stem().unwrap().to_string_lossy())));
+        let d = json!({
+            "format": "fastroute-hcp-edit-draft", "draft_version": "1.0",
+            "pack": {"id": r["pack"]["id"], "version": r["pack"]["version"], "sha256": r["pack"]["sha256"]},
+            "base": {"id": r["base"]["id"], "binding_sha256": r["base"]["binding_sha256"]},
+            "changes": led()
+        });
+        let f = env.dir.join(format!("{}.draft.json", pack.file_stem().unwrap().to_string_lossy()));
+        std::fs::write(&f, serde_json::to_string(&d).unwrap()).unwrap();
+        f
+    };
+    // the board is the file the pack was made for: accepted and fully checked, the digest came from the board itself
+    let d = args(&bound);
+    let o = run(&["constraints", "check-edit", &s(&d), "--pack", &s(&bound), "--kicad-pcb", &s(&board), "--json", "-q"]);
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap_or_else(|e| panic!("{e}: {}", stderr(&o)));
+    assert_eq!((code(&o), v["status"].as_str(), v["base"]["verified"].as_bool()), (0, Some("accepted"), Some(true)), "{}", stderr(&o));
+    // the board is not the one the pack binds
+    let d = args(&other);
+    let o = run(&["constraints", "check-edit", &s(&d), "--pack", &s(&other), "--kicad-pcb", &s(&board), "-q"]);
+    assert_eq!(code(&o), 5, "{}", stderr(&o));
+    // the board was only read
+    assert_eq!(std::fs::read(&board).unwrap(), before);
+}

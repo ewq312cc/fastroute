@@ -8,6 +8,9 @@
 //! constraints compile PACK  the Constraint IR: deterministic, with the evidence of every rule
 //! constraints validate      the IR (or a pack) against a design snapshot: exit 0 pass, 5 pass with
 //!                           gaps, 1 violations, 3 invalid input
+//! constraints edit-request  the request for an AI that may edit a fixed base design: the whitelist
+//! constraints check-edit    an AI edit draft against the whitelist and the rules: exit 0 accepted,
+//!                           5 needs review / stopped / not fully checked, 1 rejected, 3 invalid input
 //! ```
 //!
 //! Everything is deterministic and offline: no AI model, no network, no vector index. The format
@@ -16,6 +19,7 @@
 use std::path::{Path, PathBuf};
 
 use fr_constraint::diag::{Diagnostic, Severity};
+use fr_constraint::edit;
 use fr_constraint::hcp;
 use fr_constraint::ir::{self, Ir};
 use fr_constraint::jsonschema;
@@ -38,6 +42,31 @@ const CHECK_OPTS: &[Opt] = &[
 const SCHEMA_OPTS: &[Opt] = &[
     opt("ir", None, None, "print the schema of the Constraint IR instead"),
     opt("snapshot", None, None, "print the schema of a design snapshot instead"),
+    opt("edit-draft", None, None, "print the schema of an AI edit draft instead"),
+    opt("edit-request", None, None, "print the schema of an edit request instead"),
+];
+const EDIT_REQUEST_OPTS: &[Opt] = &[
+    opt("ir", None, Some("FILE"), "the compiled Constraint IR"),
+    opt("pack", None, Some("FILE"), "a pack, compiled on the fly (instead of --ir)"),
+    opt("requirement", None, Some("TEXT"), "the project requirement, in words"),
+    opt("requirement-file", None, Some("FILE"), "read the requirement from this file"),
+    opt("output", Some('o'), Some("FILE"), "the request (JSON) to write ('-' = standard output)"),
+    opt("force", None, None, "replace an existing output file"),
+    opt("quiet", Some('q'), None, "no summary on standard error"),
+];
+const CHECK_EDIT_OPTS: &[Opt] = &[
+    opt("draft", None, Some("FILE"), "the AI edit draft, JSON or YAML (also the first positional argument)"),
+    opt("ir", None, Some("FILE"), "the compiled Constraint IR"),
+    opt("pack", None, Some("FILE"), "a pack, compiled on the fly (instead of --ir)"),
+    opt("design", None, Some("FILE"), "the base design as a snapshot (JSON)"),
+    opt("kicad-pcb", None, Some("FILE"), "the base design as a KiCad board, read-only"),
+    opt("base-dir", None, Some("DIR"), "the working copy of the base design: the files the pack binds are compared by SHA-256"),
+    opt("json", None, None, "print the result as JSON on standard output"),
+    opt("output", Some('o'), Some("FILE"), "write the JSON result here"),
+    opt("report", None, Some("FILE"), "write the readable difference report (Markdown) here"),
+    opt("lang", None, Some("zh|en"), "language of the report (default zh)"),
+    opt("force", None, None, "replace existing output files"),
+    opt("quiet", Some('q'), None, "no summary on standard error"),
 ];
 const REPORT_OPTS: &[Opt] = &[
     opt("pack", None, Some("FILE"), "the pack, YAML or JSON (also the first positional argument)"),
@@ -84,7 +113,7 @@ const fn spec(name: &'static str, about: &'static str, usage: &'static str, opts
     Spec { name, about, usage, opts, passthrough: &[], footer }
 }
 
-const SCHEMA_SPEC: Spec = spec("constraints schema", "print the JSON Schema of a hardware constraint pack (or IR, or design snapshot)", "constraints schema [--ir | --snapshot]", SCHEMA_OPTS, "The same files are in skills/hardware-constraint-design/schemas/; the commands enforce them.");
+const SCHEMA_SPEC: Spec = spec("constraints schema", "print the JSON Schema of a hardware constraint pack (or IR, design snapshot, edit draft or edit request)", "constraints schema [--ir | --snapshot | --edit-draft | --edit-request]", SCHEMA_OPTS, "The same files are in skills/hardware-constraint-design/schemas/; the commands enforce them.");
 const REPORT_SPEC: Spec = spec(
     "constraints report",
     "write a readable report of a pack: what must not be changed, what must stay, what may change, and the evidence",
@@ -122,6 +151,21 @@ const EXPORT_SPEC: Spec = spec(
 );
 
 
+const EDIT_REQUEST_SPEC: Spec = spec(
+    "constraints edit-request",
+    "write the request for a semantic generation run on a fixed base design: pack, base, requirement and the whitelist",
+    "constraints edit-request (--ir ir.json | --pack pack.yaml) --requirement TEXT --output request.json",
+    EDIT_REQUEST_OPTS,
+    "The whitelist (editable regions, allowed blocks, pin pools without protected pins, allowed operations) is computed from the pack:\nsame pack, same request. It refers to the pack and the base by SHA-256, so that a draft made for another version is sent back.\nA pack without base_design has nothing editable and gets no request.",
+);
+const CHECK_EDIT_SPEC: Spec = spec(
+    "constraints check-edit",
+    "check an AI edit draft: only whitelisted regions, blocks, pins and operations; fixed objects untouched; the pack's rules still met",
+    "constraints check-edit DRAFT (--ir ir.json | --pack pack.yaml) [--design design.json | --kicad-pcb board.kicad_pcb] [--base-dir DIR] [--report diff.md]",
+    CHECK_EDIT_OPTS,
+    "Exit codes: 0 accepted and fully checked, 5 accepted with parts unchecked / the pack or the base design changed (review) / the\ngenerator stopped, 1 rejected (a change is outside what is authorised, or breaks a rule), 3 invalid input, 4 output refused.\nThe base design is only read: the draft is never applied to it, and an output inside --base-dir or onto a bound file is refused.\nSearch results (keyword or vector) in the draft are information: they change no whitelist. Offline, deterministic.",
+);
+
 const CHECK_SPEC: Spec = spec(
     "constraints check",
     "check a pack: structure, references, evidence, units, whitelist of what is editable",
@@ -139,6 +183,8 @@ commands:
   validate            check a design (snapshot or KiCad board) against the IR
   extract-kicad       read a KiCad board (read-only) into a design snapshot
   export-fastroute    write the rules fastroute can execute, and report what it cannot
+  edit-request        the request for an AI editing a fixed base design (the whitelist)
+  check-edit          check an AI edit draft against the whitelist and the rules
 
 Run `fastroute constraints <command> --help` for the options. Format: skills/hardware-constraint-design/references/hcp-format.md.
 ";
@@ -156,6 +202,8 @@ pub fn help_for(sub: Option<&str>) -> String {
         Some("validate") => VALIDATE_SPEC.help_text(),
         Some("extract-kicad") => EXTRACT_SPEC.help_text(),
         Some("export-fastroute") => EXPORT_SPEC.help_text(),
+        Some("edit-request") => EDIT_REQUEST_SPEC.help_text(),
+        Some("check-edit") => CHECK_EDIT_SPEC.help_text(),
         _ => help_text(),
     }
 }
@@ -177,7 +225,9 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
         "validate" => cmd_validate(rest),
         "extract-kicad" => cmd_extract_kicad(rest),
         "export-fastroute" => cmd_export(rest),
-        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate, extract-kicad, export-fastroute)"))),
+        "edit-request" => cmd_edit_request(rest),
+        "check-edit" => cmd_check_edit(rest),
+        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate, extract-kicad, export-fastroute, edit-request, check-edit)"))),
     }
 }
 
@@ -192,10 +242,20 @@ fn parse(spec: &Spec, args: &[String]) -> Result<Option<Parsed>, CmdError> {
 
 fn cmd_schema(args: &[String]) -> Result<(), CmdError> {
     let Some(p) = parse(&SCHEMA_SPEC, args)? else { return Ok(()) };
-    if p.flag("ir") && p.flag("snapshot") {
-        return Err(CmdError::usage("--ir and --snapshot contradict each other"));
+    let chosen: Vec<&str> = ["ir", "snapshot", "edit-draft", "edit-request"].into_iter().filter(|f| p.flag(f)).collect();
+    if chosen.len() > 1 {
+        return Err(CmdError::usage(format!("--{} and --{} contradict each other", chosen[0], chosen[1])));
     }
-    print!("{}", if p.flag("ir") { ir::IR_SCHEMA_TEXT } else if p.flag("snapshot") { snapshot::SNAPSHOT_SCHEMA_TEXT } else { hcp::SCHEMA_TEXT });
+    print!(
+        "{}",
+        match chosen.first().copied() {
+            Some("ir") => ir::IR_SCHEMA_TEXT,
+            Some("snapshot") => snapshot::SNAPSHOT_SCHEMA_TEXT,
+            Some("edit-draft") => edit::DRAFT_SCHEMA_TEXT,
+            Some("edit-request") => edit::REQUEST_SCHEMA_TEXT,
+            _ => hcp::SCHEMA_TEXT,
+        }
+    );
     Ok(())
 }
 
@@ -559,4 +619,168 @@ fn cmd_report(args: &[String]) -> Result<(), CmdError> {
         print_diagnostics(&diagnostics);
     }
     Ok(())
+}
+
+fn cmd_edit_request(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&EDIT_REQUEST_SPEC, args)? else { return Ok(()) };
+    let output = p.path("output").ok_or_else(|| CmdError::usage("no output (--output request.json, or - for standard output)"))?;
+    let to_stdout = output == Path::new("-");
+    let requirement = match (p.value("requirement"), p.path("requirement-file")) {
+        (Some(_), Some(_)) => return Err(CmdError::usage("give either --requirement or --requirement-file, not both")),
+        (Some(t), None) => t.to_string(),
+        (None, Some(f)) => std::fs::read_to_string(&f).map_err(|e| CmdError::input(format!("{}: {e}", f.display())))?,
+        (None, None) => String::new(),
+    };
+    let mut inputs: Vec<PathBuf> = vec![];
+    inputs.extend(p.path("ir"));
+    inputs.extend(p.path("pack"));
+    let refs: Vec<&Path> = inputs.iter().map(PathBuf::as_path).collect();
+    if !to_stdout {
+        check_output(&output, &refs, p.flag("force"))?;
+    }
+    let (ir, _) = read_ir(&p)?;
+    let request = edit::edit_request(&ir, requirement.trim()).map_err(CmdError::input)?;
+    let mut text = serde_json::to_string_pretty(&request).expect("serialises");
+    text.push('\n');
+    if to_stdout {
+        print!("{text}");
+    } else {
+        write_output(&output, text.as_bytes(), &refs, p.flag("force"))?;
+    }
+    if !p.flag("quiet") {
+        let regions = request["authorization"]["regions"].as_array().map(Vec::len).unwrap_or(0);
+        eprintln!(
+            "{}: request for pack {} {} and base {}: {} editable region(s), {} protected pin(s)",
+            if to_stdout { "request".to_string() } else { output.display().to_string() },
+            ir.pack.id,
+            ir.pack.version,
+            request["base"]["id"].as_str().unwrap_or(""),
+            regions,
+            request["authorization"]["protected_pins"].as_array().map(Vec::len).unwrap_or(0)
+        );
+    }
+    Ok(())
+}
+
+/// The files the pack binds, as they are in `dir`: a path that leaves the directory is refused.
+fn base_files(ir: &Ir, dir: &Path) -> Result<(Vec<edit::BaseFile>, Vec<PathBuf>), CmdError> {
+    let mut files = Vec::new();
+    let mut paths = Vec::new();
+    let Some(auth) = edit::authorization(ir) else { return Ok((files, paths)) };
+    for f in auth.binding.get("files").and_then(Value::as_array).into_iter().flatten() {
+        let Some(rel) = f.get("path").and_then(Value::as_str) else { continue };
+        let path = Path::new(rel);
+        if path.is_absolute() || path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            return Err(CmdError::input(format!("the pack binds the file '{rel}', which is outside the base directory: refused")));
+        }
+        let full = dir.join(path);
+        let sha = std::fs::read(&full).ok().map(|b| sha256_hex(&b));
+        files.push(edit::BaseFile { path: rel.to_string(), sha256: sha });
+        paths.push(full);
+    }
+    Ok((files, paths))
+}
+
+fn cmd_check_edit(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&CHECK_EDIT_SPEC, args)? else { return Ok(()) };
+    let lang = match p.value("lang") {
+        None => Lang::Zh,
+        Some(l) => Lang::parse(l).ok_or_else(|| CmdError::usage(format!("unknown language '{l}' (zh or en)")))?,
+    };
+    let draft_path = match (p.path("draft"), p.positional.as_slice()) {
+        (Some(f), []) => f,
+        (None, [one]) => PathBuf::from(one),
+        (Some(_), _) => return Err(CmdError::usage(format!("unexpected argument '{}': the draft is given with --draft", p.positional[0]))),
+        (None, []) => return Err(CmdError::usage("no draft file")),
+        (None, _) => return Err(CmdError::usage("more than one draft given")),
+    };
+    let design_path = match (p.path("design"), p.path("kicad-pcb")) {
+        (Some(_), Some(_)) => return Err(CmdError::usage("give either --design (a snapshot) or --kicad-pcb (a board), not both")),
+        (d, k) => d.or(k),
+    };
+    let (ir_path, pack_path_opt) = (p.path("ir"), p.path("pack"));
+    if ir_path.is_some() == pack_path_opt.is_some() {
+        return Err(CmdError::usage("give either --ir (a compiled IR) or --pack (compiled on the fly)"));
+    }
+    let base_dir = p.path("base-dir");
+    if let Some(d) = &base_dir {
+        if !d.is_dir() {
+            return Err(CmdError::input(format!("{}: not a directory", d.display())));
+        }
+    }
+    let (ir, _) = read_ir(&p)?;
+    let (bfiles, bpaths) = match &base_dir {
+        Some(d) => {
+            let (f, paths) = base_files(&ir, d)?;
+            (Some(f), paths)
+        }
+        None => (None, vec![]),
+    };
+    // outputs: never an input, never a file of the base design, never inside the base directory
+    let outputs: Vec<(PathBuf, &str)> = [(p.path("output"), "output"), (p.path("report"), "report")].into_iter().filter_map(|(o, n)| o.map(|o| (o, n))).collect();
+    let mut inputs: Vec<&Path> = vec![&draft_path];
+    inputs.extend(design_path.as_deref());
+    inputs.extend(ir_path.as_deref());
+    inputs.extend(pack_path_opt.as_deref());
+    inputs.extend(bpaths.iter().map(PathBuf::as_path));
+    for (o, _) in &outputs {
+        check_output(o, &inputs, p.flag("force"))?;
+        if let Some(d) = &base_dir {
+            let parent = o.parent().filter(|x| !x.as_os_str().is_empty()).unwrap_or(Path::new("."));
+            if let (Ok(par), Ok(dir)) = (parent.canonicalize(), d.canonicalize()) {
+                if par.starts_with(&dir) {
+                    return Err(CmdError::output(format!("{}: inside the base directory {}: the base design is never written; put the report elsewhere", o.display(), d.display())));
+                }
+            }
+        }
+    }
+    let draft_text = std::fs::read_to_string(&draft_path).map_err(|e| CmdError::input(format!("{}: {e}", draft_path.display())))?;
+    let draft = hcp::parse(&draft_text).map_err(|e| CmdError::input(format!("{}: {e}", draft_path.display())))?;
+    let design = match &design_path {
+        Some(d) => {
+            let (_, mut snap) = read_design(d, p.path("kicad-pcb").is_some())?;
+            if p.path("kicad-pcb").is_some() {
+                snap.project.source_sha256 = Some(sha256_hex(&std::fs::read(d).map_err(|e| CmdError::input(format!("{}: {e}", d.display())))?));
+            }
+            Some(snap)
+        }
+        None => None,
+    };
+    let check = match edit::check_edit(&ir, &draft, design.as_ref(), bfiles.as_deref()) {
+        Ok(c) => c,
+        Err(ds) => {
+            print_diagnostics(&ds);
+            return Err(CmdError::input(format!("{}: not a valid edit draft ({} problems)", draft_path.display(), ds.len())));
+        }
+    };
+    let mut json_text = serde_json::to_string_pretty(&check).expect("serialises");
+    json_text.push('\n');
+    for (o, kind) in &outputs {
+        let bytes = if *kind == "output" { json_text.clone() } else { edit::edit_report(&check, &ir, lang) };
+        write_output(o, bytes.as_bytes(), &inputs, p.flag("force"))?;
+    }
+    if p.flag("json") {
+        print!("{json_text}");
+    }
+    if !p.flag("quiet") {
+        for f in &check.findings {
+            eprintln!("{}[{}]{}{}: {}", f.severity, f.code, f.change.as_ref().map(|c| format!(" {c}")).unwrap_or_default(), f.object.as_ref().map(|o| format!(" ({o})")).unwrap_or_default(), f.message);
+        }
+        eprintln!(
+            "{}: {} - {} change(s): {} accepted, {} rejected{}",
+            draft_path.display(),
+            check.status.to_uppercase(),
+            check.summary["changes"],
+            check.summary["accepted"],
+            check.summary["rejected"],
+            if check.complete { String::new() } else { " (not everything was checked)".to_string() }
+        );
+    }
+    match (check.status, check.complete) {
+        ("rejected", _) => Err(CmdError::failed(format!("{}: the draft is rejected: {} change(s) outside what is authorised or breaking a rule", draft_path.display(), check.summary["rejected"]))),
+        ("needs_review", _) => Err(CmdError::new(cmd::exit::PARTIAL, "the knowledge pack or the base design changed since the draft was made: it needs a review")),
+        ("stopped", _) => Err(CmdError::new(cmd::exit::PARTIAL, "the generator stopped and reported what is missing (see the report)")),
+        (_, false) => Err(CmdError::new(cmd::exit::PARTIAL, "no change is outside the whitelist, but parts could not be checked (base files not compared, or no design given)")),
+        _ => Ok(()),
+    }
 }

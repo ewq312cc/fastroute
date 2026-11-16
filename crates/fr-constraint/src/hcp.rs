@@ -106,6 +106,19 @@ fn level_is_official(level: &str) -> bool {
 }
 
 /// Which object (`C-003`, `BLK-POWER`, ...) a JSON path is in.
+/// The pins of a device that a rule protects: reserved and no-connect pins, strapping, reset and boot
+/// pins, and pins with a fixed net. A pin on this list is never part of a pin pool that may be edited.
+pub fn protected_pins_of(kind: &str, subject: &Value, params: &Value) -> Vec<String> {
+    let list = |v: Option<&Value>| v.and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
+    let one = |v: Option<&Value>| v.and_then(Value::as_str).map(|s| vec![s.to_string()]).unwrap_or_default();
+    match kind {
+        "reserved_pin" | "nc_pin" => list(params.get("pins")),
+        "strapping" | "reset_pin" | "boot_pin" => one(subject.get("pin")),
+        "fixed_net" => one(params.get("pin")),
+        _ => vec![],
+    }
+}
+
 pub fn object_at(pack: &Value, path: &str) -> Option<String> {
     for (section, key) in [("rules", "id"), ("peripheral_blocks", "id"), ("regions", "id"), ("devices", "id"), ("sources", "source_id")] {
         let prefix = format!("$.{section}[");
@@ -565,6 +578,9 @@ fn base_design(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
                     }
                 }
             }
+            if items(e, "allowed_ops").is_empty() {
+                out.push(Diagnostic::warning("no_allowed_ops", format!("{path}.allowed_ops"), Some(reg.into()), "no allowed_ops: nothing may be changed in this region until the operations are listed"));
+            }
             for (bi, blk) in items(e, "allowed_blocks").iter().filter_map(Value::as_str).enumerate() {
                 if idx.blocks.contains_key(blk) {
                     allowed_blocks.insert(blk);
@@ -581,6 +597,19 @@ fn base_design(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
                         for (qi, pin) in items(pool, "pins").iter().filter_map(Value::as_str).enumerate() {
                             if !pins.contains(pin) {
                                 out.push(Diagnostic::error("unknown_pin", format!("{path}.pin_pool[{pi}].pins[{qi}]"), None, format!("{dev} has no pin '{pin}'")));
+                            }
+                            // a protected pin is never handed to an editor, whatever the pool says
+                            for r in items(pack, "rules") {
+                                if str_at(r.get("subject").unwrap_or(&Value::Null), "device") == Some(dev)
+                                    && protected_pins_of(str_at(r, "kind").unwrap_or(""), r.get("subject").unwrap_or(&Value::Null), r.get("params").unwrap_or(&Value::Null)).iter().any(|p| p == pin)
+                                {
+                                    out.push(Diagnostic::error(
+                                        "pool_pin_protected",
+                                        format!("{path}.pin_pool[{pi}].pins[{qi}]"),
+                                        str_at(r, "id").map(str::to_string),
+                                        format!("{dev} pin {pin} is protected by rule {} ({}): it cannot be in a pin pool", str_at(r, "id").unwrap_or(""), str_at(r, "kind").unwrap_or("")),
+                                    ));
+                                }
                             }
                         }
                     }

@@ -102,6 +102,29 @@ pub fn net_matches(pattern: &str, net: &str) -> bool {
     glob(pattern, net) || (!pattern.starts_with('/') && net.rsplit('/').next().is_some_and(|last| glob(pattern, last)))
 }
 
+/// The components of the design that are instances of each device of the IR (by the `device`
+/// field of the component, else by the part number as its value).
+pub fn device_instances(ir: &Ir, snap: &Snapshot) -> BTreeMap<String, Vec<String>> {
+    let ctx = Ctx::new(ir, snap);
+    ctx.instances.iter().map(|(d, v)| (d.clone(), v.iter().map(|c| c.reference.clone()).collect())).collect()
+}
+
+/// Whether a pin is connected to anything in the design (as the reserved-pin check understands it).
+pub fn pin_in_use(ir: &Ir, snap: &Snapshot, reference: &str, pin: &str) -> bool {
+    Ctx::new(ir, snap).pin_used(reference, pin)
+}
+
+/// `ground` or `power` for the usual names of such nets (a pack's own names are not known here).
+pub fn net_rail(net: &str) -> Option<&'static str> {
+    if GROUND_PATTERNS.iter().any(|p| net_matches(p, net)) {
+        Some("ground")
+    } else if POWER_PATTERNS.iter().any(|p| net_matches(p, net)) {
+        Some("power")
+    } else {
+        None
+    }
+}
+
 impl<'a> Ctx<'a> {
     fn new(ir: &'a Ir, snap: &'a Snapshot) -> Self {
         let mut instances: BTreeMap<String, Vec<&Component>> = BTreeMap::new();

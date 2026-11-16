@@ -1,0 +1,133 @@
+{
+  "format": "fastroute-hcp-edit-draft",
+  "draft_version": "1.0",
+  "title": "Status LED on the free GPIO",
+  "requirement": "Add a status LED on the free pin GPIO of the module, inside the free prototyping area.",
+  "pack": {
+    "id": "example/acme-fm-100",
+    "version": "0.1.0",
+    "sha256": "32fdc0aae28f0c7664e1f63c38e9c43871fb05f7bc5bb4b168960e3bb17c26af"
+  },
+  "base": {
+    "id": "BASE-FM100-CARRIER",
+    "binding_sha256": "c0b9554d8399e42a2b682b95fab69e9b19e39d331714b3652c442e13f08c0289"
+  },
+  "claims": {
+    "regions": [
+      "REG-USER"
+    ],
+    "blocks": [
+      "BLK-LED"
+    ],
+    "pins": [
+      {
+        "device": "DEV-FM100",
+        "pins": [
+          "5"
+        ]
+      }
+    ]
+  },
+  "recall": [
+    {
+      "kind": "block",
+      "id": "BLK-LED",
+      "source": "keyword",
+      "note": "found by searching 'LED'; the pack's whitelist is what authorises it"
+    }
+  ],
+  "changes": [
+    {
+      "id": "CH-1",
+      "op": "add_component",
+      "region": "REG-USER",
+      "block": "BLK-LED",
+      "role": "led",
+      "ref": "D1",
+      "value": "LED",
+      "at": [
+        10.0,
+        20.0
+      ],
+      "reason": "status LED"
+    },
+    {
+      "id": "CH-2",
+      "op": "add_component",
+      "region": "REG-USER",
+      "block": "BLK-LED",
+      "role": "series",
+      "ref": "R2",
+      "value": "330",
+      "at": [
+        14.0,
+        20.0
+      ],
+      "reason": "current limit"
+    },
+    {
+      "id": "CH-3",
+      "op": "connect",
+      "region": "REG-USER",
+      "ref": "U1",
+      "pin": "5",
+      "net": "LED_DRIVE",
+      "reason": "the free GPIO of the module drives the LED"
+    },
+    {
+      "id": "CH-4",
+      "op": "connect",
+      "region": "REG-USER",
+      "ref": "R2",
+      "pin": "1",
+      "net": "LED_DRIVE"
+    },
+    {
+      "id": "CH-5",
+      "op": "connect",
+      "region": "REG-USER",
+      "ref": "R2",
+      "pin": "2",
+      "net": "LED_A"
+    },
+    {
+      "id": "CH-6",
+      "op": "connect",
+      "region": "REG-USER",
+      "ref": "D1",
+      "pin": "1",
+      "net": "LED_A"
+    },
+    {
+      "id": "CH-7",
+      "op": "connect",
+      "region": "REG-USER",
+      "ref": "D1",
+      "pin": "2",
+      "net": "GND"
+    },
+    {
+      "id": "CH-8",
+      "op": "add_track",
+      "region": "REG-USER",
+      "net": "LED_DRIVE",
+      "layer": "F.Cu",
+      "width_mm": 0.25,
+      "points": [
+        [
+          14.0,
+          20.0
+        ],
+        [
+          20.0,
+          20.0
+        ],
+        [
+          20.0,
+          26.0
+        ]
+      ],
+      "reason": "to the pin of the module"
+    }
+  ]
+}

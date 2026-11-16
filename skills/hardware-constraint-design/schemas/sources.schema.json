@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ewq312cc/fastroute/skills/hardware-constraint-design/schemas/sources.schema.json",
+  "title": "hcp-manager source inventory v1",
+  "description": "The documents hcp-manager knows: where each comes from, which exact device model and version it is for, and (after a sync) its digest. The inventory is the source of truth; the cache, the chunks and any index are derived from it and can be deleted and rebuilt.",
+  "type": "object",
+  "required": ["sources_version", "documents"],
+  "additionalProperties": false,
+  "properties": {
+    "sources_version": { "const": "1.0" },
+    "documents": { "type": "array", "items": { "$ref": "#/$defs/document" } }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "document": {
+      "type": "object",
+      "required": ["document_id", "title", "level", "version", "applies_to"],
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["url"] }, { "required": ["local_path"] }],
+      "properties": {
+        "document_id": { "type": "string", "pattern": "^DOC-[A-Z0-9][A-Z0-9_-]*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "level": {
+          "enum": ["official_manual", "official_errata", "official_guide", "official_reference_design", "official_devkit", "open_board", "community"]
+        },
+        "version": { "type": "string", "minLength": 1 },
+        "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["part_number"],
+            "additionalProperties": false,
+            "properties": {
+              "part_number": { "type": "string", "minLength": 1 },
+              "revision": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "url": { "type": "string", "minLength": 1 },
+        "local_path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "retrieved": { "$ref": "#/$defs/date" },
+        "status": { "enum": ["active", "superseded", "dead", "changed"] },
+        "license_note": { "type": "string" },
+        "note": { "type": "string" },
+        "last_error": { "type": "string" }
+      }
+    }
+  }
+}

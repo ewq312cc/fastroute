@@ -341,6 +341,19 @@ _HANDLED_RULES = set()
 _TYPE_DROPPED_RULES = set()
 # rule name -> what of the rule was carried over only in part (shown by dru_warnings)
 _RULE_NOTES = {}
+# DSN class -> the classes that the translators made out of nets of it (they are still of that
+# class for every rule that names the class)
+_DERIVED = {}
+# DSN classes whose width comes from a rule: no neck-down there (it would break the rule)
+_NO_NECKDOWN = set()
+
+
+def _expand_class(name):
+    """`name` and the classes made out of nets of it (and of those), for rules that name a class."""
+    out = [name]
+    for d in _DERIVED.get(name, []):
+        out += _expand_class(d)
+    return out
 
 
 def _note(rule, text):
@@ -398,12 +411,12 @@ def _dsn_class_blocks(text):
     return blocks
 
 
-def split_nets_into_classes(text, wanted, tag, skip_classes=()):
+def split_nets_into_classes(text, wanted, tag, skip_classes=(), modify=None):
     """Moves the nets named in `wanted` out of their DSN classes into classes of their own that
     keep the circuit, rule and layer rules of the class they came from (so the nets are routed as
     before; only class-pair clearances can differ). One new class per class that held such nets.
-    Returns (text, [(new class, class it came from)], the wanted nets that stayed because their
-    class is in `skip_classes`)."""
+    `modify(body)` may change the body of the new class. Returns (text, [(new class, class it came
+    from)], the wanted nets that stayed because their class is in `skip_classes`)."""
     taken = {b["name"] for b in _dsn_class_blocks(text)}
     safe = re.sub(r"\W", "_", tag) or "rule"
     created, stayed = [], []
@@ -421,7 +434,7 @@ def split_nets_into_classes(text, wanted, tag, skip_classes=()):
         taken.add(name)
         keep = [r for r, v in zip(b["nets_raw"], b["nets"]) if v not in wanted]
         old = f"(class {b['name_raw']} " + " ".join(keep) + b["body"] + ")"
-        new = f"(class {name} " + " ".join(moving) + b["body"] + ")"
+        new = f"(class {name} " + " ".join(moving) + (modify(b["body"]) if modify else b["body"]) + ")"
         text = text[: b["start"]] + old + "\n    " + new + text[b["end"] :]
         created.append((name, b["name"]))
     return text, created[::-1], stayed
@@ -471,7 +484,6 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
     # the class pairs below can name them
     nets = _board_nets(board)
     own_classes = {}  # rule name -> new DSN classes
-    derived = {}  # DSN class -> the classes made out of nets of it (they are still of that class)
     for name, body, mm, cond in rules:
         if cond is None or _class_terms(cond) is not None:
             continue
@@ -490,7 +502,7 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
         if created:
             own_classes[name] = [c for c, _ in created]
             for c, origin in created:
-                derived.setdefault(origin, []).append(c)
+                _DERIVED.setdefault(origin, []).append(c)
         elif not stayed:
             _note(name, "none of its nets is in the DSN")
 
@@ -545,11 +557,10 @@ def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
             if a is None:
                 continue
             # (nets that were moved to a class of their own are still of the class they came from)
-            expand = lambda c: [c] + derived.get(c, [])  # noqa: E731
-            excluded = {y for x in b_ne for y in expand(dsn_name.get(x))}
-            others = [y for b in b_eq for y in expand(dsn_name.get(b))] if b_eq else [c for c in classes if c not in excluded]
+            excluded = {y for x in b_ne for y in _expand_class(dsn_name.get(x))}
+            others = [y for b in b_eq for y in _expand_class(dsn_name.get(b))] if b_eq else [c for c in classes if c not in excluded]
             done = []
-            for a2 in expand(a):
+            for a2 in _expand_class(a):
                 for b in others:
                     if b is None:
                         continue
@@ -1198,6 +1209,149 @@ def add_dru_layer_widths(board, dsn_path):
     return done
 
 
+def _track_width_mm(body):
+    """(width in mm, note) a `track_width` constraint of a rule asks for: `opt`, else the middle
+    of `min` and `max`, else `min`; (None, None) if it gives none."""
+    tw = re.search(r"\(constraint\s+track_width([^()]*(?:\([^()]*\)[^()]*)*)\)", body)
+    if not tw:
+        return None, None
+    to_mm = {"mm": 1.0, "mil": 0.0254, "um": 0.001, "": 1.0}
+    vals = {k: float(v) * to_mm[u] for k, v, u in re.findall(r"\((min|opt|max)\s+([\d.]+)\s*(mm|mil|um)?\)", tw.group(1))}
+    if "opt" in vals:
+        return vals["opt"], None
+    if "min" in vals and "max" in vals:
+        return (vals["min"] + vals["max"]) / 2, "has no opt: the router uses the middle of min and max"
+    if "min" in vals:
+        return vals["min"], None
+    return None, None
+
+
+def _children(body):
+    """(start, end) of the top-level scopes of a class body."""
+    out, k = [], 0
+    while True:
+        k = body.find("(", k)
+        if k < 0:
+            return out
+        e = _scope_end(body, k)
+        out.append((k, e))
+        k = e
+
+
+def _layer_token(layer):
+    """A DSN layer name as it is written (quoted if it has spaces or parentheses)."""
+    return _dsn_quote(layer) if re.search(r"[\s()]", layer) else layer
+
+
+def _class_body_with_width(body, width, layer=None):
+    """A class body with its trace width set: for all layers (the class `(rule (width ..))`; the
+    layer-specific widths it had are dropped, the rule wins), or for one layer (`layer` is the
+    DSN's own name of it: its `(layer_rule ..)`)."""
+    kids = [body[s:e] for s, e in _children(body)]
+    out, done = [], False
+    for kid in kids:
+        if layer is None:
+            if kid.startswith("(layer_rule"):
+                continue
+            if kid.startswith("(rule"):
+                kid = re.sub(r"\(width\s+[\d.]+\)", f"(width {width:g})", kid, count=1) if re.search(r"\(width\s+[\d.]+\)", kid) else kid[:-1] + f" (width {width:g}))"
+                done = True
+        elif kid.startswith("(layer_rule") and _dsn_token(kid, len("(layer_rule"))[1] == layer:
+            kid, done = f"(layer_rule {_layer_token(layer)} (rule (width {width:g})))", True
+        out.append(kid)
+    if not done:
+        out.append(f"(rule (width {width:g}))" if layer is None else f"(layer_rule {_layer_token(layer)} (rule (width {width:g})))")
+    return "\n      " + "\n      ".join(out) + "\n    "
+
+
+def add_dru_net_widths(board, dsn_path, ignored_classes=(), layer_widths=()):
+    """Carries `track_width` rules of the board's .kicad_dru that add_dru_layer_widths does not
+    (those are per net class and layer) into the DSN as class widths:
+
+    * a rule without a condition: every class;
+    * a rule that only names a net class (A.NetClass == 'X'): that class;
+    * a rule with A.NetName / A.NetClass / A.inDiffPair terms (joined by && and ||): the nets
+      that match get a class of their own (same circuit, via and clearance rules as before).
+
+    The width is `opt`, else the middle of min and max, else min; with a (layer ...) only that
+    layer's width is set. The rules are applied in file order (a later one wins), and a net rule
+    overrides the per-class width rules. The classes get no neck-down. Returns
+    [(rule, [classes], width mm, layer or None)].
+    """
+    try:
+        dru = Path(board.GetFileName()).with_suffix(".kicad_dru")
+        rules_text = dru.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+    text = original = Path(dsn_path).read_text(encoding="utf-8", errors="replace")
+    ignored = set(ignored_classes) | ({"kicad_default"} if "Default" in ignored_classes else set())
+    unit_um = 1000.0 if re.search(r"\(resolution\s+mm", text) else 1.0
+    nets = _board_nets(board)
+    done_keys = {(c, l) for c, l, _ in layer_widths}
+    out = []
+    for name, body in _DRU_RULE.findall(rules_text):
+        width_mm, note = _track_width_mm(body)
+        if width_mm is None:
+            continue
+        cond_m = re.search(r"\(condition\s+\"([^\"]*)\"", body)
+        cond = cond_m.group(1) if cond_m else None
+        layer_m = re.search(r"\(layer\s+\"?([^\"\s)]+)\"?\)", body)
+        layer_kicad = layer_m.group(1) if layer_m else None
+        only_class = re.fullmatch(r"\s*A\.NetClass\s*==\s*'([^']*)'\s*", cond or "")
+        if layer_kicad and only_class and (only_class.group(1), layer_kicad) in done_keys:
+            continue  # add_dru_layer_widths did it
+        layer = _board_layer_name(board, layer_kicad) if layer_kicad else None
+        w = width_mm * 1000.0 / unit_um
+        modify = lambda b, w=w, layer=layer: _class_body_with_width(b, w, layer)  # noqa: E731
+        classes = re.findall(r"\(class\s+\"?([^\s\"()]+)", text)
+        dsn_name = {c: c for c in classes}
+        dsn_name["Default"] = "kicad_default" if "kicad_default" in classes else "Default"
+        targets = None  # DSN classes edited in place
+        if cond is None:
+            targets = [c for c in classes if c not in ignored]
+        elif only_class:
+            c = dsn_name.get(only_class.group(1))
+            if c is None:
+                continue
+            targets = [x for x in _expand_class(c) if x in classes and x not in ignored]
+        if targets is not None:
+            if not targets:
+                _note(name, "not applied: the net class is ignored by the autorouter")
+                _HANDLED_RULES.add(name)
+                continue
+            for c in targets:
+                for b in _dsn_class_blocks(text):
+                    if b["name"] == c:
+                        text = text[: b["header_end"]] + modify(b["body"]) + text[b["end"] - 1 :]
+                        break
+            created_names = targets
+        else:
+            matches = [_dru_matches(cond, n, c) for n, c in nets.items()]
+            if not nets or any(m is None for m in matches):
+                continue  # a term the router cannot use: dru_warnings() reports it
+            wanted = {n for (n, c), m in zip(nets.items(), matches) if m}
+            _HANDLED_RULES.add(name)
+            if not wanted:
+                _note(name, "its condition matches no net of the board; nothing to apply")
+                continue
+            text, created, stayed = split_nets_into_classes(text, wanted, "w_" + name, ignored, modify)
+            if stayed:
+                _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
+            for c, origin in created:
+                _DERIVED.setdefault(origin, []).append(c)
+            created_names = [c for c, _ in created]
+            if not created:
+                continue
+        _HANDLED_RULES.add(name)
+        _NO_NECKDOWN.update(created_names)
+        if note:
+            _note(name, note)
+        out.append((name, created_names, width_mm, layer_kicad))
+    if text != original:
+        Path(dsn_path).write_text(text, encoding="utf-8")
+    return out
+
+
 def add_clearance_margin(dsn_path, margin_um):
     """Adds `margin_um` to every clearance of the DSN. The router models vias and track ends
     with polygons; KiCad measures the exact circles and found 3-5 um too little next to vias
@@ -1531,6 +1685,7 @@ class Router:
         self._cancel = threading.Event()
         self.dru_rules = []
         self.layer_widths = []
+        self.net_widths = []
 
     def cancel(self):
         self._cancel.set()
@@ -1579,6 +1734,8 @@ class Router:
         _HANDLED_RULES.clear()
         _TYPE_DROPPED_RULES.clear()
         _RULE_NOTES.clear()
+        _DERIVED.clear()
+        _NO_NECKDOWN.clear()
         ignored = set()
         for a in self.extra_args:
             if a.startswith("--router.autorouter.ignore_net_classes="):
@@ -1586,6 +1743,7 @@ class Router:
         # (the layer widths first: a net that a clearance rule moves into a class of its own
         # takes the width rules of its class along)
         self.layer_widths = add_dru_layer_widths(self.board, self._dsn)
+        self.net_widths = add_dru_net_widths(self.board, self._dsn, ignored, self.layer_widths)
         self.dru_rules = add_dru_class_clearances(self.board, self._dsn, ignored)
         self.hole_keepouts = add_hole_clearance_keepouts(self.board, self._dsn, ignored)
         self.cutout_keepouts = add_cutout_edge_keepouts(self.board, self._dsn)
@@ -1626,7 +1784,7 @@ class Router:
     def command(self):
         """The fastroute command line for the exported file (after `prepare()`)."""
         cmd = [str(self.binary), "-de", str(self._dsn), "-do", str(self._ses)] + self.extra_args
-        classes = sorted({c for c, _, _ in getattr(self, "layer_widths", [])})
+        classes = sorted({c for c, _, _ in getattr(self, "layer_widths", [])} | _NO_NECKDOWN)
         if classes and not any(x.startswith("--no-neckdown-classes=") for x in self.extra_args):
             cmd.append("--no-neckdown-classes=" + ",".join(classes))
         if getattr(self, "tune_groups", 0):

@@ -163,6 +163,11 @@ KiCad 10 DRC after re-routing from scratch (unconnected items / routing violatio
   every pair of net classes; with `A.NetName` / `A.NetClass` terms the nets that match get a class of
   their own (same circuit, width and via rules). `A.Type`, area terms and `B.` terms on nets are
   reported as `NOT applied`; a `(layer ...)` restriction is applied to all layers (stricter).
+- `.kicad_dru` `track_width` rules reach the router as class widths: for every class (no condition),
+  for a net class, or for the nets of an `A.NetName` / `A.NetClass` condition (a class of their own);
+  with a `(layer ...)` only that layer. The width is `opt`, else the middle of `min` and `max`, else
+  `min`. These classes get no neck-down, so the width holds up to the pads. A rule on nets overrides
+  the per-class and layer widths of the impedance rules.
 - `route_cli.py` (no GUI) needs **KiCad 8 or newer**: in KiCad 7 `pcbnew.ImportSpecctraSES` takes only
   a file name and works on the board open in the PCB editor, so the headless import is impossible.
   `route_cli.py` checks this first and exits 2 with that message instead of failing after the

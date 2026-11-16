@@ -83,6 +83,15 @@ class FakeBoard:
     def GetNetsByName(self):
         return {name: FakeNet(cls) for name, cls in self.nets.items()}
 
+    # the board's own layer names differ from the canonical ones (as in KiCad's demo boards)
+    LAYERS = {"F.Cu": (0, "top_layer"), "B.Cu": (31, "bottom_layer")}
+
+    def GetLayerID(self, name):
+        return self.LAYERS.get(name, (-1, ""))[0]
+
+    def GetLayerName(self, lid):
+        return next(n for i, n in self.LAYERS.values() if i == lid)
+
 
 class ClearanceRulesTest(unittest.TestCase):
     def setUp(self):
@@ -92,6 +101,8 @@ class ClearanceRulesTest(unittest.TestCase):
         core._HANDLED_RULES.clear()
         core._TYPE_DROPPED_RULES.clear()
         core._RULE_NOTES.clear()
+        core._DERIVED.clear()
+        core._NO_NECKDOWN.clear()
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         self.board = FakeBoard(self.dir / "b.kicad_pcb")
@@ -243,6 +254,175 @@ class ClearanceRulesTest(unittest.TestCase):
             depth += (ch == "(") - (ch == ")")
             self.assertGreaterEqual(depth, 0)
         self.assertEqual(depth, 0, "balanced parentheses")
+
+
+class NetWidthRulesTest(unittest.TestCase):
+    """`track_width` rules for single nets (and net classes without a layer): core.add_dru_net_widths."""
+
+    def setUp(self):
+        import core
+
+        self.core = core
+        core._HANDLED_RULES.clear()
+        core._TYPE_DROPPED_RULES.clear()
+        core._RULE_NOTES.clear()
+        core._DERIVED.clear()
+        core._NO_NECKDOWN.clear()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.board = FakeBoard(self.dir / "b.kicad_pcb")
+        self.dsn = self.dir / "b.dsn"
+        self.dsn.write_text(DSN)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def widths(self, rules, ignored=(), layer_widths=()):
+        (self.dir / "b.kicad_dru").write_text("(version 1)\n" + rules)
+        done = self.core.add_dru_net_widths(self.board, self.dsn, ignored, layer_widths)
+        return done, {b["name"]: b for b in self.core._dsn_class_blocks(self.dsn.read_text())}
+
+    @staticmethod
+    def width_of(block):
+        return float(re.search(r"\(rule\s*\(width\s+([\d.]+)\)", block["body"]).group(1))
+
+    def warnings(self):
+        return self.core.dru_warnings(self.board, ())
+
+    def test_the_nets_of_a_rule_get_a_class_with_the_width_and_the_rest_as_before(self):
+        done, classes = self.widths(
+            """(rule "W1" (condition "A.NetName == 'SIG' || A.NetName == 'GND'") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n"""
+        )
+        self.assertEqual(done, [("W1", ["fr_dru_w_W1"], 0.6, None)])
+        self.assertEqual(classes["fr_dru_w_W1"]["nets"], ["GND", "SIG"])
+        self.assertEqual(classes["kicad_default"]["nets"], ["/VPP{slash}MCLR", "Net-(D1-K)"])
+        self.assertEqual(self.width_of(classes["fr_dru_w_W1"]), 600.0)
+        self.assertEqual(self.width_of(classes["kicad_default"]), 200.0)
+        self.assertEqual(self.width_of(classes["HV"]), 300.0)
+        for name in ("fr_dru_w_W1", "kicad_default"):  # circuit and clearance are the old ones
+            self.assertIn('(use_via "Via[0-1]_600:300_um")', classes[name]["body"])
+            self.assertIn("(clearance 200)", classes[name]["body"])
+        self.assertEqual(self.core._NO_NECKDOWN, {"fr_dru_w_W1"})
+        self.assertFalse([w for w in self.warnings() if "NOT applied" in w], self.warnings())
+
+    def test_the_width_is_opt_else_the_middle_of_min_and_max_else_min(self):
+        done, classes = self.widths(
+            """(rule "a" (condition "A.NetName == 'GND'") (constraint track_width (min 0.3mm) (opt 0.5mm) (max 0.9mm)))
+(rule "b" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.4mm) (max 0.6mm)))
+(rule "c" (condition "A.NetName == 'Net-(D1-K)'") (constraint track_width (min 10mil)))\n"""
+        )
+        self.assertEqual([round(w, 4) for _, _, w, _ in done], [0.5, 0.5, 0.254])
+        self.assertEqual(sorted(self.width_of(b) for n, b in classes.items() if n.startswith("fr_dru_w_")), [254.0, 500.0, 500.0])
+        self.assertTrue(any("middle of min and max" in w for w in self.warnings() if w.startswith("rule 'b'")), self.warnings())
+
+    def test_a_rule_that_gives_no_width_is_left_to_the_warnings(self):
+        done, classes = self.widths("""(rule "m" (condition "A.NetName == 'GND'") (constraint track_width (max 0.5mm)))\n""")
+        self.assertEqual(done, [])
+        self.assertEqual(set(classes), {"kicad_default", "HV"})
+
+    def test_a_layer_restriction_sets_only_that_layers_width_with_the_boards_layer_name(self):
+        done, classes = self.widths(
+            """(rule "L" (layer "F.Cu") (condition "A.NetName == 'SIG'") (constraint track_width (min 0.5mm) (opt 0.5mm)))\n"""
+        )
+        new = classes["fr_dru_w_L"]
+        self.assertEqual(self.width_of(new), 200.0, "the width on the other layers is unchanged")
+        self.assertIn("(layer_rule top_layer (rule (width 500)))", new["body"])
+        self.assertEqual(done[0][3], "F.Cu")
+
+    def test_without_a_condition_every_class_gets_the_width_in_place(self):
+        done, classes = self.widths("""(rule "all" (constraint track_width (min 0.3mm)))\n""")
+        self.assertEqual(set(classes), {"kicad_default", "HV"}, "no new class")
+        self.assertEqual({self.width_of(b) for b in classes.values()}, {300.0})
+        self.assertEqual(classes["kicad_default"]["nets"], ["GND", "/VPP{slash}MCLR", "SIG", "Net-(D1-K)"])
+
+    def test_a_rule_that_names_a_class_sets_the_class_in_place(self):
+        done, classes = self.widths("""(rule "hv" (condition "A.NetClass == 'HV'") (constraint track_width (min 0.8mm) (opt 0.8mm)))\n""")
+        self.assertEqual(set(classes), {"kicad_default", "HV"})
+        self.assertEqual((self.width_of(classes["HV"]), self.width_of(classes["kicad_default"])), (800.0, 200.0))
+        self.assertIn("HV", self.core._NO_NECKDOWN)
+
+    def test_a_later_rule_wins_for_a_net_and_it_is_in_one_class_only(self):
+        done, classes = self.widths(
+            """(rule "first" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.4mm) (opt 0.4mm)))
+(rule "second" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.7mm) (opt 0.7mm)))\n"""
+        )
+        holders = [b for b in classes.values() if "SIG" in b["nets"]]
+        self.assertEqual(len(holders), 1)
+        self.assertEqual(self.width_of(holders[0]), 700.0)
+
+    def test_a_net_rule_overrides_the_layer_widths_of_its_class(self):
+        # (what add_dru_layer_widths wrote, e.g. controlled impedance, is a layer_rule of the class)
+        self.dsn.write_text(DSN.replace("      (rule\n        (width 200)\n        (clearance 200)\n      )\n", "      (rule\n        (width 200)\n        (clearance 200)\n      )\n      (layer_rule top_layer (rule (width 250)))\n", 1))
+        done, classes = self.widths("""(rule "w" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n""")
+        self.assertNotIn("layer_rule", classes["fr_dru_w_w"]["body"])
+        self.assertIn("(layer_rule top_layer (rule (width 250)))", classes["kicad_default"]["body"], "the other nets keep it")
+
+    def test_rules_that_add_dru_layer_widths_carries_are_not_done_twice(self):
+        done, classes = self.widths(
+            """(rule "i" (layer "F.Cu") (condition "A.NetClass == 'Default'") (constraint track_width (min 0.3mm) (opt 0.3mm)))\n""",
+            layer_widths=[("Default", "F.Cu", 0.3)],
+        )
+        self.assertEqual(done, [])
+        self.assertEqual(self.dsn.read_text(), DSN)
+
+    def test_nets_of_an_ignored_class_stay_and_it_is_said(self):
+        done, classes = self.widths(
+            """(rule "w" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.6mm) (opt 0.6mm)))\n""", ignored={"Default"}
+        )
+        self.assertEqual(done, [])
+        self.assertIn("SIG", classes["kicad_default"]["nets"])
+        self.assertTrue(any("ignored by the autorouter" in w for w in self.warnings()), self.warnings())
+
+    def test_unusable_conditions_stay_not_applied(self):
+        done, classes = self.widths(
+            """(rule "t" (condition "A.Type == 'Track' && A.NetName == 'GND'") (constraint track_width (min 0.5mm)))
+(rule "b" (condition "A.NetName == 'GND' && B.NetName == 'SIG'") (constraint track_width (min 0.5mm)))\n"""
+        )
+        self.assertEqual(done, [])
+        self.assertEqual(self.dsn.read_text(), DSN)
+        self.assertEqual(len([w for w in self.warnings() if "NOT applied" in w]), 2, self.warnings())
+
+    def test_a_condition_that_matches_no_net_is_said(self):
+        done, classes = self.widths("""(rule "x" (condition "A.NetName == 'nope'") (constraint track_width (min 0.5mm)))\n""")
+        self.assertEqual(done, [])
+        self.assertTrue(any("matches no net" in w for w in self.warnings()), self.warnings())
+
+    # ---- together with clearance rules ------------------------------------------------------------
+
+    def test_a_net_with_a_width_rule_and_a_clearance_rule_keeps_both_and_the_rules_of_its_class(self):
+        (self.dir / "b.kicad_dru").write_text(
+            """(version 1)
+(rule "W" (condition "A.NetName == 'SIG'") (constraint track_width (min 0.6mm) (opt 0.6mm)))
+(rule "C" (condition "A.NetName == 'SIG'") (constraint clearance (min 0.45mm)))
+(rule "cls" (condition "A.NetClass == 'Default' && B.NetClass == 'HV'") (constraint clearance (min 0.7mm)))
+"""
+        )
+        self.core.add_dru_net_widths(self.board, self.dsn, (), ())
+        carried = self.core.add_dru_class_clearances(self.board, self.dsn, ())
+        text = self.dsn.read_text()
+        classes = {b["name"]: b for b in self.core._dsn_class_blocks(text)}
+        holder = next(n for n, b in classes.items() if "SIG" in b["nets"])
+        self.assertEqual(holder, "fr_dru_C", "the clearance class was made out of the width class")
+        self.assertEqual(float(re.search(r"\(rule\s*\(width\s+([\d.]+)\)", classes[holder]["body"]).group(1)), 600.0)
+        pairs = {tuple(sorted(m.group(1).split())): float(m.group(2)) for m in re.finditer(r"\(class_class \(classes ([^)]*)\) \(rule \(clearance ([\d.]+)\)\)\)", text)}
+        self.assertEqual(pairs[("HV", "fr_dru_C")], 700.0, "the rule of the class Default still covers SIG")
+        self.assertEqual(pairs[("fr_dru_C", "fr_dru_C")], 450.0)
+        self.assertEqual({r for r, _ in carried}, {"C", "cls"})
+        self.assertEqual(self.core._NO_NECKDOWN, {"fr_dru_w_W"})
+
+    def test_the_dsn_stays_balanced_and_every_net_in_one_class(self):
+        self.widths(
+            """(rule "a" (condition "A.NetName == 'SIG' || A.NetName == 'HV+'") (constraint track_width (min 0.6mm)))
+(rule "b" (layer "B.Cu") (condition "A.NetName == 'GND'") (constraint track_width (min 0.5mm)))\n"""
+        )
+        text = self.dsn.read_text()
+        held = [n for b in self.core._dsn_class_blocks(text) for n in b["nets"]]
+        self.assertEqual(sorted(held), sorted(NETS))
+        depth = 0
+        for ch in re.sub(r'"[^"]*"', "", text):
+            depth += (ch == "(") - (ch == ")")
+            self.assertGreaterEqual(depth, 0)
+        self.assertEqual(depth, 0)
 
 
 if __name__ == "__main__":

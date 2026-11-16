@@ -70,7 +70,7 @@ pub const KINDS: &[Kind] = &[
     Kind {
         name: "trace_width",
         capability: Capability::ViaKicad,
-        maps_to: "`.kicad_dru` `track_width` constraint: KiCad's DRC checks it; the plugin hands a width to the router only for an `A.NetClass == 'X'` rule with a `(layer ...)` that matches a width of the board's net classes, and prints `NOT applied` for every other form (seen with KiCad 8.0.9); no command-line option sets a width",
+        maps_to: "`.kicad_dru` `track_width` constraint: KiCad's DRC checks it and the plugin hands the width to the router (every class without a condition; a net class; the nets of an `A.NetName` / `A.NetClass` condition get a class of their own, without neck-down); the width is `opt`, else the middle of `min` and `max`, else `min`; a `layer` sets that layer's width; conditions on item types or areas are not applied (`NOT applied`); no command-line option sets a width",
         required: &["width_mm"],
         one_of: &[],
         params: &[Param { key: "width_mm", ty: MM }, Param { key: "layer", ty: "string" }],

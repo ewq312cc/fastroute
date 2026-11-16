@@ -278,3 +278,80 @@ fn rules_for_nets_of_an_ignored_net_class_leave_those_nets_ignored_on_a_real_boa
     assert!(before > 0, "{other} should break a 0.6 mm rule that the router did not see ({before})");
     assert_eq!(after, 0, "{other} is not in an ignored class: the router must follow its width rule ({after} violations)");
 }
+
+/// The boards to compare: the demo board and the other demos next to it, plus the fixture board.
+fn boards_to_compare(k: &Kicad) -> Vec<PathBuf> {
+    let mut v = vec![manifest_dir().join("../fr-constraint/tests/data/fm100-demo.kicad_pcb")];
+    if let Some(demos) = k.demo.parent().and_then(|p| p.parent()) {
+        if let Ok(rd) = std::fs::read_dir(demos) {
+            let mut dirs: Vec<PathBuf> = rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_dir()).collect();
+            dirs.sort();
+            for d in dirs {
+                if let Ok(rd) = std::fs::read_dir(&d) {
+                    let mut boards: Vec<PathBuf> = rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "kicad_pcb")).collect();
+                    boards.sort();
+                    v.extend(boards);
+                }
+            }
+        }
+    }
+    v
+}
+
+#[test]
+fn the_kicad_reader_agrees_with_pcbnew_on_pads_nets_copper_and_components() {
+    let Some(k) = kicad() else { return skip("kicad-cli / pcbnew / a demo board") };
+    let boards = boards_to_compare(&k);
+    assert!(!boards.is_empty());
+    let script = r#"
+import sys, json, pcbnew
+b = pcbnew.LoadBoard(sys.argv[1])
+pads = {}
+for fp in b.GetFootprints():
+    for pad in fp.Pads():
+        if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH or pad.GetNumber() == '':
+            continue
+        p = pad.GetPosition()
+        pads['%s|%s' % (fp.GetReference(), pad.GetNumber())] = [p.x / 1e6, p.y / 1e6, pad.GetNetname()]
+tr = list(b.GetTracks())
+print(json.dumps({'pads': pads,
+                  'segments': sum(1 for t in tr if t.GetClass() == 'PCB_TRACK'),
+                  'arcs': sum(1 for t in tr if t.GetClass() == 'PCB_ARC'),
+                  'vias': sum(1 for t in tr if t.GetClass() == 'PCB_VIA'),
+                  'footprints': len(list(b.GetFootprints()))}))
+"#;
+    let d = tmp("real-reader");
+    let mut compared = 0;
+    for (i, board) in boards.iter().enumerate() {
+        let out = d.join(format!("snap{i}.json"));
+        let o = run(&["constraints", "extract-kicad", &s(board), "-o", &s(&out), "-q"]);
+        assert_eq!(code(&o), 0, "{}: {}", board.display(), stderr(&o));
+        let mine = json(&out);
+        let o = Command::new(&k.python).args(["-I", "-c", script, &s(board)]).output().unwrap();
+        let line = String::from_utf8_lossy(&o.stdout).lines().rev().find(|l| l.starts_with('{')).map(str::to_string);
+        let Some(line) = line else {
+            eprintln!("skipped {}: pcbnew could not load it ({})", board.display(), String::from_utf8_lossy(&o.stderr).lines().last().unwrap_or(""));
+            continue;
+        };
+        let theirs: Value = serde_json::from_str(&line).unwrap();
+        // every pad: same key, same position (to a nanometre of rounding), same net
+        let my_pins: std::collections::BTreeMap<String, (f64, f64, String)> =
+            mine["pins"].as_array().unwrap().iter().map(|p| (format!("{}|{}", p["ref"].as_str().unwrap(), p["pin"].as_str().unwrap()), (p["x"].as_f64().unwrap(), p["y"].as_f64().unwrap(), p["net"].as_str().unwrap_or("").to_string()))).collect();
+        let their_pads = theirs["pads"].as_object().unwrap();
+        assert_eq!(my_pins.len(), their_pads.len(), "{}: pad count", board.display());
+        for (key, v) in their_pads {
+            let m = my_pins.get(key).unwrap_or_else(|| panic!("{}: pad {key} is missing", board.display()));
+            let (x, y) = (v[0].as_f64().unwrap(), v[1].as_f64().unwrap());
+            assert!(((m.0 - x).powi(2) + (m.1 - y).powi(2)).sqrt() < 1e-3, "{}: pad {key} is at ({}, {}), pcbnew says ({x}, {y})", board.display(), m.0, m.1);
+            assert_eq!(m.2, v[2].as_str().unwrap(), "{}: net of pad {key}", board.display());
+        }
+        // copper and components (an arc is read as two chords)
+        let tracks = mine["tracks"].as_array().map(Vec::len).unwrap_or(0) as u64;
+        assert_eq!(tracks, theirs["segments"].as_u64().unwrap() + 2 * theirs["arcs"].as_u64().unwrap(), "{}: tracks", board.display());
+        assert_eq!(mine["vias"].as_array().map(Vec::len).unwrap_or(0) as u64, theirs["vias"].as_u64().unwrap(), "{}: vias", board.display());
+        assert_eq!(mine["components"].as_array().unwrap().len() as u64, theirs["footprints"].as_u64().unwrap(), "{}: components", board.display());
+        compared += 1;
+    }
+    assert!(compared >= 1, "no board could be compared");
+    eprintln!("compared {compared} board(s) with pcbnew");
+}

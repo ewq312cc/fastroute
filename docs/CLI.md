@@ -137,6 +137,37 @@ fastroute constraints validate --ir ir.json --design design.json --report report
 `--report FILE` writes a readable Markdown report (`--lang zh|en`, default `zh`); `--output FILE`
 the JSON. Outputs follow the usual rules (exit 4 if one exists without `--force`, never an input).
 
+### KiCad boards and fastroute
+
+```sh
+fastroute constraints extract-kicad board.kicad_pcb -o design.json      # read-only, no KiCad needed
+fastroute constraints validate --pack pack.yaml --kicad-pcb board.kicad_pcb --report report.md
+fastroute constraints export-fastroute --pack pack.yaml --kicad-pcb board.kicad_pcb -o rules-out/
+```
+
+* `extract-kicad` (and `validate --kicad-pcb`) **only read** the board (format of KiCad 6 to 10,
+  also the older `module`): components, pads with absolute positions and nets, tracks, vias, zones,
+  outline, mounting holes. The board is never modified and is never an output. The reader was
+  compared with KiCad's own Python API (`pcbnew`) on all 15 of KiCad 8's demo boards and a fixture:
+  every pad position (to 0.000001 mm), net, track, via and component agrees; an arc is two chords.
+* The **KiCad DRC and the HCP validation are separate results** (`fastroute ai-pack --kicad-pcb`
+  runs the DRC; `constraints validate` the pack). Neither says anything about the other.
+* `export-fastroute` writes only what fastroute reads, and `export-report.json` says what it did not
+  hand over and why:
+
+| Rule of the IR | Handed to | As | Not handed over (reported) |
+|---|---|---|---|
+| `high_speed`, differential, two nets | the router | `--pairs` `pair P N gap=… skew=…` | `impedance_ohm`, `layers`, `min_width_mm` (no model / no rule-file option); `max_length_mm` (the router does not enforce maximum lengths; KiCad's DRC does) |
+| `high_speed`, `length_match_tolerance_mm`, two or more nets | the router | `--tune` group | the same |
+| `clearance`, `trace_width` | KiCad and the plugin | `.kicad_dru` rules (see [IMPROVEMENTS.md](IMPROVEMENTS.md): the plugin hands them to the router) | a pattern that matches no net, an unsafe net name |
+| `keepout` | – | – | a rule file cannot add a keep-out; it comes from the design (a new core capability) |
+| `electrical` | – | – | no electrical model |
+| `reserved_pin`, `nc_pin`, `fixed_net`, `exclusive_functions`, `required_block`, strapping / reset / boot, mechanical | the validator | – | they are design checks, listed as `checked_by_the_validator_not_the_router` |
+| `unknown`, `conflict` rules | nobody | – | never exported |
+| `applies_when` conditions | – | – | words cannot be evaluated: the rule is exported for the nets it names (`conditions_not_evaluated`) |
+
+fastroute runs without the pack, the IR, `hcp-manager` or any index: only the written files.
+
 ## Compatibility: the original interface
 
 The original flags are unchanged: same names, same defaults, same behaviour, same exit codes.

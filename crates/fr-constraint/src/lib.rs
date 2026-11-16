@@ -6,10 +6,12 @@
 
 pub mod compile;
 pub mod diag;
+pub mod export;
 pub mod geom;
 pub mod hcp;
 pub mod ir;
 pub mod jsonschema;
+pub mod kicad;
 pub mod pack_report;
 pub mod report;
 pub mod snapshot;

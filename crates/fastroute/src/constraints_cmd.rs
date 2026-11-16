@@ -52,10 +52,26 @@ const COMPILE_OPTS: &[Opt] = &[
     opt("force", None, None, "replace an existing output file"),
     opt("quiet", Some('q'), None, "no summary on standard error"),
 ];
+const EXTRACT_OPTS: &[Opt] = &[
+    opt("board", None, Some("FILE"), "the KiCad board, .kicad_pcb (also the first positional argument)"),
+    opt("output", Some('o'), Some("FILE"), "the design snapshot (JSON) to write ('-' = standard output)"),
+    opt("force", None, None, "replace an existing output file"),
+    opt("quiet", Some('q'), None, "no summary on standard error"),
+];
+const EXPORT_OPTS: &[Opt] = &[
+    opt("ir", None, Some("FILE"), "the compiled Constraint IR"),
+    opt("pack", None, Some("FILE"), "a pack, compiled on the fly (instead of --ir)"),
+    opt("design", None, Some("FILE"), "a design snapshot (JSON): resolves net patterns"),
+    opt("kicad-pcb", None, Some("FILE"), "a KiCad board instead of a snapshot: resolves net patterns"),
+    opt("output-dir", Some('o'), Some("DIR"), "directory for pairs.txt, tune.txt, rules.kicad_dru, route-args.txt and export-report.json"),
+    opt("force", None, None, "replace those files in an existing directory (nothing else is touched)"),
+    opt("quiet", Some('q'), None, "no summary on standard error"),
+];
 const VALIDATE_OPTS: &[Opt] = &[
     opt("ir", None, Some("FILE"), "the compiled Constraint IR"),
     opt("pack", None, Some("FILE"), "a pack, compiled on the fly (instead of --ir)"),
     opt("design", None, Some("FILE"), "the design snapshot (JSON)"),
+    opt("kicad-pcb", None, Some("FILE"), "a KiCad board, read-only, instead of a snapshot"),
     opt("json", None, None, "print the validation as JSON on standard output"),
     opt("output", Some('o'), Some("FILE"), "write the JSON validation here"),
     opt("report", None, Some("FILE"), "write a readable report (Markdown) here"),
@@ -85,10 +101,24 @@ const COMPILE_SPEC: Spec = spec(
 );
 const VALIDATE_SPEC: Spec = spec(
     "constraints validate",
-    "check a design snapshot against a Constraint IR: required blocks, reserved pins, pin functions, fixed nets, keep-outs",
-    "constraints validate (--ir ir.json | --pack pack.yaml) --design design.json [--output v.json] [--report v.md]",
+    "check a design (snapshot or KiCad board) against a Constraint IR: required blocks, reserved pins, pin functions, fixed nets, keep-outs",
+    "constraints validate (--ir ir.json | --pack pack.yaml) (--design design.json | --kicad-pcb board.kicad_pcb) [--output v.json] [--report v.md]",
     VALIDATE_OPTS,
-    "Exit codes: 0 pass and every rule checked, 5 pass but some rules are unchecked / unsupported / unknown / in conflict,\n1 a rule is violated, 3 invalid input, 4 output refused. Deterministic and offline: no AI model, network or vector index.",
+    "Exit codes: 0 pass and every rule checked, 5 pass but some rules are unchecked / unsupported / unknown / in conflict,\n1 a rule is violated, 3 invalid input, 4 output refused. Deterministic and offline: no AI model, network or vector index.\nA KiCad board is only read, never written. This is not KiCad's DRC: the two results are separate (fastroute ai-pack).",
+);
+const EXTRACT_SPEC: Spec = spec(
+    "constraints extract-kicad",
+    "read a KiCad board (read-only) into a design snapshot: components, pads and nets, tracks, vias, zones, outline, mounting holes",
+    "constraints extract-kicad BOARD.kicad_pcb --output design.json",
+    EXTRACT_OPTS,
+    "Millimetres, x to the right, y down (KiCad's frame), pad positions absolute. Arcs become two chords; an outline that cannot be\nchained into one closed polygon becomes the bounding box of the Edge.Cuts items. The board is never modified.",
+);
+const EXPORT_SPEC: Spec = spec(
+    "constraints export-fastroute",
+    "write the rules fastroute can execute (pairs, length matching, clearance, track width) and report what it cannot",
+    "constraints export-fastroute (--ir ir.json | --pack pack.yaml) --output-dir DIR [--design design.json | --kicad-pcb board.kicad_pcb]",
+    EXPORT_OPTS,
+    "fastroute reads only the written files. Rules that are unknown or in conflict are never exported; rules fastroute cannot\nexecute (keep-outs, impedance, maximum length, ...) are listed in export-report.json with the reason, never dropped quietly.",
 );
 
 
@@ -106,7 +136,9 @@ commands:
   check               check a pack (exit 3 if it is not valid)
   report              a readable report of a pack (zh or en)
   compile             compile a pack to the Constraint IR
-  validate            check a design snapshot against the IR
+  validate            check a design (snapshot or KiCad board) against the IR
+  extract-kicad       read a KiCad board (read-only) into a design snapshot
+  export-fastroute    write the rules fastroute can execute, and report what it cannot
 
 Run `fastroute constraints <command> --help` for the options. Format: skills/hardware-constraint-design/references/hcp-format.md.
 ";
@@ -122,6 +154,8 @@ pub fn help_for(sub: Option<&str>) -> String {
         Some("report") => REPORT_SPEC.help_text(),
         Some("compile") => COMPILE_SPEC.help_text(),
         Some("validate") => VALIDATE_SPEC.help_text(),
+        Some("extract-kicad") => EXTRACT_SPEC.help_text(),
+        Some("export-fastroute") => EXPORT_SPEC.help_text(),
         _ => help_text(),
     }
 }
@@ -141,7 +175,9 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
         "report" => cmd_report(rest),
         "compile" => cmd_compile(rest),
         "validate" => cmd_validate(rest),
-        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate)"))),
+        "extract-kicad" => cmd_extract_kicad(rest),
+        "export-fastroute" => cmd_export(rest),
+        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate, extract-kicad, export-fastroute)"))),
     }
 }
 
@@ -290,13 +326,143 @@ fn read_json_checked(path: &Path, schema_text: &str, what: &str) -> Result<(Stri
     Ok((sha256_hex(&bytes), v))
 }
 
+/// A design: a snapshot (JSON, checked against its schema) or a KiCad board (read, never written).
+/// Returns the digest of the file and the snapshot.
+fn read_design(path: &Path, kicad: bool) -> Result<(String, Snapshot), CmdError> {
+    if kicad {
+        let bytes = std::fs::read(path).map_err(|e| CmdError::input(format!("{}: {e}", path.display())))?;
+        let text = String::from_utf8(bytes.clone()).map_err(|_| CmdError::input(format!("{}: not UTF-8 text", path.display())))?;
+        let name = path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let snap = fr_constraint::kicad::read_pcb(&text, &name).map_err(|e| CmdError::input(format!("{}: {e}", path.display())))?;
+        return Ok((sha256_hex(&bytes), snap));
+    }
+    let (sha, v) = read_json_checked(path, snapshot::SNAPSHOT_SCHEMA_TEXT, "design snapshot")?;
+    let snap: Snapshot = serde_json::from_value(v).map_err(|e| CmdError::input(format!("{}: {e}", path.display())))?;
+    Ok((sha, snap))
+}
+
+/// The Constraint IR of `--ir` or `--pack` (exactly one of them).
+fn read_ir(p: &Parsed) -> Result<(Ir, PathBuf), CmdError> {
+    match (p.path("ir"), p.path("pack")) {
+        (Some(f), None) => {
+            let (_, v) = read_json_checked(&f, ir::IR_SCHEMA_TEXT, "Constraint IR")?;
+            Ok((serde_json::from_value(v).map_err(|e| CmdError::input(format!("{}: {e}", f.display())))?, f))
+        }
+        (None, Some(f)) => {
+            let (_, doc) = read_pack(&f)?;
+            match compile::compile(&doc) {
+                Ok(ir) => Ok((ir, f)),
+                Err(ds) => {
+                    print_diagnostics(&ds);
+                    Err(CmdError::input(format!("{}: the pack is not valid, nothing to work from", f.display())))
+                }
+            }
+        }
+        _ => Err(CmdError::usage("give either --ir (a compiled IR) or --pack (compiled on the fly)")),
+    }
+}
+
+fn cmd_extract_kicad(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&EXTRACT_SPEC, args)? else { return Ok(()) };
+    let board = match (p.path("board"), p.positional.as_slice()) {
+        (Some(b), []) => b,
+        (None, [one]) => PathBuf::from(one),
+        (Some(_), _) => return Err(CmdError::usage(format!("unexpected argument '{}': the board is given with --board", p.positional[0]))),
+        (None, []) => return Err(CmdError::usage("no board (a .kicad_pcb file)")),
+        (None, _) => return Err(CmdError::usage("more than one board given")),
+    };
+    let output = p.path("output").ok_or_else(|| CmdError::usage("no output (--output design.json, or - for standard output)"))?;
+    let to_stdout = output == Path::new("-");
+    if !to_stdout {
+        check_output(&output, &[&board], p.flag("force"))?;
+    }
+    let (_, snap) = read_design(&board, true)?;
+    let mut text = serde_json::to_string_pretty(&snap).expect("serialises");
+    text.push('\n');
+    if to_stdout {
+        print!("{text}");
+    } else {
+        write_output(&output, text.as_bytes(), &[&board], p.flag("force"))?;
+    }
+    if !p.flag("quiet") {
+        eprintln!(
+            "{}: {} components, {} pads, {} tracks, {} vias, {} zones, {} mounting holes, outline of {} points",
+            board.display(),
+            snap.components.len(),
+            snap.pins.len(),
+            snap.tracks.len(),
+            snap.vias.len(),
+            snap.zones.len(),
+            snap.mount_holes.len(),
+            snap.outline.len()
+        );
+    }
+    Ok(())
+}
+
+fn cmd_export(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&EXPORT_SPEC, args)? else { return Ok(()) };
+    let dir = p.path("output-dir").ok_or_else(|| CmdError::usage("no output directory (--output-dir DIR)"))?;
+    let (design_opt, kicad_opt) = (p.path("design"), p.path("kicad-pcb"));
+    if design_opt.is_some() && kicad_opt.is_some() {
+        return Err(CmdError::usage("give either --design or --kicad-pcb, not both"));
+    }
+    let (ir, ir_source) = read_ir(&p)?;
+    let design = match (&design_opt, &kicad_opt) {
+        (Some(d), None) => Some(read_design(d, false)?.1),
+        (None, Some(k)) => Some(read_design(k, true)?.1),
+        _ => None,
+    };
+    let export = fr_constraint::export::export_fastroute(&ir, design.as_ref()).map_err(CmdError::input)?;
+    let files: Vec<(&str, Option<String>)> = vec![
+        ("pairs.txt", export.pairs.clone()),
+        ("tune.txt", export.tune.clone()),
+        ("rules.kicad_dru", export.dru.clone()),
+        ("route-args.txt", export.route_args.clone()),
+        ("export-report.json", Some(format!("{}\n", serde_json::to_string_pretty(&export.report).expect("serialises")))),
+    ];
+    let inputs: Vec<&Path> = [Some(ir_source.as_path()), design_opt.as_deref(), kicad_opt.as_deref()].into_iter().flatten().collect();
+    // nothing is written if any of the files would be refused (a directory that does not exist yet
+    // cannot hold anything in the way)
+    if dir.exists() {
+        for (name, content) in &files {
+            if content.is_some() {
+                check_output(&dir.join(name), &inputs, p.flag("force"))?;
+            }
+        }
+    } else {
+        std::fs::create_dir_all(&dir).map_err(|e| CmdError::output(format!("{}: {e}", dir.display())))?;
+    }
+    for (name, content) in &files {
+        if let Some(c) = content {
+            write_output(&dir.join(name), c.as_bytes(), &inputs, p.flag("force"))?;
+        }
+    }
+    if !p.flag("quiet") {
+        let n = |k: &str| export.report[k].as_array().map(Vec::len).unwrap_or(0);
+        eprintln!(
+            "{}: {} rule(s) written ({}), {} not exported, {} parameter(s) not handed over; the rest is checked by the validator, not the router",
+            dir.display(),
+            n("exported"),
+            files.iter().filter(|(_, c)| c.is_some()).map(|(f, _)| *f).filter(|f| *f != "export-report.json").collect::<Vec<_>>().join(", "),
+            n("not_exported"),
+            n("unmapped_params")
+        );
+    }
+    Ok(())
+}
+
 fn cmd_validate(args: &[String]) -> Result<(), CmdError> {
     let Some(p) = parse(&VALIDATE_SPEC, args)? else { return Ok(()) };
     let lang = match p.value("lang") {
         None => Lang::Zh,
         Some(l) => Lang::parse(l).ok_or_else(|| CmdError::usage(format!("unknown language '{l}' (zh or en)")))?,
     };
-    let design_path = p.path("design").ok_or_else(|| CmdError::usage("no design (--design design.json)"))?;
+    let design_path = match (p.path("design"), p.path("kicad-pcb")) {
+        (Some(_), Some(_)) => return Err(CmdError::usage("give either --design (a snapshot) or --kicad-pcb (a board), not both")),
+        (Some(d), None) | (None, Some(d)) => d,
+        (None, None) => return Err(CmdError::usage("no design (--design design.json or --kicad-pcb board.kicad_pcb)")),
+    };
     let (ir_path, pack_path_opt) = (p.path("ir"), p.path("pack"));
     if ir_path.is_some() == pack_path_opt.is_some() {
         return Err(CmdError::usage("give either --ir (a compiled IR) or --pack (compiled on the fly)"));
@@ -326,8 +492,7 @@ fn cmd_validate(args: &[String]) -> Result<(), CmdError> {
         }
         _ => unreachable!("checked above"),
     };
-    let (design_sha, design_json) = read_json_checked(&design_path, snapshot::SNAPSHOT_SCHEMA_TEXT, "design snapshot")?;
-    let snap: Snapshot = serde_json::from_value(design_json).map_err(|e| CmdError::input(format!("{}: {e}", design_path.display())))?;
+    let (design_sha, snap) = read_design(&design_path, p.path("kicad-pcb").is_some())?;
     let v = validate::validate(&ir, &snap, &snap.project.name, Some(&design_sha)).map_err(CmdError::input)?;
     let mut json_text = serde_json::to_string_pretty(&v).expect("serialises");
     json_text.push('\n');

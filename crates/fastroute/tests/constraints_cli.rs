@@ -204,3 +204,130 @@ fn report_writes_the_sections_in_the_requested_language_and_refuses_an_invalid_p
     assert_eq!(code(&run(&["constraints", "report", &s(&bad), "-o", &s(&out)])), 3);
     assert!(!out.exists());
 }
+
+// ---- KiCad boards and the fastroute export ---------------------------------------------------
+
+fn fm100_board() -> PathBuf {
+    manifest_dir().join("../fr-constraint/tests/data/fm100-demo.kicad_pcb")
+}
+
+/// The board text with one line of the file changed (one pad / item per line in the fixture).
+fn edited_board(dir: &std::path::Path, name: &str, f: impl FnOnce(String) -> String) -> PathBuf {
+    let p = dir.join(name);
+    std::fs::write(&p, f(std::fs::read_to_string(fm100_board()).unwrap())).unwrap();
+    p
+}
+
+fn line_with<'a>(text: &'a str, needle: &str) -> &'a str {
+    text.lines().find(|l| l.contains(needle)).unwrap_or_else(|| panic!("no line with {needle}"))
+}
+
+#[test]
+fn extract_kicad_reads_a_board_without_touching_it() {
+    let d = tmp("constraints-extract");
+    let before = file_hash(&fm100_board());
+    let out = d.join("design.json");
+    let o = run(&["constraints", "extract-kicad", &s(&fm100_board()), "-o", &s(&out)]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(stderr(&o).contains("8 components, 24 pads, 6 tracks, 1 vias"), "{}", stderr(&o));
+    assert_eq!(file_hash(&fm100_board()), before, "the board is only read");
+    // the snapshot is what the snapshot schema says it is
+    let schema: Value = serde_json::from_str(&stdout(&run(&["constraints", "schema", "--snapshot"]))).unwrap();
+    assert!(fr_constraint::jsonschema::validate(&schema, &json(&out)).is_empty());
+    // the board is never an output, not even with --force; an existing output is refused
+    assert_eq!(code(&run(&["constraints", "extract-kicad", &s(&fm100_board()), "-o", &s(&fm100_board()), "--force"])), 4);
+    assert_eq!(code(&run(&["constraints", "extract-kicad", &s(&fm100_board()), "-o", &s(&out), "-q"])), 4);
+    assert_eq!(code(&run(&["constraints", "extract-kicad"])), 2);
+    let junk = d.join("junk.kicad_pcb");
+    std::fs::write(&junk, "(kicad_sch (version 1))").unwrap();
+    assert_eq!(code(&run(&["constraints", "extract-kicad", &s(&junk), "-o", &s(&d.join("j.json"))])), 3);
+    assert_eq!(file_hash(&fm100_board()), before);
+}
+
+#[test]
+fn a_real_board_is_validated_read_only_and_each_mistake_fails_at_its_rule() {
+    let d = tmp("constraints-board");
+    let before = file_hash(&fm100_board());
+    // the legal board: no rule is violated; the pack has rules this version cannot check (exit 5)
+    let o = run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&fm100_board()), "--json", "-q"]);
+    assert_eq!(code(&o), 5, "{}", stderr(&o));
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!((v["result"].as_str(), v["summary"]["failed"].as_u64()), (Some("pass"), Some(0)));
+    assert_eq!(v["design"]["name"], "fm100-demo");
+    assert_eq!(v["design"]["sha256"].as_str().unwrap().len(), 64);
+    // a capacitor that is too small for the supply block
+    let small = edited_board(&d, "small-cap.kicad_pcb", |t| t.replace("\"100nF\"", "\"10nF\""));
+    let o = run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&small)]);
+    assert_eq!(code(&o), 1, "{}", stderr(&o));
+    assert!(stderr(&o).contains("error[C-NEED-POWER]") && stderr(&o).contains("bypass"), "{}", stderr(&o));
+    // a reserved pin of the module used: pad 10 put on the ground net
+    let reserved = edited_board(&d, "reserved.kicad_pcb", |t| {
+        let line = line_with(&t, "(pad \"10\" smd").to_string();
+        t.replace(&line, &line.replacen("(layers \"F.Cu\" \"F.Paste\" \"F.Mask\") ", "(layers \"F.Cu\" \"F.Paste\" \"F.Mask\") (net 1 \"GND\") ", 1))
+    });
+    let o = run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&reserved), "--json", "-q"]);
+    assert_eq!(code(&o), 1);
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap();
+    let f = v["findings"].as_array().unwrap().iter().find(|f| f["rule_id"] == "C-RESERVED" && f["verdict"] == "fail").unwrap();
+    assert_eq!(f["object"], "U1.10");
+    assert_eq!(f["evidence"][0]["quote"], "RSVD1 and RSVD2 are connected to the flash inside the module; do not use.");
+    // copper in the antenna keep-out
+    let keepout = edited_board(&d, "keepout.kicad_pcb", |t| t.replacen("\n)", "\n  (segment (start 45 5) (end 55 5) (width 0.2) (layer \"F.Cu\") (net 5 \"LED_DRIVE\") (uuid \"00000000-0000-0000-0000-0000000000aa\"))\n)", 1).trim_end().to_string() + "\n");
+    let o = run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&keepout)]);
+    assert_eq!(code(&o), 1, "{}", stderr(&o));
+    assert!(stderr(&o).contains("error[C-ANT]") && stderr(&o).contains("track on net LED_DRIVE"), "{}", stderr(&o));
+    // the module's ground pin on another net
+    let wrong_net = edited_board(&d, "wrongnet.kicad_pcb", |t| {
+        let line = line_with(&t, "(pad \"1\" smd rect (at -6.0").to_string();
+        t.replace(&line, &line.replace("(net 1 \"GND\")", "(net 2 \"3V3\")"))
+    });
+    let o = run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&wrong_net)]);
+    assert_eq!(code(&o), 1);
+    assert!(stderr(&o).contains("error[C-GND]") && stderr(&o).contains("U1.1"), "{}", stderr(&o));
+    // none of this touched the original board; a snapshot and a board together are a usage error
+    assert_eq!(file_hash(&fm100_board()), before);
+    assert_eq!(code(&run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&fm100_board()), "--design", &s(&fm100_board())])), 2);
+    // the board is never the output of a validation
+    assert_eq!(code(&run(&["constraints", "validate", "--pack", &s(&example()), "--kicad-pcb", &s(&fm100_board()), "-o", &s(&fm100_board()), "--force", "-q"])), 4);
+}
+
+#[test]
+fn export_fastroute_writes_the_inputs_and_the_pairs_file_is_accepted_by_the_router() {
+    let d = tmp("constraints-export");
+    // a pack whose USB pair is the pair of the demo design
+    let mut pack: Value = serde_json::from_str(&serde_json::to_string(&fr_constraint::hcp::parse(&std::fs::read_to_string(example()).unwrap()).unwrap()).unwrap()).unwrap();
+    for r in pack["rules"].as_array_mut().unwrap() {
+        if r["id"] == "C-USB" {
+            r["params"]["nets"] = json!(["USB_DP", "USB_DN"]);
+            r["params"]["gap_mm"] = json!(0.2);
+        }
+    }
+    let pack_file = d.join("pack.json");
+    std::fs::write(&pack_file, serde_json::to_string(&pack).unwrap()).unwrap();
+    let out = d.join("export");
+    let o = run(&["constraints", "export-fastroute", "--pack", &s(&pack_file), "-o", &s(&out), "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let pairs = std::fs::read_to_string(out.join("pairs.txt")).unwrap();
+    assert!(pairs.contains("pair USB_DP USB_DN gap=0.2 skew=0.5"), "{pairs}");
+    assert_eq!(std::fs::read_to_string(out.join("route-args.txt")).unwrap(), "--pairs=pairs.txt\n");
+    let report = json(&out.join("export-report.json"));
+    assert_eq!(report["format"], "fastroute-hcp-export");
+    assert!(report["not_exported"].to_string().contains("C-ANT"));
+    // the router reads what was written and routes the pair
+    let routed = d.join("usb.ses");
+    let dsn = manifest_dir().join("../../docs/examples/rules/usb_demo.dsn");
+    let o = run(&["route", &s(&dsn), "--pairs", &s(&out.join("pairs.txt")), "-o", &s(&routed), "--allow-partial", "--max-time", "20"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(routed.is_file());
+    assert!(stderr(&o).to_lowercase().contains("pair"), "the router should say it routed a pair: {}", stderr(&o));
+    // nothing is overwritten unless asked, and nothing is written if one file would be refused
+    assert_eq!(code(&run(&["constraints", "export-fastroute", "--pack", &s(&pack_file), "-o", &s(&out), "-q"])), 4);
+    assert_eq!(code(&run(&["constraints", "export-fastroute", "--pack", &s(&pack_file), "-o", &s(&out), "-q", "--force"])), 0);
+    std::fs::write(out.join("pairs.txt"), "keep").unwrap();
+    std::fs::remove_file(out.join("export-report.json")).unwrap();
+    assert_eq!(code(&run(&["constraints", "export-fastroute", "--pack", &s(&pack_file), "-o", &s(&out), "-q"])), 4);
+    assert!(!out.join("export-report.json").exists(), "nothing was written: one file was refused");
+    // usage and input
+    assert_eq!(code(&run(&["constraints", "export-fastroute", "--pack", &s(&pack_file)])), 2);
+    assert_eq!(code(&run(&["constraints", "export-fastroute", "-o", &s(&out)])), 2);
+}

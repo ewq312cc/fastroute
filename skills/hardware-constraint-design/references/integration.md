@@ -11,8 +11,8 @@ what it found:
 
 ```json
 {"fastroute": {"path": "...", "version": "fastroute 0.1.14", "ok": true},
- "hcp_manager": {"interface": "1", "capabilities": {"keyword_search": true, "vector_index": false, "pdf_text": true, "network_fetch": true}, "ok": true},
- "workflows": {"local_pack_workflow": true, "document_research": true, "vector_search": false}}
+ "hcp_manager": {"interface": "1", "capabilities": {"keyword_search": true, "vector_index": true, "hybrid_search": true, "pdf_text": true, "network_fetch": true}, "ok": true},
+ "workflows": {"local_pack_workflow": true, "document_research": true, "vector_search": true}}
 ```
 
 Exit: 0 both usable, 5 hcp-manager missing or incompatible (the local workflow still works), 6 fastroute
@@ -22,8 +22,11 @@ missing or without the `constraints` commands the script needs.
 
 - **hcp-manager**: `hcp-manager info --json` returns `interface` (a string). This Skill speaks `"1"`. A different
   value is refused with the reason; a minor version of the application (`version`) does not matter. `capabilities`
-  says what exists: `keyword_search`, `vector_index`, `pdf_text`, `network_fetch`. Search a vector index only when
-  the capability is `true`, and treat the result as a lead either way.
+  says what exists: `keyword_search`, `vector_index`, `hybrid_search`, `embedded_store`, `embedding_providers`,
+  `semantic_model_bundled` (false: the default provider is lexical), `remote_embedding_by_default` (false), `pdf_text`,
+  `network_fetch`. Changes of the interface are additive within `"1"`: new commands and new JSON fields, never a removed or
+  renamed one. Use the vectors only when the capability is `true` and `index status` says `ready`, and treat the result as a
+  lead either way.
 - **fastroute**: the `constraints` subcommands that the script uses must be listed by `constraints --help`
   (`check`, `compile`, `report`, `validate`, `extract-kicad`, `export-fastroute`, `edit-request`, `check-edit`).
   The formats carry their own versions (`pack_version`, `ir_version`, `snapshot_version`, `draft_version`);
@@ -35,10 +38,12 @@ missing or without the `constraints` commands the script needs.
 |---|---|---|
 | documents for a device, best first | `research resolve --device PART` | hcp-manager |
 | fetch and pin digests | `research sync [DOC...]` (`--accept` only on a person's say) | hcp-manager |
-| derived text, rebuildable | `research index build` / `rebuild` / `status` | hcp-manager |
-| find passages | `research search WORDS --device PART [--version V] [--source-level official]` | hcp-manager |
+| derived index (blocks and vectors), rebuildable | `research index build` / `rebuild` / `status` | hcp-manager |
+| back to the original of a hit | `research chunk show CHUNK_ID` | hcp-manager |
+| embedding provider, what would leave the machine | `research embedding show` / `test` | hcp-manager |
+| find passages | `research search WORDS --device PART [--version V] [--source-level official] [--mode keyword\|vector\|hybrid]` | hcp-manager |
 | quotations are in the documents | `research verify PACK` | hcp-manager |
-| store a pack | `research packs ...` | hcp-manager |
+| make, list, show, export, import a pack | `research packs create\|list\|show\|export\|import` | hcp-manager |
 | structure, references, evidence form | `check PACK` | fastroute |
 | compile, report | `compile`, `report` | fastroute |
 | validate a design, export to the router | `validate`, `export` | fastroute |

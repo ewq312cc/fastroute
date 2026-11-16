@@ -16,7 +16,7 @@ reading and the judgement; the programs do everything that must give the same an
 | | Does | Never |
 |---|---|---|
 | **you (this Skill)** | choose the documents, read the original pages, write rules with evidence, draft edits | state a number from memory, from a similar part, or from a search score; keep a cache or an index |
-| **hcp-manager** (independent application) | document inventory, download, cache and digests, keyword search, evidence check, pack store | judge what a document means |
+| **hcp-manager** (independent application) | document inventory, download, cache and digests, the embedded index with keyword, vector and hybrid search, evidence check, pack store | judge what a document means |
 | **fastroute constraints** | schema, check, compile, report, validate, export, edit-request, check-edit | use an AI model, the network or a vector index |
 
 `scripts/hcp_cli.py` is the one command line over the two programs; it finds them, checks their versions,
@@ -29,8 +29,9 @@ forwards your command and says what to do when something is missing. Start with 
    against a pack, (c) extend a fixed base board. Ask only if the part or variant is ambiguous.
 2. **Research** (`hcp_cli.py research ...`, details in `references/document-research.md`): `resolve` lists the
    documents for the exact device, best source first (official manual and errata, then guides and reference designs,
-   then dev kits, open boards, community); `sync` fetches and pins digests; `index build`; `search` filters by device and
-   version *before* ranking. A search hit is a lead: open the original page and read it.
+   then dev kits, open boards, community); `sync` fetches and pins digests; `index build` (blocks and vectors); `search` filters by device and
+   version *before* ranking (`--mode keyword|vector|hybrid`). A search hit is a lead: `chunk show ID` and the page are
+   the original; read it before you use it.
 3. **Extract** (`references/constraint-extraction.md`; topic guides: `boot-reset.md`, `high-speed.md`,
    `mechanical.md`; `hcp_cli.py extract templates` lists rule templates). Write the pack from `assets/example-device.yaml`;
    format in `references/hcp-format.md`. Rules about the chip need an `explicit` quotation from an official
@@ -67,7 +68,7 @@ forwards your command and says what to do when something is missing. Start with 
 | `doctor` says fastroute is missing or too old (exit 6) | Stop and tell the user how to build it (`cargo build --release -p fastroute`); nothing can be checked without it |
 | hcp-manager missing, incompatible (`interface` is not `"1"`) or offline | The local workflow still runs (check, compile, report, validate). Work from the pack and the documents the user supplies, mark the evidence **not verified**, list the quotations for a person to compare |
 | No inventory / index missing or stale | `research init`, `sources import|add`, `sync`, `index build` - the index is derived and rebuildable |
-| No vector index (the current state) | Keyword search; `--mode hybrid` degrades to it and says so. Never depend on a vector result |
+| No usable vectors (provider failed, configuration changed, remote not authorised) | `--mode hybrid` says so and is a keyword search. The default vectors are lexical; never depend on a vector result, and never authorise a remote provider on the user's behalf |
 | Document not found, or only a community source | Rule stays `unknown`; ask the user for the official document; say what you looked at |
 | Documents disagree | `conflict`; show both; ask which applies |
 | `check-edit` rejects, or says review | Show the findings and the report. Rejected: do not "fix" by widening authority - change the draft or `stop`. Review (base or pack changed): the person decides whether the pack is still right |

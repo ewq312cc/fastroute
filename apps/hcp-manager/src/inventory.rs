@@ -39,6 +39,10 @@ pub struct Doc {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+    /// May the text of this document be sent to a remote embedding service? Default: no. Only an explicit `true` allows it, and
+    /// only together with the other authorisations (see `embed`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embed_remote: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,6 +114,15 @@ impl Inventory {
 }
 
 impl Doc {
+    /// What the index records about this entry of the inventory: if it changes, the blocks built before are stale (their version,
+    /// level and device applicability are part of each block).
+    pub fn index_signature(&self) -> String {
+        let mut applies: Vec<String> = self.applies_to.iter().map(|a| format!("{}:{}", a.part_number.to_ascii_lowercase(), a.revision.clone().unwrap_or_default().to_ascii_lowercase())).collect();
+        applies.sort();
+        let text = format!("{}\n{}\n{}", self.version, self.level, applies.join(","));
+        fr_constraint::hcp::sha256_hex(text.as_bytes())[..16].to_string()
+    }
+
     /// Whether this document is for exactly this device (part number, and the revision if both name one).
     pub fn applies(&self, part: &str, revision: Option<&str>) -> bool {
         self.applies_to.iter().any(|a| a.part_number.eq_ignore_ascii_case(part) && (revision.is_none() || a.revision.is_none() || a.revision.as_deref().map(|r| r.eq_ignore_ascii_case(revision.unwrap_or(""))).unwrap_or(true)))

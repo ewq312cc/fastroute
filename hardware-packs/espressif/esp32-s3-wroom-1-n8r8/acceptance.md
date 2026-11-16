@@ -73,10 +73,13 @@ show`, `packs export`).
 
 **Not supported (said, not hidden)**
 
-* **Vector search.** hcp-manager has no vector index in this version (`vector_index: not available`; `--mode hybrid` falls back to
-  keywords and says so). Everything in this record about the index is about the **keyword** index. That vector recall goes back to the right
-  version of the text, and that a vector recall of a similar model is isolated, is shown for the keyword search and for the whitelist (a recalled block
-  changes nothing); a vector service itself was not built or tested. The check, the whitelist and the validation do not depend on it.
+* **Semantic vector search.** hcp-manager has a vector index and a hybrid search (`--mode vector|hybrid`), but its default provider (`hashing`)
+  is **lexical**; no semantic embedding model was bundled, downloaded or tested, and a remote embedding service was tried only against a mock.
+  Measured on this workspace: the 84 quotations of the pack, first hit / first three: keyword 67 / 84, vector 46 / 62, hybrid 66 / 84; twelve
+  questions in other words, first three: keyword 9, vector 8, hybrid 8. So here the vectors add nothing to the keywords, and nothing in this
+  record depends on them. Shown by tests: the WROOM-2 datasheet is never returned for the WROOM-1 in any mode, an index of an older document
+  version is not used for the cached one, deleting the vector index changes no pack, IR or verdict, and a recalled block changes nothing in the
+  whitelist. The check, the whitelist and the validation do not read a vector.
 * The validator has no electrical model and no impedance model; spacing and skew are not checked because the documents give none.
 * The router can execute neither the keep-out nor the impedance; it gets nothing from this pack (the USB pair has neither spacing nor
   skew to hand over): `export-fastroute` writes no file and lists every rule with the reason.

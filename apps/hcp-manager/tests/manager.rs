@@ -88,12 +88,16 @@ fn synced(name: &str) -> Fx {
 }
 
 #[test]
-fn info_states_the_contract_and_that_there_is_no_vector_index() {
+fn info_states_the_contract_and_what_the_vector_layer_is() {
     let d = tmp("info");
     let v = jsn(&run(&d, &["--json", "info"]));
     assert_eq!((v["interface"].as_str(), v["name"].as_str()), (Some("1"), Some("hcp-manager")));
     assert_eq!(v["capabilities"]["keyword_search"], json!(true));
-    assert_eq!(v["capabilities"]["vector_index"], json!(false));
+    assert_eq!(v["capabilities"]["vector_index"], json!(true));
+    assert_eq!(v["capabilities"]["default_embedding_provider"], json!("hashing"));
+    // honest about what it is: no model is bundled, and nothing is sent anywhere unless that is configured and authorised
+    assert_eq!((v["capabilities"]["semantic_model_bundled"].clone(), v["capabilities"]["remote_embedding_by_default"].clone()), (json!(false), json!(false)));
+    assert_eq!(v["search_modes"], json!(["keyword", "vector", "hybrid"]));
     assert_eq!(v["exit_codes"]["partial"], json!(5));
 }
 
@@ -220,11 +224,16 @@ fn a_similar_model_is_filtered_out_before_ranking() {
 }
 
 #[test]
-fn hybrid_mode_degrades_to_keyword_and_says_so() {
+fn hybrid_mode_uses_the_vectors_and_degrades_to_keyword_without_them() {
     let f = synced("hybrid");
     let s = jsn(&run(&f.ws, &["--json", "search", "antenna", "--device", "FM-100", "--mode", "hybrid"]));
+    assert_eq!((s["mode_requested"].as_str(), s["mode_used"].as_str()), (Some("hybrid"), Some("hybrid")));
+    assert!(s["degraded"].is_null() && !s["hits"].as_array().unwrap().is_empty());
+    // without the blocks' vectors the same request is answered by keywords, and says so
+    assert_eq!(code(&run(&f.ws, &["--json", "index", "rebuild", "--no-vector"])), 0);
+    let s = jsn(&run(&f.ws, &["--json", "search", "antenna", "--device", "FM-100", "--mode", "hybrid"]));
     assert_eq!((s["mode_requested"].as_str(), s["mode_used"].as_str()), (Some("hybrid"), Some("keyword")));
-    assert!(s["degraded"].as_str().unwrap().contains("no vector index"));
+    assert!(s["degraded"].as_str().unwrap().contains("no vector ranking"), "{s}");
     assert!(!s["hits"].as_array().unwrap().is_empty());
     assert_eq!(code(&run(&f.ws, &["search", "x", "--mode", "magic"])), 2);
 }
@@ -280,8 +289,8 @@ fn the_index_can_be_deleted_and_rebuilt_with_the_same_ids_and_results() {
     assert_eq!(code(&run(&f.ws, &["sources", "sync"])), 0);
     assert_eq!(code(&run(&f.ws, &["index", "build"])), 0);
     assert_eq!(ids(&before), ids(&q(&f.ws)));
-    // the vector index is not part of any of this
-    assert_eq!(jsn(&run(&f.ws, &["--json", "index", "status"]))["vector_index"], "not available");
+    // the vectors are rebuilt with the blocks
+    assert_eq!(jsn(&run(&f.ws, &["--json", "index", "status"]))["vector_index"], "ready");
 }
 
 fn pack_for(f: &Fx, quote: &str, page: u64, chunk: Option<&str>) -> PathBuf {

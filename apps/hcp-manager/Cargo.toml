@@ -1,6 +1,6 @@
 [package]
 name = "hcp-manager"
-description = "Document, source and knowledge-pack manager for hardware constraint packs (sources, cache, keyword search, evidence checks)"
+description = "Document, source and knowledge-pack manager for hardware constraint packs (sources, cache, embedded index with keyword and vector search, evidence checks)"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -20,3 +20,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }

@@ -152,10 +152,11 @@ if the tool lists documents of other models as *excluded*, leave them out.
 
 * Keyword search (`hcp-manager search`) is always available, offline, and filters by device,
   revision, version and level before it ranks.
-* A vector index, if one exists, may help to *find* candidate passages (a paraphrase, a figure
-  caption). It never replaces reading the page: its results are not evidence, its scores are not
+* The vector layer of hcp-manager (`--mode hybrid`) may help to *find* candidate passages (a spelling
+  variant, with a plugged-in model a paraphrase). The default vectors are lexical, so do not expect
+  synonyms. It never replaces reading the page: its results are not evidence, its scores are not
   strength, and no pack, IR or validator reads them.
-* Without a vector index nothing changes except how candidates are found; the evidence
+* Without usable vectors nothing changes except how candidates are found; the evidence
   requirements are the same.
 
 ## The report and what it must answer

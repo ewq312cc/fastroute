@@ -418,3 +418,28 @@ fn the_carrier_has_no_error_in_kicads_own_drc() {
     let errors: Vec<&Value> = r["violations"].as_array().unwrap().iter().filter(|x| x["severity"] == "error").collect();
     assert!(errors.is_empty(), "KiCad's DRC finds errors on the carrier: {errors:#?}");
 }
+
+#[test]
+fn nothing_of_the_vector_layer_is_in_the_pack_the_ir_or_the_verdict_and_the_checkers_do_not_depend_on_it() {
+    // what a vector layer leaves behind (a similarity, an embedding, a rank, a hybrid score) is nowhere in the facts or the results
+    for f in ["pack.yaml", "pack.template.yaml", "ir.json", "reports/validation-legal.json", "reports/validation-legal.zh.md", "reports/pack-report.zh.md"] {
+        let text = std::fs::read_to_string(pack_dir().join(f)).unwrap().to_lowercase();
+        for word in ["similarity", "embedding", "cosine", "hybrid", "vector_", "matched_by", "keyword_score"] {
+            assert!(!text.contains(word), "{f} mentions '{word}'");
+        }
+    }
+    // and the programs that compile, validate and export do not link the index or the manager at all
+    let lock = std::fs::read_to_string(manifest_dir().join("../../Cargo.lock")).unwrap();
+    let deps_of = |name: &str| -> String {
+        let start = lock.find(&format!("name = \"{name}\"\n")).unwrap_or_else(|| panic!("{name} is not in Cargo.lock"));
+        let rest = &lock[start..];
+        rest[..rest.find("\n[[package]]").unwrap_or(rest.len())].to_string()
+    };
+    for krate in ["fr-constraint", "fastroute"] {
+        let d = deps_of(krate);
+        for forbidden in ["rusqlite", "hcp-manager"] {
+            assert!(!d.contains(forbidden), "{krate} depends on {forbidden}");
+        }
+    }
+    assert!(deps_of("hcp-manager").contains("fr-constraint"), "the manager uses the checker, never the other way round");
+}

@@ -145,6 +145,6 @@ pub fn chunk_pages(document_id: &str, sha256: &str, pages: &[String]) -> Vec<Chu
 
 /// Whitespace collapsed, soft hyphens and line-end hyphenation removed: how quotes are compared.
 pub fn normalise(s: &str) -> String {
-    let s = s.replace('\u{00ad}', "").replace("-\n", "").replace('\u{2019}', "'").replace('\u{201c}', "\"").replace('\u{201d}', "\"");
+    let s = s.replace('\u{00ad}', "").replace("-\n", "").replace('\u{2019}', "'").replace(['\u{201c}', '\u{201d}'], "\"");
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }

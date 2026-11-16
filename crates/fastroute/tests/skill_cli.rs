@@ -165,6 +165,16 @@ fn research_through_the_real_manager_recovers_from_an_empty_workspace() {
     let o = hcp(&script, &envs, &["--workspace", &w, "research", "packs", "list", "--json"]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     assert_eq!(jv(&o)["packs"], json!([]));
+    // the new commands go through the same front door: the embedding provider (local by default) and a block of the index
+    let o = hcp(&script, &envs, &["--workspace", &w, "research", "embedding", "show", "--json"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert_eq!((jv(&o)["embedder"]["provider"].as_str(), jv(&o)["text_leaves_this_machine"].as_bool()), (Some("hashing"), Some(false)));
+    let o = hcp(&script, &envs, &["--workspace", &w, "research", "chunk", "show", "CHK-NOPE@00000000:p1.1"]);
+    assert_eq!(code(&o), 3, "{}", stderr(&o));
+    // the doctor says what the vector layer is and is not
+    let o = hcp(&script, &envs, &["doctor"]);
+    let notes = jv(&o)["notes"].to_string();
+    assert!(notes.contains("vector search is available") && notes.contains("lexical") && notes.contains("--authorize-remote"), "{notes}");
 }
 
 #[test]

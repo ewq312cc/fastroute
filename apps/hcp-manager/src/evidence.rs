@@ -3,7 +3,7 @@
 //! on the cited page. This is the step that sends a reader "back to the original text".
 
 use crate::error::{Error, Result};
-use crate::index::{read_chunks, read_meta};
+use crate::index::{chunks_for_evidence, read_meta};
 use crate::inventory::Inventory;
 use crate::text::normalise;
 use crate::workspace::Workspace;
@@ -123,16 +123,23 @@ pub fn verify(ws: &Workspace, inv: &Inventory, pack: &Value, pack_name: &str) ->
         let Some(Some(did)) = source_ok.get(sid) else {
             if !problems.iter().any(|p| p.message.starts_with(sid)) && !unverifiable.iter().any(|u| u.reason.contains(sid)) {
                 unverifiable.push(Unverifiable { path: path.clone(), reason: format!("the source {sid} could not be verified (see above)") });
-            } else if source_ok.get(sid).is_none() {
+            } else if !source_ok.contains_key(sid) {
                 problems.push(Problem { code: "unknown_document", path: path.clone(), message: format!("the evidence cites {sid}, which is not a source of the pack") });
             }
             continue;
         };
-        let chunks = read_chunks(ws, did);
-        if chunks.is_empty() {
-            unverifiable.push(Unverifiable { path: path.clone(), reason: format!("{did} has no text blocks: run `hcp-manager index build` (and `pdftotext` must be installed for PDFs)") });
-            continue;
-        }
+        // only the blocks of a current index: text of an older version of the document is not the text of the cached one
+        let chunks = match inv.get(did).map(|d| chunks_for_evidence(ws, d)) {
+            Some(Ok(c)) if !c.is_empty() => c,
+            Some(Err(why)) => {
+                unverifiable.push(Unverifiable { path: path.clone(), reason: format!("{did}: {why} (and `pdftotext` must be installed for PDFs)") });
+                continue;
+            }
+            _ => {
+                unverifiable.push(Unverifiable { path: path.clone(), reason: format!("{did} has no text blocks: run `hcp-manager index build` (and `pdftotext` must be installed for PDFs)") });
+                continue;
+            }
+        };
         let mut ok = true;
         if let Some(cid) = e["chunk_id"].as_str() {
             match chunks.iter().find(|c| c.chunk_id == cid) {

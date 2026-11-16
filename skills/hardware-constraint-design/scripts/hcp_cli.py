@@ -147,6 +147,9 @@ def cmd_doctor(args):
         report["notes"].append(MANAGER_HELP)
     if mg and not caps.get("vector_index"):
         report["notes"].append("no vector index: search is by keyword, filtered by device, version and source level; nothing depends on a vector result.")
+    elif mg:
+        sem = "" if caps.get("semantic_model_bundled") else " The default vectors are lexical (words and word parts, no synonyms); a real model is plugged in with embedding.yaml."
+        report["notes"].append("vector search is available (--mode hybrid); a hit is a lead, never evidence, and no check depends on it." + sem + " Nothing is sent to another machine unless embedding.yaml, --authorize-remote and the inventory all allow it.")
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return EXIT_TOOL if not fr else (5 if not mg else 0)
 
@@ -165,6 +168,8 @@ MANAGER_MAP = {
     "search": ["search"],
     "verify": ["evidence", "verify"],
     "packs": ["packs"],
+    "chunk": ["chunk"],
+    "embedding": ["embedding"],
 }
 
 
@@ -323,7 +328,7 @@ def main(argv):
     ap = argparse.ArgumentParser(
         prog="hcp_cli.py",
         description=__doc__.split("\n\n")[0],
-        epilog="commands: doctor | research {init,sources,resolve,sync,index,search,verify,packs} | extract {kicad,templates} | "
+        epilog="commands: doctor | research {init,sources,resolve,sync,index,search,chunk,embedding,verify,packs} | extract {kicad,templates} | "
         "check | compile | report | validate | export | edit-request | check-edit | pipeline. "
         "`hcp_cli.py COMMAND --help` shows the options of the program behind it.",
     )

@@ -82,7 +82,11 @@ impl Ws {
     }
 
     fn search(&self, query: &str, level: Option<&str>, device: Option<&str>) -> Value {
-        let mut a = vec!["--json", "search", "--limit", "10"];
+        self.search_mode(query, level, device, "keyword")
+    }
+
+    fn search_mode(&self, query: &str, level: Option<&str>, device: Option<&str>, mode: &str) -> Value {
+        let mut a = vec!["--json", "search", "--limit", "10", "--mode", mode];
         if let Some(d) = device {
             a.extend(["--device", d]);
         }
@@ -102,9 +106,12 @@ fn eval_set() -> Value {
 
 fn answers(w: &Ws) -> Vec<Value> {
     let e = eval_set();
-    let mut out: Vec<Value> = e["cases"].as_array().unwrap().iter().map(|c| w.search(c["query"].as_str().unwrap(), c["source_level"].as_str(), Some(DEVICE))).collect();
-    for i in e["isolation"].as_array().unwrap() {
-        out.push(w.search(i["query"].as_str().unwrap(), None, Some(DEVICE)));
+    let mut out: Vec<Value> = Vec::new();
+    for mode in ["keyword", "vector", "hybrid"] {
+        out.extend(e["cases"].as_array().unwrap().iter().map(|c| w.search_mode(c["query"].as_str().unwrap(), c["source_level"].as_str(), Some(DEVICE), mode)));
+        for i in e["isolation"].as_array().unwrap() {
+            out.push(w.search_mode(i["query"].as_str().unwrap(), None, Some(DEVICE), mode));
+        }
     }
     out
 }
@@ -118,42 +125,72 @@ fn the_documents_are_pinned_indexed_and_found_in_the_version_that_was_read() {
     let (c, idx) = w.json(&["index", "build", "--json"]);
     assert_eq!(c, 0, "{idx}");
     let (_, st) = w.json(&["index", "status", "--json"]);
-    assert_eq!((st["keyword_index"].as_str(), st["vector_index"].as_str()), (Some("ready"), Some("not available")), "{st}");
-    // the evaluation set: the right page of the right version, ranked as the set says
+    assert_eq!((st["keyword_index"].as_str(), st["vector_index"].as_str()), (Some("ready"), Some("ready")), "{st}");
+    // the evaluation set: the right page of the right version, ranked as the set says, by keywords and by keywords with vectors
     let e = eval_set();
     let (mut hits, mut cases) = (0, 0);
-    for c in e["cases"].as_array().unwrap() {
-        cases += 1;
-        let r = w.search(c["query"].as_str().unwrap(), c["source_level"].as_str(), Some(DEVICE));
-        let ex = &c["expect"];
-        let k = ex["top_k"].as_u64().unwrap() as usize;
-        let hit = r["hits"].as_array().unwrap().iter().take(k).find(|h| h["document_id"] == ex["document_id"] && (ex["page"].is_null() || h["page"] == ex["page"]));
-        let id = c["id"].as_str().unwrap();
-        let h = hit.unwrap_or_else(|| panic!("{id}: {} not in the first {k}: {:?}", ex["document_id"], r["hits"].as_array().unwrap().iter().map(|h| (h["document_id"].clone(), h["page"].clone())).collect::<Vec<_>>()));
-        if !ex["version"].is_null() {
-            assert_eq!(h["document_version"], ex["version"], "{id}: a hit names the version of the document it comes from");
+    for mode in ["keyword", "hybrid"] {
+        for c in e["cases"].as_array().unwrap() {
+            cases += 1;
+            let r = w.search_mode(c["query"].as_str().unwrap(), c["source_level"].as_str(), Some(DEVICE), mode);
+            assert_eq!(r["mode_used"], mode);
+            let ex = &c["expect"];
+            let k = ex["top_k"].as_u64().unwrap() as usize;
+            let hit = r["hits"].as_array().unwrap().iter().take(k).find(|h| h["document_id"] == ex["document_id"] && (ex["page"].is_null() || h["page"] == ex["page"]));
+            let id = c["id"].as_str().unwrap();
+            let h = hit.unwrap_or_else(|| panic!("{mode} {id}: {} not in the first {k}: {:?}", ex["document_id"], r["hits"].as_array().unwrap().iter().map(|h| (h["document_id"].clone(), h["page"].clone())).collect::<Vec<_>>()));
+            if !ex["version"].is_null() {
+                assert_eq!(h["document_version"], ex["version"], "{id}: a hit names the version of the document it comes from");
+            }
+            // a hit goes back to the text: its block id carries the digest of the document it was built from, and the block can be shown
+            assert!(h["chunk_id"].as_str().unwrap().contains('@'), "{id}");
+            hits += 1;
         }
-        // a hit goes back to the text: its block id carries the digest of the document it was built from
-        assert!(h["chunk_id"].as_str().unwrap().contains('@'), "{id}");
-        hits += 1;
     }
     assert_eq!(hits, cases);
-    // a similar module is isolated: never searched for this device, searched when there is no device
+    // a hit goes back to the page: the block of a hit is the text of that page of the cached document
+    let r = w.search_mode("Do not leave the EN pin floating", None, Some(DEVICE), "hybrid");
+    let (c, shown) = w.json(&["--json", "chunk", "show", r["hits"][0]["chunk_id"].as_str().unwrap()]);
+    assert_eq!(c, 0, "{shown}");
+    assert_eq!((shown["chunk"]["document_id"].as_str(), shown["chunk"]["page"].as_u64(), shown["chunk"]["document_version"].as_str()), (Some("DOC-ESP32S3-WROOM1-DS"), Some(11), Some("v1.8")));
+    assert!(shown["chunk"]["text"].as_str().unwrap().contains("Do not leave the EN pin floating"));
+    assert_eq!(shown["current"], json!(true));
+    // paraphrased questions (no wording of the document): a floor that guards against breakage, not a claim about quality; the measured
+    // numbers are in acceptance.md
+    let (mut kw_found, mut hy_found, mut total) = (0, 0, 0);
+    for p in e["paraphrases"].as_array().unwrap() {
+        total += 1;
+        let find = |mode: &str| {
+            let r = w.search_mode(p["query"].as_str().unwrap(), p["source_level"].as_str(), Some(DEVICE), mode);
+            r["hits"].as_array().unwrap().iter().take(3).any(|h| h["document_id"] == p["expect"]["document_id"] && (p["expect"]["page"].is_null() || h["page"] == p["expect"]["page"]))
+        };
+        kw_found += find("keyword") as usize;
+        hy_found += find("hybrid") as usize;
+    }
+    eprintln!("paraphrases found in the first three hits: keyword {kw_found}, hybrid {hy_found} of {total}");
+    assert!(kw_found * 3 >= total * 2 && hy_found * 3 >= total * 2, "keyword {kw_found}, hybrid {hy_found} of {total}");
+    // a similar module is isolated: never searched for this device in any mode, searched when there is no device
     for i in e["isolation"].as_array().unwrap() {
         let q = i["query"].as_str().unwrap();
-        let with = w.search(q, None, Some(DEVICE));
-        for never in i["never_return"].as_array().unwrap() {
-            assert!(!with["hits"].as_array().unwrap().iter().any(|h| h["document_id"] == *never), "{never} was returned");
-            let ex = with["documents_excluded"].as_array().unwrap().iter().find(|d| d["document_id"] == *never).unwrap_or_else(|| panic!("{never} is not listed as excluded: {with}"));
-            assert!(ex["reason"].as_str().unwrap().contains("not for ESP32-S3-WROOM-1-N8R8"), "{ex}");
-            let without = w.search(q, None, None);
-            assert!(without["documents_considered"].as_array().unwrap().iter().any(|d| d == never), "without the device filter {never} is searched too: {without}");
+        for mode in ["keyword", "vector", "hybrid"] {
+            let with = w.search_mode(q, None, Some(DEVICE), mode);
+            for never in i["never_return"].as_array().unwrap() {
+                assert!(!with["hits"].as_array().unwrap().iter().any(|h| h["document_id"] == *never), "{mode}: {never} was returned");
+                let ex = with["documents_excluded"].as_array().unwrap().iter().find(|d| d["document_id"] == *never).unwrap_or_else(|| panic!("{never} is not listed as excluded: {with}"));
+                assert!(ex["reason"].as_str().unwrap().contains("not for ESP32-S3-WROOM-1-N8R8"), "{ex}");
+                let without = w.search_mode(q, None, None, mode);
+                assert!(without["documents_considered"].as_array().unwrap().iter().any(|d| d == never), "without the device filter {never} is searched too: {without}");
+            }
         }
     }
-    // there is no vector index: the hybrid mode says it fell back to keywords
-    let (_, h) = w.json(&["--json", "search", "--mode", "hybrid", "--device", DEVICE, "Do not leave the EN pin floating"]);
+    // the vectors are not needed: without them the hybrid mode says it fell back to keywords, and the answers are the keyword answers
+    let kw = w.search_mode("Do not leave the EN pin floating", None, Some(DEVICE), "keyword");
+    assert_eq!(code(&w.hcp(&["index", "rebuild", "--no-vector"])), 0);
+    let h = w.search_mode("Do not leave the EN pin floating", None, Some(DEVICE), "hybrid");
     assert_eq!(h["mode_used"], "keyword");
-    assert!(h["degraded"].as_str().unwrap().contains("keyword search only"), "{h}");
+    assert!(h["degraded"].as_str().unwrap().contains("no vector ranking"), "{h}");
+    assert_eq!(h["hits"], kw["hits"], "without vectors a hybrid search is a keyword search");
+    assert_eq!(code(&w.hcp(&["index", "build"])), 0, "the vectors are made again, the blocks are kept");
     // every quotation of the pack is on the page it cites, in the version and with the digest of the pack
     let (c, ev) = w.json(&["--json", "evidence", "verify", &s(&pack_dir().join("pack.yaml"))]);
     assert_eq!(c, 0, "{ev}");
@@ -185,6 +222,7 @@ fn every_quotation_of_the_pack_can_be_found_again_by_a_search() {
     let mut ev = Vec::new();
     walk(&pack, &mut ev);
     assert_eq!(ev.len(), 84);
+    let ev_again = ev.clone();
     let mut ranks = [0usize; 3]; // found first, found second, not in the first two
     for e in ev {
         let src = level(e["source_id"].as_str().unwrap());
@@ -194,9 +232,19 @@ fn every_quotation_of_the_pack_can_be_found_again_by_a_search() {
         let pos = r["hits"].as_array().unwrap().iter().position(|h| h["document_id"] == src["document_id"] && page.is_none_or(|p| h["page"].as_u64() == Some(p)));
         ranks[pos.filter(|p| *p < 2).unwrap_or(2)] += 1;
     }
-    // measured on the locked documents: 67 at the first place, 17 at the second, none missing
+    // measured on the locked documents (keyword): 67 at the first place, 17 at the second, none missing
     assert_eq!(ranks[2], 0, "quotations that a search does not bring back among the first two hits: {ranks:?}");
     assert!(ranks[0] >= 60, "{ranks:?}");
+    // with the vectors added, a quotation is still brought back (measured: 66 first, all 84 among the first three)
+    let mut found = 0;
+    for e in &ev_again {
+        let src = level(e["source_id"].as_str().unwrap());
+        let lvl = (src["level"] != "official_manual").then(|| src["level"].as_str().unwrap().to_string());
+        let r = w.search_mode(e["quote"].as_str().unwrap(), lvl.as_deref(), Some(DEVICE), "hybrid");
+        let page = e["locator"]["page"].as_u64();
+        found += r["hits"].as_array().unwrap().iter().take(3).any(|h| h["document_id"] == src["document_id"] && page.is_none_or(|p| h["page"].as_u64() == Some(p))) as usize;
+    }
+    assert!(found >= 82, "hybrid search brings back {found} of 84 quotations among the first three hits");
 }
 
 #[test]

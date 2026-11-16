@@ -42,7 +42,11 @@
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "retrieved": { "$ref": "#/$defs/date" },
         "status": { "enum": ["active", "superseded", "dead", "changed"] },
-        "license_note": { "type": "string" },
+        "embed_remote": {
+      "type": "boolean",
+      "description": "May the text of this document be sent to a remote embedding service? Default false; a remote provider only ever receives documents that say true."
+    },
+    "license_note": { "type": "string" },
         "note": { "type": "string" },
         "last_error": { "type": "string" }
       }

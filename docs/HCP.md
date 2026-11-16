@@ -25,7 +25,7 @@ official manuals / design guides / open boards
 
 | | Does | Never |
 |---|---|---|
-| **hcp-manager** (`apps/hcp-manager`) | inventory of documents, download and cache by digest, source priority, keyword search filtered by device and version *before* ranking, evidence verification, pack listing and export | judge what a document means; produce rules |
+| **hcp-manager** (`apps/hcp-manager`, [HCP_MANAGER.md](HCP_MANAGER.md)) | inventory of documents, download and cache by digest, source priority, the embedded index (text blocks, vectors), keyword / vector / hybrid search filtered by device and version *before* ranking, evidence verification, pack store (create, list, show, import, export) | judge what a document means; produce rules; send customer text to a remote service unless explicitly authorised |
 | **the AI / the Skill** (`skills/hardware-constraint-design`) | choose documents, read the pages, write rules with quotations, draft edits | state a number from memory; widen what it may edit; decide that a check passed |
 | **`fastroute constraints`** (`crates/fr-constraint`) | schema check, compile, validate, report, export, edit-request, check-edit | use a model, the network or a vector index |
 | **a person** | confirms the pack (review status, name, date), decides unknown and conflicting items | |
@@ -40,7 +40,7 @@ and nothing in a pack, an IR or a verdict depends on a search result.
 | `skills/hardware-constraint-design/` | the Skill: `SKILL.md`, `references/` (format, research, extraction, boot/reset, high-speed, mechanical, editable base, integration), `schemas/`, `scripts/hcp_cli.py`, `assets/` (example pack, inventory, edit draft, rule templates). `skills/hardware-constraint-design.skill` is its package |
 | `crates/fr-constraint/` | the library: schema interpreter, pack checks, compiler, validator, KiCad reader, fastroute export, edit boundary, reports |
 | `crates/fastroute/src/constraints_cmd.rs` | `fastroute constraints ...` |
-| `apps/hcp-manager/` | the independent application |
+| `apps/hcp-manager/` | the independent application (command line plus the library `hcp_manager`); its description: [HCP_MANAGER.md](HCP_MANAGER.md) |
 | `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` | the example pack written from locked official documents, with its acceptance record |
 | `docs/CLI.md` | the command reference (`fastroute constraints`) |
 
@@ -61,8 +61,8 @@ rejection, 3 invalid input, 4 output refused, 2 usage):
 | `edit-request`, `check-edit` | a fixed base board that an AI may edit only inside a whitelist |
 
 `hcp-manager` (exit codes as above): `init`, `info` (the interface contract, `interface: "1"`), `sources add|import|list|resolve|sync|check`,
-`index build|rebuild|status`, `search` (`--device`, `--version`, `--source-level`, `--mode keyword|hybrid`), `evidence verify`, `packs
-list|show|export`.
+`index build|rebuild|status`, `search` (`--device`, `--revision`, `--version`, `--source-level`, `--mode keyword|vector|hybrid`), `chunk show`,
+`embedding show|test`, `evidence verify`, `packs list|show|create|import|export`. The full list and the contract: [HCP_MANAGER.md](HCP_MANAGER.md).
 
 `skills/hardware-constraint-design/scripts/hcp_cli.py`: `doctor`, `research ...` (to hcp-manager), `extract`, `check`, `compile`,
 `report`, `validate`, `export`, `edit-request`, `check-edit`, `pipeline` (one run, one status file with the points a person must confirm).
@@ -102,17 +102,21 @@ Reference: `skills/hardware-constraint-design/references/hcp-format.md` (pack, e
 | The validator checks, offline, required blocks, reserved pins, strapping conflicts, mechanical keep-outs and the supported high-speed rules | done | `fr-constraint/tests/validate.rs`, `special.rs`; ten mistaken ESP32-S3 boards fail at the expected rule |
 | fastroute consumes the compiled constraints that apply; unsupported rules are reported | done | `export-fastroute` (pairs, tune, `.kicad_dru`) and its report; the pairs file is accepted by the router (`constraints_cli.rs`) |
 | Any key rule traces to the pack and the original | done | evidence is kept in the IR and every finding; `hcp-manager evidence verify` (document, version, digest, words on the page): 84 of 84 for the ESP32-S3 pack |
-| Documents and packs are managed without the Skill; the index can be deleted and rebuilt | done for the keyword index | `apps/hcp-manager`; `esp32s3_documents.rs` (delete and rebuild: byte-identical answers). **A vector index does not exist** (see below) |
-| Without a vector service, search degrades to keywords; without a network and a vector index the compile and the validation still run | done | `--mode hybrid` says it fell back; the offline test runs with an empty PATH and a dead proxy |
+| Documents and packs are managed without the Skill; the index (blocks and vectors) can be deleted and rebuilt (#18) | done | `apps/hcp-manager` (`tests/manager.rs`, `tests/vector.rs`); `esp32s3_documents.rs` (delete and rebuild: byte-identical answers, with vectors too); the Skill keeps no cache, download routine or index of its own |
+| Vector index and hybrid retrieval, kept apart from the deterministic path (#19): filter by device / version / source level before ranking; a changed source invalidates the old index; different devices and versions never mix; a hit goes back to document, page and section; similarity is never evidence | done, with a lexical default | `tests/vector.rs` (invalidation, delete and rebuild, version isolation, similar-model false recall, offline degradation, remote refused without authorisation), `esp32s3_documents.rs` (84 quotations, 12 paraphrases, isolation cases), `esp32s3_pack.rs` (a recalled block changes no verdict); `fr-constraint` and `fastroute` do not link the manager or the database (a test reads `Cargo.lock`) |
+| Without a vector service or a network, search degrades to keywords; the compile and the validation still run | done | `--mode hybrid` says it fell back (`degraded`); the offline test runs with an empty PATH and a dead proxy |
 | Example pack, schema checks, negative tests and the `.skill` package | done | `hardware-packs/espressif/esp32-s3-wroom-1-n8r8/` and its `acceptance.md`; `skill_cli.rs` keeps `skills/hardware-constraint-design.skill` equal to the directory; the package passes skill-creator's validation |
 
 ### Not part of this work
 
-* **A vector index and hybrid retrieval** (the planned issue for it, #19, was outside the requested range). hcp-manager reports
-  `vector_index: not available`; the Skill and the checks treat that as normal. Claims about "index rebuild" in this repository are about the
-  keyword index.
-* **The full hcp-manager application** (#18): what exists is the part that the other issues depend on (inventory, cache, source priority, keyword
-  search, evidence verification, pack export). It is a library plus a command line; there is no service and no database.
+* **The default vectors are lexical, and no semantic model was bundled or tested.** The built-in `hashing` provider helps with spelling variants
+  and parts of words; on the ESP32-S3 documents it does **not** find more than the keywords (84 quotations, first hit / first three: keyword
+  67 / 84, vector 46 / 62, hybrid 66 / 84; 12 questions in other words, first three: keyword 9, vector 8, hybrid 8; a small sample). A real
+  embedding model can be plugged in (`command` or `http` provider), but none was run here. The remote path (`http` to a non-local host) was
+  exercised only against a mock server, never against a real service.
+* **No local HTTP API, no approximate-nearest-neighbour store.** hcp-manager is a command line plus a library; the vector store is a flat scan
+  over the filtered candidates behind a `VectorIndex` trait, which is enough for the size of a device workspace and has not been measured on
+  a large corpus.
 * **Skill triggering is only partly measured.** With skill-creator's trigger evaluation (ten prompts, five that should trigger and five near
   misses, one or two runs each) the near misses never triggered and the real hardware prompts triggered in about 20 to 30 % of the runs. Rewording
   the description did not change that in a measurable way on this sample; it is not a statement that the Skill triggers reliably.

@@ -6,8 +6,9 @@ use clap::{Args, Parser, Subcommand};
 use hcp_manager::error::{exit, Error, Result};
 use hcp_manager::inventory::{self, Applies, Doc, Inventory};
 use hcp_manager::workspace::Workspace;
-use hcp_manager::{evidence, fetch, index, packs, search, sources, text, INTERFACE_VERSION};
-use serde_json::{json, Value};
+use hcp_manager::store::Store;
+use hcp_manager::{embed, evidence, fetch, index, packs, search, sources, text, INTERFACE_VERSION};
+use serde_json::json;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -35,13 +36,23 @@ enum Cmd {
         #[command(subcommand)]
         cmd: SourcesCmd,
     },
-    /// The derived text blocks (rebuildable)
+    /// The derived index: text blocks and vectors in the embedded store (rebuildable)
     Index {
         #[command(subcommand)]
         cmd: IndexCmd,
     },
-    /// Keyword search, filtered by device, version and source level before it is ranked
+    /// Keyword, vector or hybrid search, filtered by device, version and source level before it is ranked
     Search(SearchArgs),
+    /// One text block, with everything needed to go back to the original page
+    Chunk {
+        #[command(subcommand)]
+        cmd: ChunkCmd,
+    },
+    /// The embedding provider of the workspace (default: local, nothing leaves the machine)
+    Embedding {
+        #[command(subcommand)]
+        cmd: EmbeddingCmd,
+    },
     /// Check that the evidence of a pack is in the cited documents
     Evidence {
         #[command(subcommand)]
@@ -94,6 +105,9 @@ struct AddArgs {
     license_note: Option<String>,
     #[arg(long)]
     note: Option<String>,
+    /// Allow the text of this document to be sent to a remote embedding service (default: no)
+    #[arg(long)]
+    embed_remote: bool,
 }
 
 #[derive(Args)]
@@ -120,12 +134,46 @@ struct SyncArgs {
 
 #[derive(Subcommand)]
 enum IndexCmd {
-    /// Build the text blocks of the cached documents
-    Build { docs: Vec<String> },
+    /// Build what is missing or stale: the text blocks of the cached documents and their vectors
+    Build {
+        /// Only these documents (default: all)
+        docs: Vec<String>,
+        /// Make everything of the selected documents again, current or not
+        #[arg(long)]
+        force: bool,
+        /// Build the text blocks only
+        #[arg(long)]
+        no_vector: bool,
+        /// Allow a remote embedding provider to receive text (the configuration must allow it too)
+        #[arg(long)]
+        authorize_remote: bool,
+    },
     /// Delete everything derived and build it again from the cache
-    Rebuild,
-    /// What is built, what is stale
+    Rebuild {
+        #[arg(long)]
+        no_vector: bool,
+        #[arg(long)]
+        authorize_remote: bool,
+    },
+    /// What is built, what is stale and why
     Status,
+}
+
+#[derive(Subcommand)]
+enum ChunkCmd {
+    /// Print a block (a chunk id from a search hit or from evidence) with its document, version, page, section and digests
+    Show { id: String },
+}
+
+#[derive(Subcommand)]
+enum EmbeddingCmd {
+    /// The configuration in force, what the vectors are made with, and whether text would leave this machine
+    Show,
+    /// Embed two sample sentences and report the dimension and the similarity (needs --authorize-remote for a remote provider)
+    Test {
+        #[arg(long)]
+        authorize_remote: bool,
+    },
 }
 
 #[derive(Args)]
@@ -145,9 +193,13 @@ struct SearchArgs {
     source_level: Option<String>,
     #[arg(long, default_value_t = 10)]
     limit: usize,
-    /// keyword (default), or hybrid (falls back to keyword and says so)
+    /// keyword (default), vector (an error if there are no usable vectors), or hybrid (keyword and vector; keyword alone, and says
+    /// so, if there are no usable vectors)
     #[arg(long, default_value = "keyword")]
     mode: String,
+    /// Allow a remote embedding provider to receive the query (the configuration must allow it too)
+    #[arg(long)]
+    authorize_remote: bool,
 }
 
 #[derive(Subcommand)]
@@ -158,8 +210,36 @@ enum EvidenceCmd {
 
 #[derive(Subcommand)]
 enum PacksCmd {
+    /// The packs of the workspace (every version of every pack)
     List,
+    /// A pack by path, id (the highest version) or id@version
     Show { pack: String },
+    /// Make a skeleton pack for a device: metadata, the device and the documents of the inventory that are for it (no pins, no rules)
+    Create {
+        /// vendor/device
+        #[arg(long)]
+        id: String,
+        #[arg(long, default_value = "0.1.0")]
+        pack_version: String,
+        /// The exact part number
+        #[arg(long)]
+        device: String,
+        #[arg(long)]
+        revision: Option<String>,
+        #[arg(long)]
+        vendor: String,
+        #[arg(long)]
+        title: Option<String>,
+        /// zh-CN or en
+        #[arg(long, default_value = "en")]
+        language: String,
+    },
+    /// Import a pack file, or a directory written by `packs export`, with the documents it cites
+    Import {
+        from: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
     /// Write the pack with the inventory entries it cites into a directory
     Export {
         pack: String,
@@ -200,23 +280,38 @@ fn run(cli: Cli) -> Result<u8> {
         Cmd::Info => {
             let info = json!({
                 "format": "hcp-manager-info",
-                "format_version": "1.0",
+                "format_version": "1.1",
                 "name": "hcp-manager",
                 "version": env!("CARGO_PKG_VERSION"),
                 "interface": INTERFACE_VERSION,
-                "commands": ["init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status", "search", "evidence verify", "packs list|show|export"],
+                "commands": [
+                    "init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status", "search", "chunk show",
+                    "embedding show|test", "evidence verify", "packs list|show|create|import|export"
+                ],
                 "capabilities": {
                     "keyword_search": true,
-                    "vector_index": false,
+                    "vector_index": true,
+                    "hybrid_search": true,
+                    "embedded_store": "sqlite",
+                    "embedding_providers": ["hashing", "command", "http"],
+                    "default_embedding_provider": "hashing",
+                    "semantic_model_bundled": false,
+                    "remote_embedding_by_default": false,
                     "pdf_text": text::pdftotext_available(),
                     "network_fetch": fetch::curl_available(),
                 },
+                "search_modes": ["keyword", "vector", "hybrid"],
                 "exit_codes": {"ok": 0, "failed": 1, "usage": 2, "input": 3, "output": 4, "partial": 5},
             });
             if json {
                 print_json(&info);
             } else {
-                println!("hcp-manager {} (interface {INTERFACE_VERSION}); keyword search: yes, vector index: no, PDF text: {}, network fetch: {}", env!("CARGO_PKG_VERSION"), info["capabilities"]["pdf_text"], info["capabilities"]["network_fetch"]);
+                println!(
+                    "hcp-manager {} (interface {INTERFACE_VERSION}); keyword search: yes, vector index: yes (local hashing by default; no model is bundled), PDF text: {}, network fetch: {}",
+                    env!("CARGO_PKG_VERSION"),
+                    info["capabilities"]["pdf_text"],
+                    info["capabilities"]["network_fetch"]
+                );
             }
             Ok(0)
         }
@@ -224,7 +319,7 @@ fn run(cli: Cli) -> Result<u8> {
         Cmd::Index { cmd } => run_index(&ws, cmd, json),
         Cmd::Search(a) => {
             let inv = Inventory::load(&ws)?;
-            let q = search::Query { text: a.query.join(" "), device: a.device, revision: a.revision, version: a.version, source_level: a.source_level, limit: a.limit, mode: a.mode };
+            let q = search::Query { text: a.query.join(" "), device: a.device, revision: a.revision, version: a.version, source_level: a.source_level, limit: a.limit, mode: a.mode, authorize_remote: a.authorize_remote };
             let r = search::search(&ws, &inv, &q)?;
             if json {
                 print_json(&r);
@@ -239,7 +334,7 @@ fn run(cli: Cli) -> Result<u8> {
                     eprintln!("not searched: {} ({})", e.document_id, e.reason);
                 }
                 for h in &r.hits {
-                    println!("{} [{} {}] p.{}{} score {}\n    {}", h.chunk_id, h.document_id, h.document_version, h.page, h.section.as_ref().map(|s| format!(", {s}")).unwrap_or_default(), h.score, h.snippet);
+                    println!("{} [{} {}] p.{}{} score {} ({})\n    {}", h.chunk_id, h.document_id, h.document_version, h.page, h.section.as_ref().map(|s| format!(", {s}")).unwrap_or_default(), h.score, h.matched_by.join("+"), h.snippet);
                 }
                 if r.hits.is_empty() {
                     println!("no hits ({} document(s) searched)", r.documents_considered.len());
@@ -247,6 +342,33 @@ fn run(cli: Cli) -> Result<u8> {
             }
             Ok(0)
         }
+        Cmd::Chunk { cmd: ChunkCmd::Show { id } } => {
+            let store = Store::open_read(&ws).ok_or_else(|| Error::input("there is no index store to read: run `hcp-manager index build`"))?;
+            let rec = store.chunk(&id)?.ok_or_else(|| Error::input(format!("no block {id} in the index (a block id contains the digest of the document it was cut from: after a document changed, the old ids are gone)")))?;
+            let inv = Inventory::load(&ws).ok();
+            let doc = inv.as_ref().and_then(|i| i.get(&rec.document_id));
+            let meta = index::read_meta(&ws, &rec.document_id);
+            let current = match (doc, &meta) {
+                (Some(d), Some(m)) => index::keyword_state(store.doc_row(&rec.document_id)?.as_ref(), Some(m), d).0 == "indexed",
+                _ => false,
+            };
+            let out = json!({
+                "format": "hcp-manager-chunk",
+                "format_version": "1.0",
+                "chunk": rec,
+                "source": meta.as_ref().map(|m| json!({"document_id": m.document_id, "sha256": m.sha256, "cached_file": index::cached_file(&ws, m).display().to_string(), "retrieved": m.retrieved, "origin": m.origin})),
+                "current": current,
+                "evidence": {"source_document": rec.document_id, "locator": match &rec.section { Some(s) => json!({"page": rec.page, "section": s}), None => json!({"page": rec.page}) }, "quote": "(read the text above and copy the exact words you rely on)"},
+            });
+            if json {
+                print_json(&out);
+            } else {
+                println!("{} [{} {} {}] page {}{}{}", rec.chunk_id, rec.document_id, rec.document_version, rec.level, rec.page, rec.section.as_ref().map(|s| format!(", {s}")).unwrap_or_default(), if current { "" } else { "  (the index of this document is not current)" });
+                println!("for: {}\ndigest of the text: {}\n\n{}", rec.applies_to.join(", "), rec.text_sha256, rec.text);
+            }
+            Ok(0)
+        }
+        Cmd::Embedding { cmd } => run_embedding(&ws, cmd, json),
         Cmd::Evidence { cmd: EvidenceCmd::Verify { pack } } => {
             let inv = Inventory::load(&ws)?;
             let (path, doc) = packs::find(&ws, &pack)?;
@@ -278,6 +400,36 @@ fn run(cli: Cli) -> Result<u8> {
                     }
                 }
                 Ok(0)
+            }
+            PacksCmd::Create { id, pack_version, device, revision, vendor, title, language } => {
+                ws.init()?;
+                let inv = if ws.inventory_path().exists() { Inventory::load(&ws)? } else { Inventory::empty() };
+                let (path, r) = packs::create(&ws, &inv, &packs::CreateSpec { id, version: pack_version, title, vendor, part_number: device, revision, language })?;
+                if json {
+                    print_json(&r);
+                } else {
+                    println!("{}: a skeleton with {} source(s) from the inventory", path.display(), r.sources.len());
+                    for n in &r.not_included {
+                        println!("not included: {n}");
+                    }
+                    println!("not valid yet (as expected): {}", r.errors.first().cloned().unwrap_or_default());
+                }
+                Ok(0)
+            }
+            PacksCmd::Import { from, force } => {
+                let r = packs::import(&ws, &from, force)?;
+                if json {
+                    print_json(&r);
+                } else {
+                    println!("{} {}: {}{}", r.pack_id, r.version, r.path, if r.already_imported { " (it was already there)" } else { "" });
+                    if !r.inventory_added.is_empty() {
+                        println!("added to the inventory: {}", r.inventory_added.join(", "));
+                    }
+                    for m in &r.missing_from_inventory {
+                        eprintln!("warning: the pack cites {m}, which is not in the inventory");
+                    }
+                }
+                Ok(if r.missing_from_inventory.is_empty() { 0 } else { exit::PARTIAL })
             }
             PacksCmd::Show { pack } => {
                 let (path, doc) = packs::find(&ws, &pack)?;
@@ -315,6 +467,7 @@ fn run_sources(ws: &Workspace, cmd: SourcesCmd, json: bool) -> Result<u8> {
                 license_note: a.license_note,
                 note: a.note,
                 last_error: None,
+                embed_remote: if a.embed_remote { Some(true) } else { None },
             })?;
             println!("added {}", a.id);
             Ok(0)
@@ -400,16 +553,30 @@ fn run_sources(ws: &Workspace, cmd: SourcesCmd, json: bool) -> Result<u8> {
 fn run_index(ws: &Workspace, cmd: IndexCmd, json: bool) -> Result<u8> {
     let inv = Inventory::load(ws)?;
     match cmd {
-        IndexCmd::Build { docs } => report_build(index::build(ws, &inv, &docs)?, json),
-        IndexCmd::Rebuild => report_build(index::rebuild(ws, &inv)?, json),
+        IndexCmd::Build { docs, force, no_vector, authorize_remote } => report_build(index::build(ws, &inv, &docs, &index::BuildOptions { force, no_vector, authorize_remote })?, json),
+        IndexCmd::Rebuild { no_vector, authorize_remote } => report_build(index::rebuild(ws, &inv, &index::BuildOptions { force: true, no_vector, authorize_remote })?, json),
         IndexCmd::Status => {
             let s = index::status(ws, &inv);
             if json {
                 print_json(&s);
             } else {
-                println!("keyword index: {}; vector index: {}", s.keyword_index, s.vector_index);
+                println!("keyword index: {}; vector index: {}; store: {}", s.keyword_index, s.vector_index, s.store.state);
+                if let Some(e) = &s.embedder.configured {
+                    println!("embedding: {} ({}{})", e.key, e.provider, if e.remote { ", REMOTE" } else { ", local" });
+                }
+                if let Some(p) = &s.embedder.problem {
+                    println!("embedding problem: {p}");
+                }
                 for d in &s.documents {
-                    println!("{} {} ({} blocks)", d.document_id, d.state, d.chunks);
+                    println!(
+                        "{} {} ({} blocks){}; vectors {}{}",
+                        d.document_id,
+                        d.state,
+                        d.chunks,
+                        d.stale_reason.as_ref().map(|r| format!(": {r}")).unwrap_or_default(),
+                        d.vector.state,
+                        d.vector.reason.as_ref().map(|r| format!(": {r}")).unwrap_or_default()
+                    );
                 }
             }
             Ok(0)
@@ -417,23 +584,76 @@ fn run_index(ws: &Workspace, cmd: IndexCmd, json: bool) -> Result<u8> {
     }
 }
 
-fn report_build(results: Vec<(String, std::result::Result<usize, String>)>, json: bool) -> Result<u8> {
-    let failed = results.iter().any(|(_, r)| r.is_err());
+fn report_build(r: index::BuildReport, json: bool) -> Result<u8> {
     if json {
-        let items: Vec<Value> = results.iter().map(|(d, r)| match r {
-            Ok(n) => json!({"document_id": d, "chunks": n}),
-            Err(e) => json!({"document_id": d, "error": e}),
-        }).collect();
-        print_json(&json!({"format": "hcp-manager-index-build", "format_version": "1.0", "documents": items}));
+        print_json(&r);
     } else {
-        for (d, r) in &results {
-            match r {
-                Ok(n) => println!("{d}: {n} blocks"),
-                Err(e) => eprintln!("{d}: no blocks: {e}"),
+        if let Some(n) = &r.store_note {
+            eprintln!("note: {n}");
+        }
+        if let Some(p) = &r.embedder_problem {
+            eprintln!("no vectors: {p}");
+        }
+        for d in &r.documents {
+            match &d.error {
+                Some(e) => eprintln!("{}: no blocks: {e}", d.document_id),
+                None => println!(
+                    "{}: {} blocks ({}); vectors {}{}",
+                    d.document_id,
+                    d.chunks,
+                    d.keyword,
+                    d.vectors.state,
+                    d.vectors.reason.as_ref().map(|x| format!(": {x}")).unwrap_or_default()
+                ),
             }
         }
     }
-    Ok(if failed { exit::PARTIAL } else { 0 })
+    Ok(if r.complete() { 0 } else { exit::PARTIAL })
+}
+
+fn run_embedding(ws: &Workspace, cmd: EmbeddingCmd, json: bool) -> Result<u8> {
+    match cmd {
+        EmbeddingCmd::Show => {
+            let cfg = embed::load_config(ws)?;
+            let info = embed::describe(&cfg)?;
+            let out = json!({
+                "format": "hcp-manager-embedding",
+                "format_version": "1.0",
+                "config_file": ws.embedding_config_path().display().to_string(),
+                "config_file_present": ws.embedding_config_path().exists(),
+                "config": cfg,
+                "embedder": info,
+                "text_leaves_this_machine": info.remote,
+                "remote_requires": if info.remote { json!(["allow_remote: true in embedding.yaml", "--authorize-remote on the command", "embed_remote: true in the inventory entry of each document that may be sent"]) } else { json!([]) },
+                "note": if info.provider == "hashing" { "the hashing provider is lexical (words, word pairs and character trigrams); a semantic model is plugged in with provider `command` or `http`" } else { "" },
+            });
+            if json {
+                print_json(&out);
+            } else {
+                println!("provider {} model {} version {} dim {}; text leaves this machine: {}", info.provider, info.model, info.version, info.dim, if info.remote { "YES (remote)" } else { "no" });
+                println!("config file: {} ({})", ws.embedding_config_path().display(), if ws.embedding_config_path().exists() { "present" } else { "absent: the local default is used" });
+            }
+            Ok(0)
+        }
+        EmbeddingCmd::Test { authorize_remote } => {
+            let cfg = embed::load_config(ws)?;
+            let e = embed::make(&cfg, authorize_remote, &ws.root)?;
+            let v = e.embed(&["IO0 is sampled at reset".to_string(), "the strapping pin IO0 is read when the chip resets".to_string(), "keep the antenna area free of copper".to_string()])?;
+            let out = json!({
+                "format": "hcp-manager-embedding-test",
+                "format_version": "1.0",
+                "embedder": e.info(),
+                "dim": v[0].len(),
+                "similarity": {"related_sentences": embed::cosine(&v[0], &v[1]), "unrelated_sentences": embed::cosine(&v[0], &v[2])},
+            });
+            if json {
+                print_json(&out);
+            } else {
+                println!("{}: dim {}; similarity related {:.3}, unrelated {:.3}", e.info().key, v[0].len(), embed::cosine(&v[0], &v[1]), embed::cosine(&v[0], &v[2]));
+            }
+            Ok(0)
+        }
+    }
 }
 
 fn main() -> ExitCode {

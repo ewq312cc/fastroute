@@ -137,6 +137,8 @@ pub fn check(pack: &Value) -> Vec<Diagnostic> {
     // the version first: a clear message instead of a mismatch of the constant
     let version = str_at(pack, "hcp_version").unwrap_or("");
     let minor = version.strip_prefix("1.").and_then(|m| m.parse::<u64>().ok());
+    // `<=` stays right when SUPPORTED_MINOR is raised; with the current value 0 clippy sees it as `==`
+    #[allow(clippy::absurd_extreme_comparisons)]
     let version_ok = minor.is_some_and(|m| m <= SUPPORTED_MINOR);
     if !version.is_empty() && !version_ok {
         out.push(Diagnostic::error(

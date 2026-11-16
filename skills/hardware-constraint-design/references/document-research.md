@@ -80,8 +80,18 @@ hcp-manager --workspace ws --json search "strapping pins boot mode" --device ESP
 * Results come back with document, version, page, section and a block id. Read the **original
   text** of every candidate (open the page) before you use it. A hit, its rank or its score is
   never evidence; a quotation you have read is.
-* `--mode hybrid` is accepted for the day a vector index exists; today it answers with keyword
-  search and says so (`degraded`). Nothing depends on it.
+* `--mode keyword` (the default), `--mode vector` and `--mode hybrid` (keywords plus vectors). The vectors are made by
+  `index build` with the provider in `<workspace>/embedding.yaml`; without a file it is the local `hashing` one, which is
+  **lexical** (words, word pairs, character trigrams): it helps with spelling variants and word parts, not with synonyms.
+  A real model is plugged in with provider `command` (a local program) or `http`. Every hit says whether the keywords
+  and/or the vectors matched (`matched_by`); a hybrid search without usable vectors says so (`degraded`) and is a keyword
+  search; `--mode vector` without them is an error. `hcp-manager chunk show CHUNK_ID` prints the block of a hit with its
+  document, version, page, section and digests: that is the way back to the original.
+* **Nothing is sent to another machine unless it is configured and authorised**: a remote provider needs
+  `allow_remote: true` in `embedding.yaml`, `--authorize-remote` on the command, and `embed_remote: true` on the inventory
+  entry of each document that may be sent. A service on localhost is local. Do not set any of these for the user; ask.
+* A changed document, inventory entry or embedding configuration makes the blocks or vectors stale (`index status` says
+  which and why); search and `evidence verify` refuse stale blocks, `index build` rebuilds only what is stale.
 
 Put what you read into the pack as evidence (`source_id`, page/section, a short quotation, `basis`)
 and then check it against the documents:
@@ -107,7 +117,7 @@ hcp-manager --workspace ws evidence verify pack.yaml    # source, digest, versio
 | `hcp-manager` is not installed | say so; ask the user to install it or to provide the documents and the inventory; do not simulate it. Packs that already exist can still be checked, compiled and validated (`fastroute constraints ...`) |
 | no network | `sources sync` reports `unreachable`; work from the cached copies (`index build`, `search` work offline) or from documents the user provides with `sources add --file` |
 | index missing or stale | `hcp-manager index build` (or `rebuild`); `index status` says what is stale. PDFs need `pdftotext`; without it the status says the PDF has no text |
-| no vector index | keyword search is the normal path; the evidence requirements do not change |
+| no usable vectors (provider failed, remote not authorised, configuration changed) | hybrid search says so and is a keyword search; the evidence requirements do not change |
 
 ## 8. Checklist
 

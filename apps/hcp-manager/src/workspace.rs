@@ -5,8 +5,8 @@
 //! <workspace>/sources.yaml              the inventory of documents
 //! <workspace>/cache/<DOC>/<sha256>.<ext>  a cached document, named by its digest
 //! <workspace>/cache/<DOC>/meta.json     which file is current, its digest, where it came from
-//! <workspace>/derived/chunks/<DOC>.jsonl  text blocks with stable ids (rebuildable)
-//! <workspace>/derived/index.json        what the blocks were built from
+//! <workspace>/embedding.yaml            optional: which embedding provider to use (default: the local hashing one)
+//! <workspace>/derived/index.db          the embedded store (SQLite): text blocks, vectors, what they were built from
 //! <workspace>/packs/...                 knowledge packs (HCP YAML)
 //! ```
 
@@ -37,11 +37,12 @@ impl Workspace {
     pub fn derived_dir(&self) -> PathBuf {
         self.root.join("derived")
     }
-    pub fn chunks_path(&self, doc: &str) -> PathBuf {
-        self.derived_dir().join("chunks").join(format!("{doc}.jsonl"))
+    /// The embedded store: text blocks, vectors and what they were built from. Derived: delete it and build it again.
+    pub fn index_db_path(&self) -> PathBuf {
+        self.derived_dir().join("index.db")
     }
-    pub fn index_path(&self) -> PathBuf {
-        self.derived_dir().join("index.json")
+    pub fn embedding_config_path(&self) -> PathBuf {
+        self.root.join("embedding.yaml")
     }
     pub fn packs_dir(&self) -> PathBuf {
         self.root.join("packs")

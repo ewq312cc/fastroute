@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const SCHEMA_TEXT: &str = include_str!("../../../skills/hardware-constraint-design/schemas/hcp-v1.schema.json");
 
 /// The newest `hcp_version` this program reads: `1.MINOR`.
-pub const SUPPORTED_MINOR: u64 = 0;
+pub const SUPPORTED_MINOR: u64 = 1;
 
 pub fn schema() -> Value {
     serde_json::from_str(SCHEMA_TEXT).expect("the embedded HCP schema is valid JSON")
@@ -25,6 +25,11 @@ pub fn parse(text: &str) -> Result<Value, String> {
     }
     let y: serde_yaml::Value = serde_yaml::from_str(t).map_err(|e| format!("not valid YAML: {e}"))?;
     serde_json::to_value(&y).map_err(|e| format!("the YAML cannot be represented as JSON: {e}"))
+}
+
+/// A value as YAML text (key order as in the value: for a pack that is the order it was written in).
+pub fn to_yaml(v: &Value) -> Result<String, String> {
+    serde_yaml::to_string(v).map_err(|e| format!("cannot be written as YAML: {e}"))
 }
 
 /// The canonical form of a value: keys sorted, no whitespace. Two packs with the same content
@@ -132,13 +137,17 @@ pub fn object_at(pack: &Value, path: &str) -> Option<String> {
 
 /// Every problem in a pack: the schema's, then the semantic ones. Empty = the pack is valid.
 pub fn check(pack: &Value) -> Vec<Diagnostic> {
+    check_with(pack, false)
+}
+
+/// `check`, optionally leaving out the semantic checks that need the whole pack (used by `resolve` on a pack that still has
+/// `pack.upstream`: its references are only complete after the inherited objects are merged in).
+pub fn check_with(pack: &Value, shape_only: bool) -> Vec<Diagnostic> {
     let mut out = Vec::new();
 
     // the version first: a clear message instead of a mismatch of the constant
     let version = str_at(pack, "hcp_version").unwrap_or("");
     let minor = version.strip_prefix("1.").and_then(|m| m.parse::<u64>().ok());
-    // `<=` stays right when SUPPORTED_MINOR is raised; with the current value 0 clippy sees it as `==`
-    #[allow(clippy::absurd_extreme_comparisons)]
     let version_ok = minor.is_some_and(|m| m <= SUPPORTED_MINOR);
     if !version.is_empty() && !version_ok {
         out.push(Diagnostic::error(
@@ -162,7 +171,7 @@ pub fn check(pack: &Value) -> Vec<Diagnostic> {
         out.push(Diagnostic::error("schema", e.path.clone(), object_at(pack, &e.path), e.message));
     }
     // (the rest relies on the shapes the schema checks; with a broken shape it would only add noise)
-    if out.iter().any(|d| d.code == "schema") {
+    if out.iter().any(|d| d.code == "schema") || shape_only {
         return sorted(out);
     }
     semantic(pack, &mut out);
@@ -222,7 +231,25 @@ fn unique<'a>(pack: &'a Value, section: &str, key: &str, out: &mut Vec<Diagnosti
     map
 }
 
+/// Things that exist from `hcp_version` 1.1 on, and what a pack that inherits must have done before anything reads it.
+fn version_1_1(pack: &Value, out: &mut Vec<Diagnostic>) {
+    let p = pack.get("pack").cloned().unwrap_or(Value::Null);
+    let uses_11 = p.get("kind").is_some() || p.get("content").is_some() || p.get("upstream").is_some() || items(pack, "rules").iter().any(|r| r.get("overrides").is_some());
+    if uses_11 && str_at(pack, "hcp_version") == Some("1.0") {
+        out.push(Diagnostic::error("needs_version_1_1", "$.hcp_version", None, "this pack uses pack.kind, pack.content, pack.upstream or rule.overrides, which exist from hcp_version 1.1 on: a program that reads only 1.0 would refuse it, so say 1.1"));
+    }
+    if p.get("upstream").and_then(Value::as_array).is_some_and(|a| !a.is_empty()) {
+        out.push(Diagnostic::error(
+            "upstream_unresolved",
+            "$.pack.upstream",
+            None,
+            "this pack inherits from other packs and is not usable by itself: resolve it first (`fastroute constraints resolve`, or `hcp-manager packs resolve`), which merges the listed upstream objects in and checks the result",
+        ));
+    }
+}
+
 fn semantic(pack: &Value, out: &mut Vec<Diagnostic>) {
+    version_1_1(pack, out);
     let idx = Index {
         sources: unique(pack, "sources", "source_id", out),
         devices: unique(pack, "devices", "id", out),
@@ -247,6 +274,13 @@ fn semantic(pack: &Value, out: &mut Vec<Diagnostic>) {
         }
     }
 
+    if pack.get("pack").and_then(|p| str_at(p, "content")) == Some("metadata_only") {
+        for key in ["rules", "peripheral_blocks", "regions", "base_design"] {
+            if pack.get(key).is_some_and(|v| v.as_array().map(|a| !a.is_empty()).unwrap_or(true)) {
+                out.push(Diagnostic::error("metadata_only_with_facts", format!("$.{key}"), None, format!("a metadata_only pack has no {key}: they would be facts nobody verified")));
+            }
+        }
+    }
     devices(pack, &idx, out);
     blocks(pack, &idx, out);
     rules(pack, &idx, out);
@@ -259,8 +293,16 @@ fn pin_numbers<'a>(device: &'a Value) -> BTreeSet<&'a str> {
 }
 
 fn devices(pack: &Value, idx: &Index, out: &mut Vec<Diagnostic>) {
+    let metadata_only = pack.get("pack").and_then(|p| str_at(p, "content")) == Some("metadata_only");
     for (di, d) in items(pack, "devices").iter().enumerate() {
         let id = str_at(d, "id").map(str::to_string);
+        if metadata_only {
+            if !items(d, "pins").is_empty() {
+                out.push(Diagnostic::error("metadata_only_with_facts", format!("$.devices[{di}].pins"), id.clone(), "a metadata_only pack lists no pins: they would be facts nobody verified"));
+            }
+        } else if items(d, "pins").is_empty() {
+            out.push(Diagnostic::error("no_pins", format!("$.devices[{di}].pins"), id.clone(), "a device has at least one pin (a pack that only registers an identity says pack.content: metadata_only)"));
+        }
         let mut numbers = BTreeSet::new();
         let mut names: BTreeMap<&str, usize> = BTreeMap::new();
         for (pi, p) in items(d, "pins").iter().enumerate() {

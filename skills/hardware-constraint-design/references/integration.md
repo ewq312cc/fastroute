@@ -23,12 +23,12 @@ missing or without the `constraints` commands the script needs.
 - **hcp-manager**: `hcp-manager info --json` returns `interface` (a string). This Skill speaks `"1"`. A different
   value is refused with the reason; a minor version of the application (`version`) does not matter. `capabilities`
   says what exists: `keyword_search`, `vector_index`, `hybrid_search`, `embedded_store`, `embedding_providers`,
-  `semantic_model_bundled` (false: the default provider is lexical), `remote_embedding_by_default` (false), `pdf_text`,
+  `semantic_model_bundled` (false: the default provider is lexical), `remote_embedding_by_default` (false), `builtin_packs`, `pack_inheritance`, `pdf_text`,
   `network_fetch`. Changes of the interface are additive within `"1"`: new commands and new JSON fields, never a removed or
   renamed one. Use the vectors only when the capability is `true` and `index status` says `ready`, and treat the result as a
   lead either way.
 - **fastroute**: the `constraints` subcommands that the script uses must be listed by `constraints --help`
-  (`check`, `compile`, `report`, `validate`, `extract-kicad`, `export-fastroute`, `edit-request`, `check-edit`).
+  (`check`, `resolve`, `compile`, `report`, `validate`, `extract-kicad`, `export-fastroute`, `edit-request`, `check-edit`).
   The formats carry their own versions (`pack_version`, `ir_version`, `snapshot_version`, `draft_version`);
   a program refuses a document of a major version it does not know (exit 3).
 
@@ -44,6 +44,9 @@ missing or without the `constraints` commands the script needs.
 | find passages | `research search WORDS --device PART [--version V] [--source-level official] [--mode keyword\|vector\|hybrid]` | hcp-manager |
 | quotations are in the documents | `research verify PACK` | hcp-manager |
 | make, list, show, export, import a pack | `research packs create\|list\|show\|export\|import` | hcp-manager |
+| the packs that ship with the software: list, verify, install (offline, with the exact dependencies) | `research packs builtin list\|show\|verify\|install` | hcp-manager |
+| a pack that inherits (module from chip, board from module or chip), merged | `research packs resolve PACK -o flat.yaml` (workspace) or `resolve PACK --upstream ... -o flat.yaml` (files) | hcp-manager / fastroute |
+| seal a pack, make the catalogue and a release (authors, release builders) | `research release seal\|index\|build` | hcp-manager |
 | structure, references, evidence form | `check PACK` | fastroute |
 | compile, report | `compile`, `report` | fastroute |
 | validate a design, export to the router | `validate`, `export` | fastroute |

@@ -18,6 +18,7 @@ pub mod fetch;
 pub mod index;
 pub mod inventory;
 pub mod packs;
+pub mod release;
 pub mod search;
 pub mod store;
 pub mod sources;

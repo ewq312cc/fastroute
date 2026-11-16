@@ -168,6 +168,7 @@ MANAGER_MAP = {
     "search": ["search"],
     "verify": ["evidence", "verify"],
     "packs": ["packs"],
+    "release": ["release"],
     "chunk": ["chunk"],
     "embedding": ["embedding"],
 }
@@ -328,8 +329,8 @@ def main(argv):
     ap = argparse.ArgumentParser(
         prog="hcp_cli.py",
         description=__doc__.split("\n\n")[0],
-        epilog="commands: doctor | research {init,sources,resolve,sync,index,search,chunk,embedding,verify,packs} | extract {kicad,templates} | "
-        "check | compile | report | validate | export | edit-request | check-edit | pipeline. "
+        epilog="commands: doctor | research {init,sources,resolve,sync,index,search,chunk,embedding,verify,packs,release} | extract {kicad,templates} | "
+        "check | resolve | compile | report | validate | export | edit-request | check-edit | pipeline. "
         "`hcp_cli.py COMMAND --help` shows the options of the program behind it.",
     )
     ap.add_argument("--fastroute", help="path of fastroute (else FASTROUTE_BIN, PATH, the repository's target/)")
@@ -347,10 +348,10 @@ def main(argv):
         return cmd_extract(args, rest)
     if c == "pipeline":
         return cmd_pipeline(args, rest)
-    fastroute_cmds = {"check": "check", "compile": "compile", "report": "report", "validate": "validate", "export": "export-fastroute", "edit-request": "edit-request", "check-edit": "check-edit"}
+    fastroute_cmds = {"check": "check", "resolve": "resolve", "compile": "compile", "report": "report", "validate": "validate", "export": "export-fastroute", "edit-request": "edit-request", "check-edit": "check-edit"}
     if c in fastroute_cmds:
         return forward_fastroute(args, rest, fastroute_cmds[c])
-    print(f"unknown command '{c}' (doctor, research, extract, check, compile, report, validate, export, edit-request, check-edit, pipeline)", file=sys.stderr)
+    print(f"unknown command '{c}' (doctor, research, extract, check, resolve, compile, report, validate, export, edit-request, check-edit, pipeline)", file=sys.stderr)
     return 2
 
 

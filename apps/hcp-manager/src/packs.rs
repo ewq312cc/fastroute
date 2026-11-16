@@ -18,16 +18,24 @@ pub struct PackInfo {
     pub path: String,
     pub devices: Vec<String>,
     pub valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// the packs it inherits from, `id@version`
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub upstream: Vec<String>,
 }
 
+/// The HCP documents under a directory: `hcp.yaml` (a releasable pack, whose `pack.yaml` is the manifest), else the older
+/// `pack.yaml` / `pack.json` / `*.hcp.yaml` that is the HCP document itself.
 fn find_pack_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else { return };
     let mut entries: Vec<PathBuf> = rd.filter_map(|e| e.ok()).map(|e| e.path()).collect();
     entries.sort();
+    let has_hcp_yaml = entries.iter().any(|p| p.file_name().is_some_and(|n| n == "hcp.yaml"));
     for p in entries {
         if p.is_dir() {
             find_pack_files(&p, out);
-        } else if p.file_name().is_some_and(|n| n == "pack.yaml" || n == "pack.json" || n.to_string_lossy().ends_with(".hcp.yaml")) {
+        } else if p.file_name().is_some_and(|n| n == "hcp.yaml" || (!has_hcp_yaml && (n == "pack.yaml" || n == "pack.json")) || n.to_string_lossy().ends_with(".hcp.yaml")) {
             out.push(p);
         }
     }
@@ -38,7 +46,26 @@ pub fn load(path: &Path) -> Result<Value> {
     hcp::parse(&text).map_err(|e| Error::input(format!("{}: {e}", path.display())))
 }
 
-fn info(path: &Path, v: &Value) -> PackInfo {
+/// The pack as every consumer reads it: when it inherits (`pack.upstream`), merged with the exact upstream packs of the workspace
+/// (id and version, pinned digest); otherwise the pack itself. The errors are readable lines.
+pub fn resolved_doc(ws: &Workspace, v: &Value) -> std::result::Result<Value, Vec<String>> {
+    if v["pack"]["upstream"].as_array().is_none_or(|a| a.is_empty()) {
+        return Ok(v.clone());
+    }
+    let mut files = Vec::new();
+    find_pack_files(&ws.packs_dir(), &mut files);
+    let ups: Vec<Value> = files.iter().filter_map(|f| load(f).ok()).collect();
+    fr_constraint::resolve::resolve(v, &ups).map_err(|ds| ds.into_iter().map(|d| format!("{} {}: {}", d.code, d.path, d.message)).collect())
+}
+
+fn is_valid(ws: &Workspace, v: &Value) -> bool {
+    match resolved_doc(ws, v) {
+        Ok(flat) => hcp::check(&flat).iter().all(|d| d.severity != fr_constraint::diag::Severity::Error),
+        Err(_) => false,
+    }
+}
+
+fn info(ws: &Workspace, path: &Path, v: &Value) -> PackInfo {
     PackInfo {
         id: v["pack"]["id"].as_str().unwrap_or("").to_string(),
         title: v["pack"]["title"].as_str().unwrap_or("").to_string(),
@@ -46,14 +73,16 @@ fn info(path: &Path, v: &Value) -> PackInfo {
         review: v["pack"]["review"]["status"].as_str().unwrap_or("draft").to_string(),
         path: path.display().to_string(),
         devices: v["devices"].as_array().map(|a| a.iter().filter_map(|d| d["part_number"].as_str().map(str::to_string)).collect()).unwrap_or_default(),
-        valid: hcp::check(v).iter().all(|d| d.severity != fr_constraint::diag::Severity::Error),
+        valid: is_valid(ws, v),
+        kind: v["pack"]["kind"].as_str().map(str::to_string),
+        upstream: v["pack"]["upstream"].as_array().map(|a| a.iter().filter_map(|u| Some(format!("{}@{}", u["id"].as_str()?, u["version"].as_str()?))).collect()).unwrap_or_default(),
     }
 }
 
 pub fn list(ws: &Workspace) -> Vec<PackInfo> {
     let mut files = Vec::new();
     find_pack_files(&ws.packs_dir(), &mut files);
-    files.iter().filter_map(|f| Some(info(f, &load(f).ok()?))).collect()
+    files.iter().filter_map(|f| Some(info(ws, f, &load(f).ok()?))).collect()
 }
 
 /// Compares version strings part by part, numbers as numbers (`0.10.0` is after `0.9.0`).
@@ -86,17 +115,23 @@ pub fn find(ws: &Workspace, id_or_path: &str) -> Result<(PathBuf, Value)> {
     found.pop().map(|(_, f, v)| (f, v)).ok_or_else(|| Error::input(format!("no pack '{id_or_path}' in {} (and it is not a file)", ws.packs_dir().display())))
 }
 
-pub fn show(path: &Path, v: &Value) -> Value {
+pub fn show(ws: &Workspace, path: &Path, v: &Value) -> Value {
     let count = |section: &str| v[section].as_array().map(Vec::len).unwrap_or(0);
     let mut by_mod: std::collections::BTreeMap<String, usize> = Default::default();
     for r in v["rules"].as_array().into_iter().flatten() {
         *by_mod.entry(r["modifiability"].as_str().unwrap_or("").to_string()).or_insert(0) += 1;
     }
-    let diag = hcp::check(v);
+    let flat = resolved_doc(ws, v);
+    let diag = match &flat {
+        Ok(f) => hcp::check(f),
+        Err(_) => hcp::check_with(v, true),
+    };
     json!({
         "format": "hcp-manager-pack",
         "format_version": "1.0",
-        "info": info(path, v),
+        "info": info(ws, path, v),
+        "canonical_sha256": fr_constraint::resolve::canonical_sha256(v),
+        "unresolved": flat.as_ref().err().cloned().unwrap_or_default(),
         "counts": {"sources": count("sources"), "devices": count("devices"), "peripheral_blocks": count("peripheral_blocks"), "rules": count("rules"), "regions": count("regions")},
         "rules_by_modifiability": by_mod,
         "diagnostics": {"errors": diag.iter().filter(|d| d.severity == fr_constraint::diag::Severity::Error).count(), "warnings": diag.iter().filter(|d| d.severity == fr_constraint::diag::Severity::Warning).count()},

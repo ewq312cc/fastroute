@@ -16,7 +16,7 @@ reading and the judgement; the programs do everything that must give the same an
 | | Does | Never |
 |---|---|---|
 | **you (this Skill)** | choose the documents, read the original pages, write rules with evidence, draft edits | state a number from memory, from a similar part, or from a search score; keep a cache or an index |
-| **hcp-manager** (independent application) | document inventory, download, cache and digests, the embedded index with keyword, vector and hybrid search, evidence check, pack store | judge what a document means |
+| **hcp-manager** (independent application) | document inventory, download, cache and digests, the embedded index with keyword, vector and hybrid search, evidence check, pack store, the packs that ship with the software (verify, install offline, resolve inheritance) | judge what a document means |
 | **fastroute constraints** | schema, check, compile, report, validate, export, edit-request, check-edit | use an AI model, the network or a vector index |
 
 `scripts/hcp_cli.py` is the one command line over the two programs; it finds them, checks their versions,
@@ -27,7 +27,9 @@ forwards your command and says what to do when something is missing. Start with 
 1. **Pin down the device and the task.** Exact part number, revision, package or module variant (the `-U`,
    `-N8`, `R2` suffix matters). The task is one of: (a) build or review a pack for a device, (b) check a design
    against a pack, (c) extend a fixed base board. Ask only if the part or variant is ambiguous.
-2. **Research** (`hcp_cli.py research ...`, details in `references/document-research.md`): `resolve` lists the
+2. **Research** (`hcp_cli.py research ...`, details in `references/document-research.md`). First see whether the software ships a pack for the exact
+   device (`research packs builtin list`; `install` puts it, and the chip or module packs it inherits from, into the workspace; a pack that inherits is
+   used after `resolve`). A shipped pack is a starting point that a person reviewed, not a reason to skip the evidence check. `resolve` lists the
    documents for the exact device, best source first (official manual and errata, then guides and reference designs,
    then dev kits, open boards, community); `sync` fetches and pins digests; `index build` (blocks and vectors); `search` filters by device and
    version *before* ranking (`--mode keyword|vector|hybrid`). A search hit is a lead: `chunk show ID` and the page are

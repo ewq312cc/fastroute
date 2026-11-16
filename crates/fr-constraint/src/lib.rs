@@ -15,6 +15,7 @@ pub mod jsonschema;
 pub mod kicad;
 pub mod pack_report;
 pub mod report;
+pub mod resolve;
 pub mod snapshot;
 pub mod validate;
 

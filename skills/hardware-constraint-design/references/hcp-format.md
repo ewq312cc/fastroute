@@ -148,6 +148,42 @@ vector fields and typos cannot slip in), therefore a program reads packs up to t
 knows and says so for a newer one (`unsupported_version`) instead of guessing. Put your own data
 under `x_...` keys. A new major version may change anything.
 
+**1.1** adds, all optional: `pack.kind` (`chip`, `module`, `board`), `pack.content` (`full` or `metadata_only`), `pack.upstream` (inheritance, below)
+and `rule.overrides`. A pack that uses any of them says `hcp_version: "1.1"` (`needs_version_1_1`); a 1.0 pack is read as before.
+
+## Packs of different kinds and inheritance (1.1)
+
+A **chip** pack states what the chip requires. A **module** pack states what the module adds or changes (integrated flash and PSRAM, antenna,
+pins brought out, mechanical limits) and may take named things from a chip pack; a **board** pack may take from a module or chip pack. A chip pack
+inherits from nothing. Nothing is inherited unless it is listed:
+
+```yaml
+pack:
+  id: vendor/family/module/variant
+  kind: module
+  upstream:
+    - id: vendor/family/chip/variant     # the exact pack
+      version: 0.1.0                      # the exact version: a similar one is never used
+      kind: chip
+      canonical_sha256: <64 hex>          # of the upstream HCP document, canonical JSON (`hcp-manager packs show` prints it)
+      inherit: { devices: [DEV-CHIP], rules: [C-CHIP-GND], blocks: [], regions: [] }
+rules:
+  - id: C-MODULE-RSVD                     # a rule of the module, on the module's device, from the module's own document
+  - id: C-CHIP-RSVD
+    overrides: C-CHIP-RSVD                # replaces the inherited rule; needs evidence from a source of THIS pack
+```
+
+A pack that inherits is not usable by itself (`upstream_unresolved`): `fastroute constraints resolve` / `hcp-manager packs resolve` merge in the listed
+upstream objects (with the sources they cite, so their evidence can still be checked), pin the result to the upstream digests and check it like any pack.
+A changed upstream (`upstream_digest_mismatch`) makes the derived pack stale: it is reviewed and sealed again, not adopted. Other refusals:
+`upstream_missing`, `upstream_kind_unknown` / `upstream_kind_mismatch` / `upstream_kind_not_allowed`, `inherit_unknown_id`, `override_of_uninherited`,
+`override_without_own_evidence`, `inherit_conflict` (the same thing stated with other values and no `overrides`: replace it explicitly or record a `conflict`
+rule), `id_clash`, `source_conflict`. A document of the module is not evidence for the chip's pins and the other way round (`source_not_applicable`): that is why
+an override is a rule on the module's device.
+
+`pack.content: metadata_only` registers an identity (a device, a vendor or a series that is not covered yet): no pins, rules, blocks, regions or base
+design (`metadata_only_with_facts`). Without it a device has at least one pin (`no_pins`).
+
 ## Diagnostic codes
 
 `fastroute constraints check` prints `severity code path (object): message`; `--json` the same as
@@ -175,3 +211,6 @@ data. The codes are stable.
 | `pool_pin_protected` | a pin pool lists a pin that a rule protects (reserved, no-connect, strapping, reset, boot, fixed net) |
 | `no_allowed_ops` (warning) | an editable region without `allowed_ops`: nothing may be done there until operations are listed |
 | `review_incomplete` | reviewed or approved without who and when |
+| `needs_version_1_1` | `pack.kind`, `pack.content`, `pack.upstream` or `rule.overrides` in a pack that says 1.0 |
+| `upstream_unresolved` | a pack with `pack.upstream` read without being resolved |
+| `no_pins` / `metadata_only_with_facts` | a device without pins in a full pack / facts in a metadata-only pack |

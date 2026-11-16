@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ewq312cc/fastroute/hardware-packs/schemas/pack-manifest.schema.json",
+  "title": "Hardware Constraint Pack manifest (pack.yaml of a releasable pack) v1",
+  "description": "Identity, kind, version, dependencies, compatibility, licence and the digests of every file of one releasable pack directory <vendor>/<family>/<device>/<variant>/<pack-version>/. The HCP document (hcp.yaml) holds the facts; this manifest holds what is needed to ship, install and verify them. Digests are SHA-256.",
+  "type": "object",
+  "required": ["manifest_version", "id", "kind", "identity", "version", "content", "compatibility", "dependencies", "files", "hcp_canonical_sha256", "source_digests", "license"],
+  "additionalProperties": false,
+  "patternProperties": { "^x_": {} },
+  "properties": {
+    "manifest_version": { "const": "1.0" },
+    "id": { "$ref": "#/$defs/pack_id" },
+    "kind": { "enum": ["chip", "module", "board"] },
+    "identity": {
+      "type": "object",
+      "description": "vendor/family/device/variant: generic, no vendor-specific branches. id is exactly these four joined by '/'.",
+      "required": ["vendor", "family", "device", "variant", "part_number"],
+      "additionalProperties": false,
+      "properties": {
+        "vendor": { "$ref": "#/$defs/segment" },
+        "family": { "$ref": "#/$defs/segment" },
+        "device": { "$ref": "#/$defs/segment" },
+        "variant": { "$ref": "#/$defs/segment" },
+        "part_number": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "package": { "type": "string", "minLength": 1 }
+      }
+    },
+    "version": { "$ref": "#/$defs/semver" },
+    "content": {
+      "enum": ["full", "metadata_only"],
+      "description": "metadata_only: the pack registers an identity (for example a vendor or series that is not covered yet) and carries no rules, blocks or regions."
+    },
+    "review": { "enum": ["draft", "reviewed", "approved"] },
+    "compatibility": {
+      "type": "object",
+      "required": ["hcp_schema_version", "ir_version", "min_app_version"],
+      "additionalProperties": false,
+      "properties": {
+        "hcp_schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+        "ir_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "min_app_version": { "$ref": "#/$defs/semver" },
+        "max_app_version": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Exact packs this one inherits from. A chip pack has none; a module pack depends on chip packs; a board pack on module or chip packs. There are no version ranges: a dependency is an exact version pinned by the canonical digest of its HCP document.",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "version", "canonical_sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/pack_id" },
+          "kind": { "enum": ["chip", "module", "board"] },
+          "version": { "$ref": "#/$defs/semver" },
+          "canonical_sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "description": "Every file of the pack directory except pack.yaml itself. A file that is not listed is an error.",
+      "required": ["hcp", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "hcp": { "$ref": "#/$defs/file_ref" },
+        "sources": { "$ref": "#/$defs/file_ref" },
+        "reports": { "type": "array", "items": { "$ref": "#/$defs/file_ref" } },
+        "documents": {
+          "type": "array",
+          "description": "Original documents that travel with the pack: only those whose licence allows redistribution.",
+          "items": {
+            "type": "object",
+            "required": ["document_id", "path", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "document_id": { "type": "string", "pattern": "^DOC-[A-Za-z0-9._-]+$" },
+              "path": { "$ref": "#/$defs/rel_path" },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "hcp_canonical_sha256": { "$ref": "#/$defs/sha256", "description": "Digest of the canonical JSON of hcp.yaml: what a pack that inherits from this one pins (formatting does not change it)." },
+    "source_digests": {
+      "type": "array",
+      "description": "The locked documents this pack's facts come from: version, digest, where to get them again, and whether the original may be redistributed.",
+      "items": {
+        "type": "object",
+        "required": ["document_id", "version", "sha256", "redistribution"],
+        "additionalProperties": false,
+        "properties": {
+          "document_id": { "type": "string", "pattern": "^DOC-[A-Za-z0-9._-]+$" },
+          "version": { "type": "string", "minLength": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "url": { "type": "string", "minLength": 1 },
+          "redistribution": { "enum": ["allowed", "reference_only"] }
+        }
+      }
+    },
+    "license": {
+      "type": "object",
+      "required": ["pack", "documents"],
+      "additionalProperties": false,
+      "properties": {
+        "pack": { "type": "string", "minLength": 1, "description": "The licence of the pack's own text (the HCP, the reports), as an SPDX identifier or a short statement." },
+        "documents": {
+          "type": "array",
+          "description": "Per cited document: may the original be shipped inside the pack? Without permission only the URL, version, digest, locators and short quotations are kept.",
+          "items": {
+            "type": "object",
+            "required": ["document_id", "redistribution"],
+            "additionalProperties": false,
+            "properties": {
+              "document_id": { "type": "string", "pattern": "^DOC-[A-Za-z0-9._-]+$" },
+              "redistribution": { "enum": ["allowed", "reference_only"] },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "segment": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "pack_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "rel_path": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*$" },
+    "file_ref": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "additionalProperties": false,
+      "properties": { "path": { "$ref": "#/$defs/rel_path" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    }
+  }
+}

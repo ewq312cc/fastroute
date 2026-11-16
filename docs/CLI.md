@@ -123,6 +123,7 @@ and offline (no AI model, network or vector index). Overview and trust boundarie
 
 ```sh
 fastroute constraints check pack.yaml                     # schema + references, evidence, units, whitelist
+fastroute constraints resolve module.yaml --upstream chip.yaml -o flat.yaml   # a pack that inherits (hcp_version 1.1), merged with its pinned upstream packs
 fastroute constraints compile pack.yaml -o ir.json        # the Constraint IR (same bytes every time)
 fastroute constraints validate --ir ir.json --design design.json --report report.md
 ```

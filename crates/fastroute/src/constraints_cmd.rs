@@ -5,6 +5,7 @@
 //! constraints check PACK    the schema and the semantic checks of a pack (exit 3 if it is not valid)
 //! constraints report PACK   a readable report of a pack (Chinese or English): what must not be
 //!                           changed, what must stay, what may change, and the evidence
+//! constraints resolve PACK  a pack that inherits (hcp_version 1.1, pack.upstream) merged with its upstream packs into one flat pack
 //! constraints compile PACK  the Constraint IR: deterministic, with the evidence of every rule
 //! constraints validate      the IR (or a pack) against a design snapshot: exit 0 pass, 5 pass with
 //!                           gaps, 1 violations, 3 invalid input
@@ -81,6 +82,13 @@ const COMPILE_OPTS: &[Opt] = &[
     opt("force", None, None, "replace an existing output file"),
     opt("quiet", Some('q'), None, "no summary on standard error"),
 ];
+const RESOLVE_OPTS: &[Opt] = &[
+    opt("pack", None, Some("FILE"), "the pack that inherits, YAML or JSON (also the first positional argument)"),
+    opt("upstream", None, Some("FILE"), "an upstream pack named by pack.upstream (repeatable): the exact version that is pinned by digest"),
+    opt("output", Some('o'), Some("FILE"), "the flat pack (YAML) to write ('-' = standard output)"),
+    opt("force", None, None, "replace an existing output file"),
+    opt("quiet", Some('q'), None, "no summary on standard error"),
+];
 const EXTRACT_OPTS: &[Opt] = &[
     opt("board", None, Some("FILE"), "the KiCad board, .kicad_pcb (also the first positional argument)"),
     opt("output", Some('o'), Some("FILE"), "the design snapshot (JSON) to write ('-' = standard output)"),
@@ -127,6 +135,13 @@ const COMPILE_SPEC: Spec = spec(
     "constraints compile PACK --output ir.json",
     COMPILE_OPTS,
     "The same pack and program version give the same bytes. A pack with errors is not compiled (exit 3). Per rule the IR says\nwhether the validator and the fastroute adapter can execute it; nothing is dropped or approximated silently.",
+);
+const RESOLVE_SPEC: Spec = spec(
+    "constraints resolve",
+    "merge a pack with the upstream packs it inherits from (chip -> module -> board) into one flat pack",
+    "constraints resolve PACK --upstream chip.yaml [--upstream ...] --output flat.yaml",
+    RESOLVE_OPTS,
+    "Only what pack.upstream[].inherit lists is taken; an upstream is an exact id and version and must match the pinned canonical digest;\na rule that overrides an inherited one needs evidence from a source of the pack itself. Anything else (a missing or changed upstream,\na wrong kind, a clash or a contradiction) is an error (exit 3) and nothing is written. The result is checked like any pack.",
 );
 const VALIDATE_SPEC: Spec = spec(
     "constraints validate",
@@ -179,6 +194,7 @@ commands:
   schema              print the JSON Schema of a pack (or the IR, or a design snapshot)
   check               check a pack (exit 3 if it is not valid)
   report              a readable report of a pack (zh or en)
+  resolve             merge a pack with the upstream packs it inherits from (hcp_version 1.1)
   compile             compile a pack to the Constraint IR
   validate            check a design (snapshot or KiCad board) against the IR
   extract-kicad       read a KiCad board (read-only) into a design snapshot
@@ -199,6 +215,7 @@ pub fn help_for(sub: Option<&str>) -> String {
         Some("check") => CHECK_SPEC.help_text(),
         Some("report") => REPORT_SPEC.help_text(),
         Some("compile") => COMPILE_SPEC.help_text(),
+        Some("resolve") => RESOLVE_SPEC.help_text(),
         Some("validate") => VALIDATE_SPEC.help_text(),
         Some("extract-kicad") => EXTRACT_SPEC.help_text(),
         Some("export-fastroute") => EXPORT_SPEC.help_text(),
@@ -221,13 +238,14 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
         "schema" => cmd_schema(rest),
         "check" => cmd_check(rest),
         "report" => cmd_report(rest),
+        "resolve" => cmd_resolve(rest),
         "compile" => cmd_compile(rest),
         "validate" => cmd_validate(rest),
         "extract-kicad" => cmd_extract_kicad(rest),
         "export-fastroute" => cmd_export(rest),
         "edit-request" => cmd_edit_request(rest),
         "check-edit" => cmd_check_edit(rest),
-        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, compile, validate, extract-kicad, export-fastroute, edit-request, check-edit)"))),
+        other => Err(CmdError::usage(format!("unknown command 'constraints {other}' (schema, check, report, resolve, compile, validate, extract-kicad, export-fastroute, edit-request, check-edit)"))),
     }
 }
 
@@ -329,6 +347,47 @@ fn cmd_check(args: &[String]) -> Result<(), CmdError> {
     } else {
         Err(CmdError::input(format!("{}: the pack is not valid ({errors} errors)", path.display())))
     }
+}
+
+fn cmd_resolve(args: &[String]) -> Result<(), CmdError> {
+    let Some(p) = parse(&RESOLVE_SPEC, args)? else { return Ok(()) };
+    let path = pack_path(&p)?;
+    let output = p.path("output").ok_or_else(|| CmdError::usage("no output (--output flat.yaml, or - for standard output)"))?;
+    let to_stdout = output == Path::new("-");
+    let mut inputs: Vec<PathBuf> = vec![path.clone()];
+    let mut ups: Vec<Value> = Vec::new();
+    for u in p.values("upstream") {
+        let up = PathBuf::from(u);
+        ups.push(read_pack(&up)?.1);
+        inputs.push(up);
+    }
+    if !to_stdout {
+        let refs: Vec<&Path> = inputs.iter().map(PathBuf::as_path).collect();
+        check_output(&output, &refs, p.flag("force"))?;
+    }
+    let (_, doc) = read_pack(&path)?;
+    let flat = match fr_constraint::resolve::resolve(&doc, &ups) {
+        Ok(f) => f,
+        Err(ds) => {
+            if !p.flag("quiet") {
+                print_diagnostics(&ds);
+            }
+            return Err(CmdError::input(format!("{}: not resolved ({} errors)", path.display(), ds.len())));
+        }
+    };
+    let mut text = String::from("# Resolved by `fastroute constraints resolve`: the pack and what it inherits, merged. Generated: edit the pack, not this file.\n");
+    text.push_str(&hcp::to_yaml(&flat).map_err(CmdError::failed)?);
+    if to_stdout {
+        print!("{text}");
+    } else {
+        let refs: Vec<&Path> = inputs.iter().map(PathBuf::as_path).collect();
+        write_output(&output, text.as_bytes(), &refs, p.flag("force"))?;
+    }
+    if !p.flag("quiet") {
+        let n = |k: &str| flat[k].as_array().map(Vec::len).unwrap_or(0);
+        eprintln!("{}: resolved with {} upstream pack(s): {} devices, {} rules, {} sources", path.display(), ups.len(), n("devices"), n("rules"), n("sources"));
+    }
+    Ok(())
 }
 
 fn cmd_compile(args: &[String]) -> Result<(), CmdError> {

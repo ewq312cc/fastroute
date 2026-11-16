@@ -38,14 +38,17 @@ Exit codes as in fastroute: 0 ok, 1 failed, 2 usage, 3 input, 4 output refused, 
 | `chunk show CHUNK_ID` | the block of a hit: document, version, level, devices, page, section, the text and its digest, the cached file and its digest, whether the index of it is current |
 | `embedding show\|test` | the configuration in force and whether text would leave this machine; a test embedding |
 | `evidence verify PACK` | every source, digest, version, block id and quotation of a pack against the cached documents (current blocks only) |
-| `packs list\|show\|create\|import\|export` | see below |
+| `packs list\|show\|create\|import\|export\|resolve` | see below |
+| `packs builtin list\|show\|verify\|install` | the packs that ship with the software (a release directory): verify and install them offline, with the exact dependencies; a locally changed copy is never overwritten silently. [hcp-pack-release.md](hcp-pack-release.md) |
+| `release seal\|index\|build` | for pack authors and release builders: write the digests of a pack's manifest, the committed catalogue (`index.yaml`) and the deterministic release directory. [hcp-pack-release.md](hcp-pack-release.md) |
 
 ### Packs
 
 * `packs create --id vendor/device --device PART --vendor V [--pack-version 0.1.0] [--revision R] [--title T] [--language en]` writes a skeleton to
   `packs/<id>/<version>/pack.yaml`: the metadata, the device and the documents of the inventory that are for this exact device and have a digest. It has
   no pins and no rules and says it is not valid; it is never overwritten (another version is another file).
-* `packs list` shows every version of every pack; `show` and `evidence verify` take a path, an id (the highest version) or `id@version`.
+* `packs list` shows every version of every pack (kind, and what it inherits from); `show` and `evidence verify` take a path, an id (the highest version) or `id@version`.
+* `packs resolve PACK [-o FILE]` merges a pack that inherits (`pack.upstream`, HCP 1.1: module from chip, board from module or chip) with the exact upstream packs of the workspace into one flat pack. `evidence verify`, `packs list` and `packs show` resolve first, so inherited evidence is checked against the documents too.
 * `packs export PACK --to DIR` writes the pack, `sources-used.yaml` (only the documents it cites) and `export-manifest.json` with digests.
 * `packs import DIR_OR_FILE` takes such a directory (digests must match: an export changed after it was written is refused) or a pack file. The pack
   must be valid. The documents it cites are added to the inventory; a document that is already there with another version, level, devices or digest is a
@@ -114,6 +117,6 @@ the words miss (shown on a fixture), and the layer is where a real model is plug
 `hcp-manager info --json`: `"interface": "1"`. Within interface 1 changes are **additive**: new commands, new options, new JSON fields (and `format_version` of a
 result goes up in its minor part); nothing is removed, renamed or given another meaning. A change that breaks that is `interface: "2"`, and a program that
 speaks 1 refuses it (the Skill's `doctor` does). `capabilities` says what exists (`keyword_search`, `vector_index`, `hybrid_search`, `embedded_store`,
-`embedding_providers`, `semantic_model_bundled`, `remote_embedding_by_default`, `pdf_text`, `network_fetch`); `pdf_text` needs `pdftotext` and `network_fetch`
+`embedding_providers`, `semantic_model_bundled`, `remote_embedding_by_default`, `builtin_packs`, `pack_inheritance`, `pack_manifest_version`, `release_format`, `pdf_text`, `network_fetch`); `pdf_text` needs `pdftotext` and `network_fetch`
 needs `curl`. A command line is the interface: there is no server and no GUI. The library (`hcp_manager::{inventory, sources, index, search, evidence, packs, embed, store}`)
 is the same code and has the same behaviour; it is not a separate stable API.

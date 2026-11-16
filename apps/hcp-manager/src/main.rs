@@ -7,7 +7,7 @@ use hcp_manager::error::{exit, Error, Result};
 use hcp_manager::inventory::{self, Applies, Doc, Inventory};
 use hcp_manager::workspace::Workspace;
 use hcp_manager::store::Store;
-use hcp_manager::{embed, evidence, fetch, index, packs, search, sources, text, INTERFACE_VERSION};
+use hcp_manager::{embed, evidence, fetch, index, packs, release, search, sources, text, INTERFACE_VERSION};
 use serde_json::json;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -52,6 +52,11 @@ enum Cmd {
     Embedding {
         #[command(subcommand)]
         cmd: EmbeddingCmd,
+    },
+    /// Versioned packs that ship with the software: seal, catalogue and build a release (for pack authors and release builders)
+    Release {
+        #[command(subcommand)]
+        cmd: ReleaseCmd,
     },
     /// Check that the evidence of a pack is in the cited documents
     Evidence {
@@ -209,7 +214,63 @@ enum EvidenceCmd {
 }
 
 #[derive(Subcommand)]
+enum ReleaseCmd {
+    /// Write the computed part of a pack directory's manifest: digests of the files, the canonical digest of hcp.yaml, the locked sources
+    Seal { dir: PathBuf },
+    /// Write (or, with --check, verify) the catalogue index.yaml of the packs in a tree: the lock of what a release contains
+    Index {
+        #[arg(long, default_value = "hardware-packs")]
+        packs: PathBuf,
+        /// Do not write: fail if the committed index.yaml is not the current catalogue
+        #[arg(long)]
+        check: bool,
+    },
+    /// Build the release directory (release.yaml, SHA256SUMS, one deterministic archive per pack) from a tree of packs
+    Build {
+        #[arg(long, default_value = "hardware-packs")]
+        packs: PathBuf,
+        #[arg(long, default_value = "dist/hcp-packs")]
+        out: PathBuf,
+        /// Replace an existing release directory
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum BuiltinCmd {
+    /// The packs of a release, and whether each is installed in the workspace (installed / modified / not installed)
+    List,
+    /// One pack of the release: identity, kind, version, dependencies, compatibility, licence and digests
+    Show { pack: String },
+    /// Verify the release offline: checksums, every archive, every pack, the dependencies and the merged documents
+    Verify,
+    /// Install a pack and the exact packs it depends on into the workspace, from the archives
+    Install {
+        pack: String,
+        /// Replace a locally changed or differently installed copy (it is moved to backup/ first)
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum PacksCmd {
+    /// The packs shipped with this software (a release directory; offline)
+    Builtin {
+        /// The release directory (default: $HCP_PACKS_DIR, <program>/../share/hcp-packs, ./dist/hcp-packs)
+        #[arg(long, global = true, value_name = "DIR")]
+        release: Option<PathBuf>,
+        #[command(subcommand)]
+        cmd: BuiltinCmd,
+    },
+    /// A pack that inherits (chip -> module -> board) merged with the exact upstream packs of the workspace into one flat pack
+    Resolve {
+        pack: String,
+        /// Write the flat pack here (default: standard output)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// The packs of the workspace (every version of every pack)
     List,
     /// A pack by path, id (the highest version) or id@version
@@ -286,13 +347,17 @@ fn run(cli: Cli) -> Result<u8> {
                 "interface": INTERFACE_VERSION,
                 "commands": [
                     "init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status", "search", "chunk show",
-                    "embedding show|test", "evidence verify", "packs list|show|create|import|export"
+                    "embedding show|test", "evidence verify", "packs list|show|create|import|export|resolve", "packs builtin list|show|verify|install", "release seal|index|build"
                 ],
                 "capabilities": {
                     "keyword_search": true,
                     "vector_index": true,
                     "hybrid_search": true,
                     "embedded_store": "sqlite",
+                    "builtin_packs": true,
+                    "pack_inheritance": true,
+                    "release_format": release::RELEASE_FORMAT,
+                    "pack_manifest_version": release::MANIFEST_VERSION,
                     "embedding_providers": ["hashing", "command", "http"],
                     "default_embedding_provider": "hashing",
                     "semantic_model_bundled": false,
@@ -372,6 +437,7 @@ fn run(cli: Cli) -> Result<u8> {
         Cmd::Evidence { cmd: EvidenceCmd::Verify { pack } } => {
             let inv = Inventory::load(&ws)?;
             let (path, doc) = packs::find(&ws, &pack)?;
+            let doc = packs::resolved_doc(&ws, &doc).map_err(|e| Error::input(format!("{}: the pack does not resolve:\n  {}", path.display(), e.join("\n  "))))?;
             let r = evidence::verify(&ws, &inv, &doc, &path.display().to_string())?;
             if json {
                 print_json(&r);
@@ -386,7 +452,27 @@ fn run(cli: Cli) -> Result<u8> {
             }
             Ok(r.exit_code())
         }
+        Cmd::Release { cmd } => run_release(cmd, json),
         Cmd::Packs { cmd } => match cmd {
+            PacksCmd::Builtin { release, cmd } => run_builtin(&ws, release, cmd, json),
+            PacksCmd::Resolve { pack, output } => {
+                let (path, doc) = packs::find(&ws, &pack)?;
+                let flat = packs::resolved_doc(&ws, &doc).map_err(|e| Error::input(format!("{}: not resolved:\n  {}", path.display(), e.join("\n  "))))?;
+                let text = format!("# Resolved by `hcp-manager packs resolve`: the pack and what it inherits, merged. Generated: edit the pack, not this file.\n{}", fr_constraint::hcp::to_yaml(&flat).map_err(Error::failed)?);
+                match output {
+                    Some(o) => {
+                        if o.exists() && std::fs::canonicalize(&o).ok() == std::fs::canonicalize(&path).ok() {
+                            return Err(Error::output(format!("{} is the pack itself: it is not overwritten", o.display())));
+                        }
+                        hcp_manager::workspace::write_atomic(&o, text.as_bytes())?;
+                        if !json {
+                            println!("{}", o.display());
+                        }
+                    }
+                    None => print!("{text}"),
+                }
+                Ok(0)
+            }
             PacksCmd::List => {
                 let l = packs::list(&ws);
                 if json {
@@ -433,7 +519,7 @@ fn run(cli: Cli) -> Result<u8> {
             }
             PacksCmd::Show { pack } => {
                 let (path, doc) = packs::find(&ws, &pack)?;
-                print_json(&packs::show(&path, &doc));
+                print_json(&packs::show(&ws, &path, &doc));
                 Ok(0)
             }
             PacksCmd::Export { pack, to, force } => {
@@ -447,6 +533,108 @@ fn run(cli: Cli) -> Result<u8> {
                 Ok(0)
             }
         },
+    }
+}
+
+fn run_release(cmd: ReleaseCmd, json: bool) -> Result<u8> {
+    match cmd {
+        ReleaseCmd::Seal { dir } => {
+            let m = release::seal(&dir)?;
+            if json {
+                print_json(&m);
+            } else {
+                println!("{}: sealed {} {} ({} files)", dir.join("pack.yaml").display(), m["id"].as_str().unwrap_or(""), m["version"].as_str().unwrap_or(""), 2 + m["files"]["reports"].as_array().map(Vec::len).unwrap_or(0) + m["files"]["documents"].as_array().map(Vec::len).unwrap_or(0));
+            }
+            Ok(0)
+        }
+        ReleaseCmd::Index { packs, check } => {
+            let (all, problems) = release::load_tree(&packs)?;
+            if !problems.is_empty() {
+                for p in &problems {
+                    eprintln!("error[{}] {}: {}", p.code, p.pack, p.message);
+                }
+                return Err(Error::input(format!("{}: {} problem(s): the catalogue is not written", packs.display(), problems.len())));
+            }
+            let text = release::index_text(&all)?;
+            let target = packs.join("index.yaml");
+            if check {
+                let have = std::fs::read_to_string(&target).map_err(|e| Error::input(format!("{}: {e}", target.display())))?;
+                if have != text {
+                    return Err(Error::input(format!("{} is not the current catalogue of the packs in the tree: run `hcp-manager release index` and review the change", target.display())));
+                }
+                if !json {
+                    println!("{}: current ({} packs)", target.display(), all.len());
+                }
+            } else {
+                hcp_manager::workspace::write_atomic(&target, text.as_bytes())?;
+                if !json {
+                    println!("{}: {} packs", target.display(), all.len());
+                }
+            }
+            if json {
+                print_json(&json!({"format": "hcp-manager-release-index", "format_version": "1.0", "index": target.display().to_string(), "packs": all.len(), "checked": check}));
+            }
+            Ok(0)
+        }
+        ReleaseCmd::Build { packs, out, force } => {
+            let r = release::build(&packs, &out, force)?;
+            if json {
+                print_json(&r);
+            } else {
+                println!("{}: {} packs", r.out, r.packs);
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn run_builtin(ws: &Workspace, release_dir: Option<PathBuf>, cmd: BuiltinCmd, json: bool) -> Result<u8> {
+    let dir = release::Release::locate(release_dir.as_deref())?;
+    let rel = release::Release::open(&dir)?;
+    match cmd {
+        BuiltinCmd::List => {
+            let rows: Vec<serde_json::Value> = rel.entries().iter().map(|e| json!({"id": e["id"], "version": e["version"], "kind": e["kind"], "content": e["content"], "requires": e["requires"], "installed": release::state_of(ws, e)})).collect();
+            if json {
+                print_json(&json!({"format": "hcp-manager-builtin-list", "format_version": "1.0", "release": dir.display().to_string(), "software_version": rel.doc["software"]["version"], "packs": rows}));
+            } else {
+                for r in &rows {
+                    println!("{} {} [{}] {} ({})", r["id"].as_str().unwrap_or(""), r["version"].as_str().unwrap_or(""), r["kind"].as_str().unwrap_or(""), r["content"].as_str().unwrap_or(""), r["installed"].as_str().unwrap_or(""));
+                }
+            }
+            Ok(0)
+        }
+        BuiltinCmd::Show { pack } => {
+            let e = rel.find(&pack)?;
+            let p = rel.pack(e).map_err(|ps| Error::input(ps.iter().map(|p| format!("[{}] {}", p.code, p.message)).collect::<Vec<_>>().join("\n")))?;
+            print_json(&json!({"format": "hcp-manager-builtin-show", "format_version": "1.0", "entry": e, "manifest": p.manifest, "installed": release::state_of(ws, e)}));
+            Ok(0)
+        }
+        BuiltinCmd::Verify => {
+            let (packs, problems) = rel.verify()?;
+            if json {
+                print_json(&json!({"format": "hcp-manager-builtin-verify", "format_version": "1.0", "release": dir.display().to_string(), "packs": packs.len(), "ok": problems.is_empty(), "problems": problems}));
+            } else {
+                for p in &problems {
+                    eprintln!("error[{}] {}: {}", p.code, p.pack, p.message);
+                }
+                println!("{}: {} packs, {} problem(s)", dir.display(), packs.len(), problems.len());
+            }
+            Ok(if problems.is_empty() { 0 } else { exit::INPUT })
+        }
+        BuiltinCmd::Install { pack, force } => {
+            let r = release::install(ws, &rel, &pack, force)?;
+            if json {
+                print_json(&r);
+            } else {
+                for p in &r.packs {
+                    println!("{} {} [{}]: {} ({})", p.id, p.version, p.kind, p.path, p.action);
+                }
+                if !r.inventory_added.is_empty() {
+                    println!("added to the inventory: {}", r.inventory_added.join(", "));
+                }
+            }
+            Ok(0)
+        }
     }
 }
 

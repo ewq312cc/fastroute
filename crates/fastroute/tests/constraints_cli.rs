@@ -580,3 +580,70 @@ fn check_edit_reads_a_kicad_board_as_the_base_and_compares_its_digest_with_the_p
     // the board was only read
     assert_eq!(std::fs::read(&board).unwrap(), before);
 }
+
+// ---- packs that inherit (hcp_version 1.1) ----------------------------------------------------------------------------------
+
+fn inherit_fixture() -> (Value, Value) {
+    let ev = |src: &str, q: &str| json!([{"source_id": src, "locator": {"page": 5}, "quote": q, "basis": "explicit"}]);
+    let src = |id: &str, doc: &str, dev: &str| json!({"source_id": id, "document_id": doc, "title": "fictional", "version": "v1", "level": "official_manual", "url": "https://example.invalid/x", "retrieved": "2026-11-16", "sha256": "0".repeat(64), "applies_to": [dev]});
+    let pins = json!([{"number": "1", "name": "GND", "class": "ground"}, {"number": "2", "name": "P2", "class": "gpio"}]);
+    let chip = json!({
+        "hcp_version": "1.1",
+        "pack": {"id": "acme/x/chip/a", "kind": "chip", "title": "chip", "version": "0.1.0", "created": "2026-11-16", "extractor": {"kind": "human"}},
+        "sources": [src("SRC-C", "DOC-C", "DEV-C")],
+        "devices": [{"id": "DEV-C", "vendor": "Acme", "part_number": "C", "package": "p", "pins": pins}],
+        "rules": [{"id": "C-GND", "kind": "fixed_net", "modifiability": "fixed", "subject": {"device": "DEV-C"}, "params": {"pin": "1", "net_pattern": "GND*"}, "evidence": ev("SRC-C", "Pin 1 is ground.")}]
+    });
+    let module = json!({
+        "hcp_version": "1.1",
+        "pack": {"id": "acme/x/mod/a", "kind": "module", "title": "module", "version": "0.1.0", "created": "2026-11-16", "extractor": {"kind": "human"},
+            "upstream": [{"id": "acme/x/chip/a", "version": "0.1.0", "kind": "chip", "canonical_sha256": fr_constraint::resolve::canonical_sha256(&chip), "inherit": {"devices": ["DEV-C"], "rules": ["C-GND"]}}]},
+        "sources": [src("SRC-M", "DOC-M", "DEV-M")],
+        "devices": [{"id": "DEV-M", "vendor": "Acme", "part_number": "M", "package": "p", "pins": pins}],
+        "rules": [{"id": "C-M-RSVD", "kind": "reserved_pin", "modifiability": "fixed", "subject": {"device": "DEV-M"}, "params": {"pins": ["2"]}, "evidence": ev("SRC-M", "Pin 2 is reserved.")}]
+    });
+    (chip, module)
+}
+
+#[test]
+fn resolve_merges_a_pack_with_its_upstream_and_the_result_compiles() {
+    let d = tmp("constraints-resolve");
+    let (chip, module) = inherit_fixture();
+    let w = |name: &str, v: &Value| {
+        let f = d.join(name);
+        std::fs::write(&f, serde_json::to_string(v).unwrap()).unwrap();
+        f
+    };
+    let (c, m) = (w("chip.json", &chip), w("module.json", &module));
+    // before it is resolved, a pack that inherits is not usable, and the message says what to do
+    let o = run(&["constraints", "check", &s(&m), "-q", "--json"]);
+    assert_eq!(code(&o), 3);
+    assert!(String::from_utf8_lossy(&o.stdout).contains("upstream_unresolved"));
+    let o = run(&["constraints", "compile", &s(&m), "-o", "-", "-q"]);
+    assert_eq!(code(&o), 3, "an unresolved pack is not compiled");
+    // resolved
+    let flat = d.join("flat.yaml");
+    let o = run(&["constraints", "resolve", &s(&m), "--upstream", &s(&c), "-o", &s(&flat), "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert_eq!(code(&run(&["constraints", "check", &s(&flat), "-q"])), 0);
+    let ir1 = run(&["constraints", "compile", &s(&flat), "-o", "-", "-q"]);
+    assert_eq!(code(&ir1), 0, "{}", stderr(&ir1));
+    let ir_text = String::from_utf8_lossy(&ir1.stdout).into_owned();
+    assert!(ir_text.contains("C-GND") && ir_text.contains("C-M-RSVD"), "the inherited and the own rule are both in the IR");
+    // the same inputs give the same bytes
+    let flat2 = d.join("flat2.yaml");
+    assert_eq!(code(&run(&["constraints", "resolve", &s(&m), "--upstream", &s(&c), "-o", &s(&flat2), "-q"])), 0);
+    assert_eq!(std::fs::read(&flat).unwrap(), std::fs::read(&flat2).unwrap());
+    // the input is never overwritten, an existing output needs --force
+    assert_eq!(code(&run(&["constraints", "resolve", &s(&m), "--upstream", &s(&c), "-o", &s(&m), "-q"])), 4);
+    assert_eq!(code(&run(&["constraints", "resolve", &s(&m), "--upstream", &s(&c), "-o", &s(&flat), "-q"])), 4);
+    // a changed upstream is refused (exit 3) and nothing is written
+    let mut changed = chip.clone();
+    changed["rules"][0]["params"]["net_pattern"] = json!("AGND*");
+    let c2 = w("chip-changed.json", &changed);
+    let out = d.join("never.yaml");
+    let o = run(&["constraints", "resolve", &s(&m), "--upstream", &s(&c2), "-o", &s(&out)]);
+    assert_eq!(code(&o), 3);
+    assert!(stderr(&o).contains("upstream_digest_mismatch"), "{}", stderr(&o));
+    assert!(!out.exists());
+}

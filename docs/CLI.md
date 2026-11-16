@@ -166,23 +166,42 @@ installation (see the plugin README for the paths).
 
 ## Checked against a real KiCad
 
-The stand-ins in the tests prove the logic; these were also run against a real **KiCad 7.0.11**
-(Ubuntu `kicad` package, 12 of KiCad's demo boards):
+The stand-ins in the tests prove the logic; these were also run against real KiCads: **7.0.11**
+(Ubuntu `kicad`, 12 of KiCad's demo boards) and **8.0.9** (KiCad's PPA, `pic_programmer`,
+`flat_hierarchy`, `interf_u`).
 
-| What | Result |
-|---|---|
-| `inspect` / `render` / `ai-pack` on the DSN that KiCad's own exporter writes | all boards exit 0; pad, outline and via coordinates agree with `pcbnew` exactly (same frame: mm, y down, board origin) |
-| `ai-pack --kicad-pcb` | KiCad 7's `kicad-cli pcb` has no `drc` command, so `drc_status` is `unavailable` with the version in the message, the pack is `partial`, `--verify` passes, and `--require-drc` exits 5. No false "passed" |
-| `route board.kicad_pcb` | refused in 0.2 s with exit 3 and the reason: in KiCad 7 `ImportSpecctraSES` takes only a file name and needs the PCB editor, so the routed session could not be imported headless. Before this check the run would route first and fail afterwards |
-| `route_cli.py --export-only` | works |
+| What | KiCad 7.0.11 | KiCad 8.0.9 |
+|---|---|---|
+| `inspect` / `render` / `ai-pack` on the DSN that KiCad's exporter writes | all boards exit 0 | `inspect` on 3 boards, `render` and `ai-pack` on `pic_programmer`: exit 0 |
+| coordinates: pads of `inspect.json` against `pcbnew` and against the items of KiCad's DRC report | exact (mm, y down, same origin; also for boards with a user origin that is not the page origin) | exact: 10 pads named by DRC items, 0.000 mm apart |
+| `kicad-cli pcb drc --format json --units mm --severity-all --output` | **does not exist** (`pcb` has only `export`): `drc_status: unavailable` naming the version, pack `partial`, `--require-drc` exits 5, never "passed" | works; the report is read: `drc_status` `failed`/`passed`, issues with coordinates, `--verify` consistent |
+| `render --from-report drc.json --select DRC72,DRC73,DRC74` | – | the region follows the items; the numbered markers sit on the pads and holes they name |
+| `fastroute route board.kicad_pcb` | refused in 0.2 s with the reason (`ImportSpecctraSES` takes only a file name and needs the PCB editor; the same failure happened with the original `route_cli.py`) | routes, imports the session, saves; KiCad's own count after the import is 0 open connections |
+| a `.kicad_dru` written by `fastroute rules apply` | – | read and evaluated by KiCad's DRC (a 3 mm `track_width` rule gave 7 violations on the net it names; a 0.3 mm `clearance` rule 12 more) |
 
-Not run for lack of a KiCad 8+ in the environment (the stand-in tests cover the code paths):
-the `kicad-cli pcb drc` success path and the parsing of a real DRC report, the coordinate frame of
-DRC items, a complete headless `route` ending in an imported board, and `.kicad_dru` files read by
-KiCad. Two things seen in the real data are documented in
-[AI_DATA_FORMAT.md](AI_DATA_FORMAT.md): KiCad's DSN export renames duplicate pad names and omits
-mounting holes without copper, and `pads[].x/y` is the pad centre as the router uses it, which for
-custom-shaped pads is not KiCad's pad position.
+What the real runs found and fixed:
+
+* KiCad 7 cannot do the two command-line steps (above); both are detected up front with the reason.
+* The plugin did not understand the router's score line when the board has violations between
+  fixed items (`final score: 957.19 (4 unrouted and 2 violations, 2 of them pre-existing ...)`), so
+  the unrouted and violation counts were `null` for such boards. Fixed.
+* `fastroute route` called a run with unknown counts "complete". The adapter's verdict now decides,
+  and it is KiCad's own open-connection count after the import: the router counted 4 unrouted
+  connections on `pic_programmer` (connections through a zone), KiCad 0, so the result is `complete`.
+* KiCad 8 writes a project (`.kicad_pro`) and local settings (`.kicad_prl`) next to every board
+  it saves, also next to the temporary file; they were left behind. Now removed.
+* The plugin applies only some `.kicad_dru` rules to the router (`diff_pair_gap`, `track_width` per
+  net class and layer) and prints `NOT applied` for the rest, e.g. every `clearance` rule. The text
+  that `rules apply` wrote ("the plugin carries them into the DSN") promised more; it now says that
+  KiCad's DRC checks all of them and the router follows only some.
+* `pads[].x/y` is the pad centre as the router uses it; for custom-shaped pads (JP1 of `pic_programmer`)
+  this is 0.25 mm from KiCad's pad position. KiCad's DSN export also renames duplicate pad names
+  (`HOLE`, `HOLE@1`) and drops mounting holes without copper (both in [AI_DATA_FORMAT.md](AI_DATA_FORMAT.md)).
+* The demo boards come without a library table, so KiCad's DRC reports `lib_footprint_issues`
+  warnings and `drc_status` is `failed` with 0 errors. Read `errors` / `warnings`.
+
+Not run: KiCad 9 and 10, and a routing run that follows a `.kicad_dru` clearance rule (the plugin
+does not hand those to the router).
 
 ## Tests
 
@@ -198,5 +217,9 @@ custom-shaped pads is not KiCad's pad position.
   save, `--json`, `--fail-on-partial`. Run by `cargo test` (via `crates/fastroute/tests/kicad_adapter_py.rs`) and by
   `python3 -m unittest discover -s integrations/kicad/tests -p 'test_*.py'`.
   They were also run against the previous `route_cli.py`, which fails 11 of the 15.
+* `crates/fastroute/tests/real_kicad.rs` — the flows above against an installed KiCad (headless
+  route, real `kicad-cli pcb drc`, DRC coordinates against `inspect.json`); each test says why and
+  passes when there is no KiCad. `FASTROUTE_KICAD_PYTHON`, `FASTROUTE_KICAD_CLI` and
+  `FASTROUTE_KICAD_DEMO` point them at one; with KiCad 7 they check the up-front refusals instead.
 * the tests of `render`, `inspect`, `ai-pack` and `rules` check the same output rules, exit codes
   and messages for their commands.

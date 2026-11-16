@@ -70,7 +70,7 @@ pub const KINDS: &[Kind] = &[
     Kind {
         name: "trace_width",
         capability: Capability::ViaKicad,
-        maps_to: "`.kicad_dru` `track_width` constraint (the plugin carries per-net / per-layer widths into the DSN); no command-line option sets a width",
+        maps_to: "`.kicad_dru` `track_width` constraint: KiCad's DRC checks it; the plugin hands a width to the router only for an `A.NetClass == 'X'` rule with a `(layer ...)` that matches a width of the board's net classes, and prints `NOT applied` for every other form (seen with KiCad 8.0.9); no command-line option sets a width",
         required: &["width_mm"],
         one_of: &[],
         params: &[Param { key: "width_mm", ty: MM }, Param { key: "layer", ty: "string" }],
@@ -79,7 +79,7 @@ pub const KINDS: &[Kind] = &[
     Kind {
         name: "clearance",
         capability: Capability::ViaKicad,
-        maps_to: "`.kicad_dru` `clearance` constraint (the plugin carries class clearances into the DSN)",
+        maps_to: "`.kicad_dru` `clearance` constraint: KiCad's DRC checks it; the plugin does not translate `clearance` rules for the router (it prints `NOT applied`), which keeps the clearances of the board's net classes (seen with KiCad 8.0.9)",
         required: &["clearance_mm"],
         one_of: &[],
         params: &[Param { key: "clearance_mm", ty: MM }, Param { key: "layer", ty: "string" }],

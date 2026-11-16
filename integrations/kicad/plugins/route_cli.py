@@ -52,12 +52,17 @@ def check_output(out, force):
 def save_board(board, out):
     """Saves through a temporary file, so that a failure never leaves half a board at `out`."""
     tmp = out.with_name("." + out.name + ".tmp.kicad_pcb")
+    # KiCad 8 writes a project (.kicad_pro) and its local settings (.kicad_prl) next to what it
+    # saves, also for this temporary name: remove what this call made, not what was there before
+    sidecars = [tmp.with_suffix(".kicad_pro"), tmp.with_suffix(".kicad_prl")]
+    present = [p for p in sidecars if p.exists()]
     try:
         pcbnew.SaveBoard(str(tmp), board)
         os.replace(tmp, out)
     finally:
-        if tmp.exists():
-            tmp.unlink()
+        for p in [tmp] + sidecars:
+            if p.exists() and p not in present:
+                p.unlink()
 
 
 def main(argv=None):
@@ -237,8 +242,13 @@ def main(argv=None):
         + (f", KiCad: {result.kicad_unconnected} open connections" if result.kicad_unconnected is not None else "")
         + f" -> {out}"
     )
-    # "complete" only if the router says nothing is left; an unknown count is not a claim of success
-    complete = result.unrouted == 0
+    # "complete" only if nothing is left open. KiCad's own count after the import is the authority
+    # (a connection through a zone is unrouted to the router and connected to KiCad); without it,
+    # the router's. An unknown count is not a claim of success.
+    if result.kicad_unconnected is not None:
+        complete = result.kicad_unconnected == 0
+    else:
+        complete = result.unrouted == 0
     return finish(
         5 if (not complete and args.fail_on_partial) else 0,
         "complete" if complete else "partial",

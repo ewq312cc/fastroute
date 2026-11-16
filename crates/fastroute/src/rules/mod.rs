@@ -436,7 +436,7 @@ fn cmd_apply(args: &[String]) -> Result<(), CmdError> {
         next.push("route with the written options: `fastroute route board.dsn -o routed.ses --pairs pairs.txt --tune tune.txt` (use the files that exist; route-args.txt lists them)".to_string());
     }
     if art.dru.is_some() {
-        next.push("put rules.kicad_dru next to the board as <board>.kicad_dru; the KiCad plugin / route_cli.py carries its rules into the DSN".to_string());
+        next.push("put rules.kicad_dru next to the board as <board>.kicad_dru: KiCad's DRC enforces it, so the check below holds the routed board to these rules. The plugin / route_cli.py hands only some of them to the router (diff_pair_gap, track_width per net class and layer) and prints `NOT applied` for the others: those rules are checked, not obeyed - read that list before routing".to_string());
     }
     next.extend(art.manual_steps.iter().cloned());
     next.push("check the result with the real checker: `fastroute ai-pack -i board.dsn -s routed.ses -o pack/ --kicad-pcb routed.kicad_pcb --require-drc`".to_string());

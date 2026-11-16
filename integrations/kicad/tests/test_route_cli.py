@@ -32,6 +32,7 @@ class State:
         self.saved = []
         # KiCad 7's Python API: ImportSpecctraSES takes only a file name (raises TypeError for two)
         self.old_api = False
+        self.writes_sidecars = False
 
 
 STATE = State()
@@ -50,6 +51,10 @@ def setUpModule():
         if STATE.save_fails:
             raise RuntimeError("disk full")
         Path(path).write_text(ROUTED)
+        if STATE.writes_sidecars:
+            # KiCad 8 also writes the project and its local settings next to what it saves
+            for ext in (".kicad_pro", ".kicad_prl"):
+                Path(path).with_suffix(ext).write_text("{}\n")
         STATE.saved.append(path)
 
     def import_ses(*args):
@@ -246,6 +251,50 @@ class RouteCliTest(unittest.TestCase):
         self.assertEqual(s["exit_code"], 0)
         self.assertIsNone(s["error"])
         self.assertIn("routed in", err, "the human summary is on stderr")
+
+    def test_kicads_own_open_connection_count_decides_complete(self):
+        # seen with a real KiCad 8: the router counts 4 unrouted (connections through a zone),
+        # KiCad's connectivity after the import has none open: complete
+        STATE.router_result = {"ok": True, "unrouted": 4, "violations": 0, "kicad_unconnected": 0}
+        code, out, err = self.cli("--json", "--fail-on-partial")
+        s = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual((code, s["status"], s["unrouted"], s["kicad_unconnected"]), (0, "complete", 4, 0))
+        # the other way round: KiCad still sees open connections: partial
+        (self.dir / "board.routed.kicad_pcb").unlink()
+        STATE.router_result = {"ok": True, "unrouted": 0, "violations": 0, "kicad_unconnected": 2}
+        code, out, err = self.cli("--json", "--fail-on-partial")
+        s = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual((code, s["status"]), (5, "partial"))
+
+    def test_the_files_kicad_writes_next_to_the_temporary_board_are_removed(self):
+        STATE.writes_sidecars = True
+        code, out, err = self.cli()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir() if p.is_file()), ["board.kicad_pcb", "board.routed.kicad_pcb"])
+        # ... but a project file that was there before is never touched
+        (self.dir / "board.routed.kicad_pcb").unlink()
+        hidden = self.dir / ".board.routed.kicad_pcb.tmp.kicad_pro"
+        hidden.write_text("mine\n")
+        code, out, err = self.cli()
+        self.assertEqual(code, 0, err)
+        self.assertTrue(hidden.exists(), "a file that existed before the save is not ours to delete")
+
+    def test_the_engines_score_line_is_read_with_and_without_pre_existing_violations(self):
+        import core
+
+        def read(text):
+            for pattern in core._SCORES:
+                m = pattern.search(text)
+                if m:
+                    return float(m.group(1)), int(m.group(2)), int(m.group(3))
+
+        plain = "Auto-routing stage completed: started with 43 unrouted nets, completed in 0.4 seconds, final score: 957.19 (4 unrouted and 2 violations)."
+        # the engine's line when some violations are between fixed items (seen with a real board)
+        tail = "Auto-routing stage completed: started with 43 unrouted nets, completed in 0.4 seconds, final score: 957.19 (4 unrouted and 2 violations, 2 of them pre-existing between fixed items)."
+        one = "final score: 12.50 (0 unrouted and 1 violation)."
+        self.assertEqual(read(plain), (957.19, 4, 2))
+        self.assertEqual(read(tail), (957.19, 4, 2))
+        self.assertEqual(read(one), (12.5, 0, 1))
 
     def test_json_for_partial_failed_and_refused(self):
         STATE.router_result = {"ok": True, "unrouted": 4, "violations": 0}

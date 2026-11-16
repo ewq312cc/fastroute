@@ -28,7 +28,8 @@ _PREEXISTING = re.compile(r"Board has (\d+) pre-existing clearance violation\(s\
 _LIVE_URL = re.compile(r"live viewer: (http://\S+)")
 # Router score reports; the last one seen is the final state of the board.
 _SCORES = (
-    re.compile(r"final score: ([\d.]+) \((\d+) unrouted and (\d+) violations?\)"),
+    # (the engine appends ", N of them pre-existing between fixed items" when there are such)
+    re.compile(r"final score: ([\d.]+) \((\d+) unrouted and (\d+) violations?[,)]"),
     re.compile(
         r"router score: ([\d.]+), incomplete connections: (\d+), clearance violations: (\d+)"
     ),

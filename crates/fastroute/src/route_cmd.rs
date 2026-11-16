@@ -130,7 +130,12 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
     let result = route(&p, &input);
     let (status, code, unrouted, violations, output, error) = match &result {
         Ok(done) => {
-            let partial = done.unrouted.is_some_and(|u| u > 0);
+            // the KiCad adapter says whether anything is left open (its count after the import is
+            // the authority); an unknown count is never "complete"
+            let partial = match done.complete {
+                Some(complete) => !complete,
+                None => done.unrouted.is_some_and(|u| u > 0),
+            };
             let code = if partial && !p.flag("allow-partial") { exit::PARTIAL } else { 0 };
             (if partial { "partial" } else { "complete" }, code, done.unrouted, done.violations, Some(done.output.display().to_string()), None)
         }
@@ -173,6 +178,8 @@ struct Done {
     output: PathBuf,
     unrouted: Option<u64>,
     violations: Option<u64>,
+    /// The adapter's verdict (`.kicad_pcb` flow); the engine flow decides from `unrouted`.
+    complete: Option<bool>,
 }
 
 /// Validation runs in the order usage (2), input (3), output (4): the first thing that is wrong
@@ -318,7 +325,7 @@ fn route_specctra(p: &Parsed, input: &Path, output: &Path) -> Result<Done, CmdEr
     }
     a.extend(p.passthrough.iter().cloned());
     match crate::run(a) {
-        Ok(o) => Ok(Done { output: output.to_path_buf(), unrouted: Some(o.unrouted as u64), violations: Some(o.violations as u64) }),
+        Ok(o) => Ok(Done { output: output.to_path_buf(), unrouted: Some(o.unrouted as u64), violations: Some(o.violations as u64), complete: None }),
         Err(e) => Err(CmdError::failed(e)),
     }
 }
@@ -455,7 +462,10 @@ fn route_kicad(p: &Parsed, input: &Path, output: &Path) -> Result<Done, CmdError
             if summary.is_none() {
                 return Err(CmdError::failed("the KiCad adapter finished but printed no summary (is route_cli.py an old version without --json?)"));
             }
-            Ok(Done { output: output.to_path_buf(), unrouted: num("unrouted"), violations: num("violations") })
+            // exit 5 is the adapter's "not complete"; so is any status but "complete"
+            let status = summary.as_ref().and_then(|s| s.get("status")).and_then(|v| v.as_str());
+            let complete = out.status.code() == Some(0) && status == Some("complete");
+            Ok(Done { output: output.to_path_buf(), unrouted: num("unrouted"), violations: num("violations"), complete: Some(complete) })
         }
         Some(4) => Err(CmdError::output(message.unwrap_or_else(|| "the KiCad adapter refused the output".into()))),
         Some(2) => Err(CmdError::input(message.unwrap_or_else(|| "the KiCad adapter rejected the board".into()))),

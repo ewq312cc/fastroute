@@ -295,6 +295,20 @@ mod kicad_adapter {
         assert_eq!(code(&o), 0, "{}", stderr(&o));
         assert_eq!(summary(&o)["status"], "partial");
         assert!(!argv(&allow).contains("--fail-on-partial"), "{}", argv(&allow));
+        // the adapter's verdict decides, not the router's count: KiCad's own connectivity says
+        // nothing is open (a connection through a zone is "unrouted" to the router) ...
+        let zoned = fake_python(&d, "py-zoned", false, r#"{"status":"complete","exit_code":0,"unrouted":4,"violations":0,"kicad_unconnected":0,"error":null}"#, 0);
+        let o = run_with(&zoned, &[]);
+        assert_eq!(code(&o), 0, "{}", stderr(&o));
+        assert_eq!((summary(&o)["status"].as_str(), summary(&o)["unrouted"].as_u64()), (Some("complete"), Some(4)));
+        // ... and an unknown count is never "complete" (seen with a real KiCad 8: the router's
+        // score line was not understood, the adapter said partial, the first version said complete)
+        let unknown = fake_python(&d, "py-unknown", false, r#"{"status":"partial","exit_code":0,"unrouted":null,"violations":null,"error":null}"#, 0);
+        let o = run_with(&unknown, &["--allow-partial"]);
+        assert_eq!(code(&o), 0, "{}", stderr(&o));
+        assert_eq!((summary(&o)["status"].as_str(), summary(&o)["unrouted"].is_null()), (Some("partial"), true));
+        let o = run_with(&unknown, &[]);
+        assert_eq!(code(&o), 5, "an adapter that says partial with exit 0 must not pass for complete: {}", stderr(&o));
         // the adapter failed
         let failed = fake_python(&d, "py-failed", false, r#"{"status":"failed","exit_code":1,"output":null,"error":"fastroute crashed"}"#, 1);
         let o = run_with(&failed, &[]);

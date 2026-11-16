@@ -71,6 +71,12 @@ fastroute render  -i board.dsn -s routed.ses -o board.png --manifest manifest.js
 | `rules` | `source` (`dsn`), `file`, `net_classes[]` = `{name, nets[], trace_width_mm[], clearance_mm[], ignored_by_autorouter, min_length_mm, max_length_mm}` with per-layer values `{layer, value_mm}`; `note` says what is not listed |
 | `checks` | `connectivity` and `fastroute_clearance` (fastroute's own, always `completed`), and `drc` |
 
+**Zones.** Connections that a copper zone provides are not wiring: `inspect` of a KiCad board's DSN
+lists them as `unrouted` (`flat_hierarchy`: 45 GND connections between neighbouring pads, while KiCad's
+own DRC reports 0 unconnected items). For a KiCad board, `checks.drc` (and the open-connection count
+that `fastroute route` reports for the imported result) is the authority; `routing.status` is the
+connectivity of the traces in the DSN.
+
 Trace and via numbers count the wiring of the design **and the session**, without the short
 bridge stubs that the router adds internally to join trace ends to pad centres.
 
@@ -97,7 +103,7 @@ KiCad's design rule check. `inspect` does not run it; pass a report with
 | `unavailable` | `kicad-cli` was not found |
 | `error` | the tool failed, or its report could not be read (`detail` says why) |
 | `timeout` | the tool was stopped after the time limit |
-| `failed` | a readable report lists violations or unconnected items; `violations`, `unconnected`, `errors`, `warnings` and `issues[]` (`DRC<n>`, with `x`, `y`, KiCad's `type`, `severity`, `description`, `items[]`) are filled |
+| `failed` | a readable report lists violations or unconnected items (**warnings count**: a board without a library table gets `lib_footprint_issues` warnings; look at `errors`, `warnings` and `issues[].severity`); `violations`, `unconnected`, `errors`, `warnings` and `issues[]` (`DRC<n>`, with `x`, `y`, KiCad's `type`, `severity`, `description`, `items[]`) are filled |
 | `passed` | a readable report lists none |
 
 `fastroute_clearance` is the router's own clearance check of the loaded wiring; it is useful,

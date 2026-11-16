@@ -341,7 +341,7 @@ fn an_install_that_disagrees_with_the_inventory_writes_nothing() {
     let (root, _, _) = tree("inventory");
     let out = build(&root);
     let ws_dir = root.parent().unwrap().join("ws");
-    let ws = Workspace { root: ws_dir.clone() };
+    let ws = Workspace::new(ws_dir.clone());
     ws.init().unwrap();
     // the workspace already has the chip's datasheet with another digest
     let inv = Inventory { sources_version: "1.0".into(), documents: vec![Doc {

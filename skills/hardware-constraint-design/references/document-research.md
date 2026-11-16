@@ -83,7 +83,10 @@ hcp-manager --workspace ws --json search "strapping pins boot mode" --device ESP
 * `--mode keyword` (the default), `--mode vector` and `--mode hybrid` (keywords plus vectors). The vectors are made by
   `index build` with the provider in `<workspace>/embedding.yaml`; without a file it is the local `hashing` one, which is
   **lexical** (words, word pairs, character trigrams): it helps with spelling variants and word parts, not with synonyms.
-  A real model is plugged in with provider `command` (a local program) or `http`. Every hit says whether the keywords
+  A real model is plugged in with provider `openai` (an OpenAI-compatible service, `base_url` with or without `/v1`, the key from an
+  environment variable or a command, never from a file), `command` (a local program) or `http`; `embedding.yaml` can hold several
+  named profiles (`--profile NAME`) and a store backend (`--backend sqlite|jsonl`). Another model or dimension makes a new
+  generation of vectors and keeps the old one until `index prune`. Every hit says whether the keywords
   and/or the vectors matched (`matched_by`); a hybrid search without usable vectors says so (`degraded`) and is a keyword
   search; `--mode vector` without them is an error. `hcp-manager chunk show CHUNK_ID` prints the block of a hit with its
   document, version, page, section and digests: that is the way back to the original.

@@ -63,7 +63,7 @@ rejection, 3 invalid input, 4 output refused, 2 usage):
 | `edit-request`, `check-edit` | a fixed base board that an AI may edit only inside a whitelist |
 
 `hcp-manager` (exit codes as above): `init`, `info` (the interface contract, `interface: "1"`), `sources add|import|list|resolve|sync|check`,
-`index build|rebuild|status`, `search` (`--device`, `--revision`, `--version`, `--source-level`, `--mode keyword|vector|hybrid`), `chunk show`,
+`index build|rebuild|status|prune`, `search` (`--device`, `--revision`, `--version`, `--source-level`, `--mode keyword|vector|hybrid`), `chunk show`,
 `embedding show|test`, `evidence verify`, `packs list|show|create|import|export|resolve`, `packs builtin list|show|verify|install`, `release seal|index|build`.
 The full list and the contract: [HCP_MANAGER.md](HCP_MANAGER.md); shipping packs with a release and installing them offline: [hcp-pack-release.md](hcp-pack-release.md).
 

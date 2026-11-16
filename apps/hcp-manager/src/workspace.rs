@@ -16,13 +16,21 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub root: PathBuf,
+    /// `--profile`: the embedding profile for this command (else `active_profile` of embedding.yaml)
+    pub profile: Option<String>,
+    /// `--backend`: the vector store backend for this command (else `store.backend` of embedding.yaml, else sqlite)
+    pub backend: Option<String>,
 }
 
 impl Workspace {
+    pub fn new(root: PathBuf) -> Workspace {
+        Workspace { root, profile: None, backend: None }
+    }
+
     /// `--workspace`, else `$HCP_MANAGER_HOME`, else `./.hcp`.
     pub fn resolve(arg: Option<PathBuf>) -> Workspace {
         let root = arg.or_else(|| std::env::var_os("HCP_MANAGER_HOME").map(PathBuf::from)).unwrap_or_else(|| PathBuf::from(".hcp"));
-        Workspace { root }
+        Workspace::new(root)
     }
 
     pub fn inventory_path(&self) -> PathBuf {
@@ -40,6 +48,10 @@ impl Workspace {
     /// The embedded store: text blocks, vectors and what they were built from. Derived: delete it and build it again.
     pub fn index_db_path(&self) -> PathBuf {
         self.derived_dir().join("index.db")
+    }
+    /// The reference store without a database: a directory of JSON Lines files. Another backend, another location: they never share files.
+    pub fn index_jsonl_dir(&self) -> PathBuf {
+        self.derived_dir().join("jsonl")
     }
     pub fn embedding_config_path(&self) -> PathBuf {
         self.root.join("embedding.yaml")

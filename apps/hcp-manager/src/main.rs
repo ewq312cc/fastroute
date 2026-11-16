@@ -21,6 +21,12 @@ struct Cli {
     /// Print the result as JSON on standard output
     #[arg(long, global = true)]
     json: bool,
+    /// The embedding profile for this command (default: `active_profile` of embedding.yaml)
+    #[arg(long, global = true, value_name = "NAME")]
+    profile: Option<String>,
+    /// The vector store backend for this command: sqlite (default) or jsonl (default: `store.backend` of embedding.yaml)
+    #[arg(long, global = true, value_name = "NAME")]
+    backend: Option<String>,
     #[command(subcommand)]
     command: Cmd,
 }
@@ -160,8 +166,10 @@ enum IndexCmd {
         #[arg(long)]
         authorize_remote: bool,
     },
-    /// What is built, what is stale and why
+    /// What is built, what is stale and why; which backend and profile are in force; the generations of vectors in the store
     Status,
+    /// Remove the vectors of every embedding configuration except the one in force (older generations are otherwise kept, never deleted by a build)
+    Prune,
 }
 
 #[derive(Subcommand)]
@@ -326,7 +334,13 @@ fn parse_applies(items: &[String]) -> Vec<Applies> {
 }
 
 fn run(cli: Cli) -> Result<u8> {
-    let ws = Workspace::resolve(cli.workspace.clone());
+    let mut ws = Workspace::resolve(cli.workspace.clone());
+    ws.profile = cli.profile.clone();
+    ws.backend = cli.backend.clone();
+    if let Some(b) = &ws.backend {
+        hcp_manager::store::Kind::parse(b)?;
+    }
+    let ws = ws;
     let json = cli.json;
     match cli.command {
         Cmd::Init => {
@@ -346,7 +360,7 @@ fn run(cli: Cli) -> Result<u8> {
                 "version": env!("CARGO_PKG_VERSION"),
                 "interface": INTERFACE_VERSION,
                 "commands": [
-                    "init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status", "search", "chunk show",
+                    "init", "info", "sources add|import|list|resolve|sync|check", "index build|rebuild|status|prune", "search", "chunk show",
                     "embedding show|test", "evidence verify", "packs list|show|create|import|export|resolve", "packs builtin list|show|verify|install", "release seal|index|build"
                 ],
                 "capabilities": {
@@ -354,11 +368,13 @@ fn run(cli: Cli) -> Result<u8> {
                     "vector_index": true,
                     "hybrid_search": true,
                     "embedded_store": "sqlite",
+                    "vector_backends": ["sqlite", "jsonl"],
+                    "embedding_profiles": true,
                     "builtin_packs": true,
                     "pack_inheritance": true,
                     "release_format": release::RELEASE_FORMAT,
                     "pack_manifest_version": release::MANIFEST_VERSION,
-                    "embedding_providers": ["hashing", "command", "http"],
+                    "embedding_providers": ["hashing", "command", "http", "openai"],
                     "default_embedding_provider": "hashing",
                     "semantic_model_bundled": false,
                     "remote_embedding_by_default": false,
@@ -743,14 +759,29 @@ fn run_index(ws: &Workspace, cmd: IndexCmd, json: bool) -> Result<u8> {
     match cmd {
         IndexCmd::Build { docs, force, no_vector, authorize_remote } => report_build(index::build(ws, &inv, &docs, &index::BuildOptions { force, no_vector, authorize_remote })?, json),
         IndexCmd::Rebuild { no_vector, authorize_remote } => report_build(index::rebuild(ws, &inv, &index::BuildOptions { force: true, no_vector, authorize_remote })?, json),
+        IndexCmd::Prune => {
+            let r = index::prune(ws)?;
+            if json {
+                print_json(&r);
+            } else {
+                println!("{}: kept {}, removed {} older generation(s) of vectors", r.backend, r.kept, r.removed_generations);
+            }
+            Ok(0)
+        }
         IndexCmd::Status => {
             let s = index::status(ws, &inv);
             if json {
                 print_json(&s);
             } else {
-                println!("keyword index: {}; vector index: {}; store: {}", s.keyword_index, s.vector_index, s.store.state);
+                println!("keyword index: {}; vector index: {}; store: {} ({}, {})", s.keyword_index, s.vector_index, s.store.state, s.store.backend, s.store.path);
+                if let Some(r) = &s.store.reason {
+                    println!("store: {r}");
+                }
                 if let Some(e) = &s.embedder.configured {
-                    println!("embedding: {} ({}{})", e.key, e.provider, if e.remote { ", REMOTE" } else { ", local" });
+                    println!("embedding: {} ({}{}), profile {}", e.key, e.provider, if e.remote { ", REMOTE" } else { ", local" }, s.embedder.profile.as_deref().unwrap_or("?"));
+                }
+                for g in s.embedder.generations.iter().filter(|g| !g.in_force) {
+                    println!("older generation kept: {} ({} vectors); `index prune` removes it", g.embedder_key, g.vectors);
                 }
                 if let Some(p) = &s.embedder.problem {
                     println!("embedding problem: {p}");
@@ -802,23 +833,45 @@ fn report_build(r: index::BuildReport, json: bool) -> Result<u8> {
 fn run_embedding(ws: &Workspace, cmd: EmbeddingCmd, json: bool) -> Result<u8> {
     match cmd {
         EmbeddingCmd::Show => {
-            let cfg = embed::load_config(ws)?;
+            let settings = embed::load_settings(ws)?;
+            let cfg = settings.config.clone();
             let info = embed::describe(&cfg)?;
+            // what the configuration says, without anything that could be a secret: the key is only ever named (an environment variable,
+            // or the program that prints it), never shown
+            let mut shown = serde_json::to_value(&cfg).expect("serialises");
+            if let Some(c) = cfg.api_key_command.as_ref().and_then(|c| c.first()) {
+                shown["api_key_command"] = json!([c, "..."]);
+            }
+            let key_source = match (&cfg.api_key_env, &cfg.api_key_command) {
+                (Some(e), _) => format!("environment variable {e}"),
+                (_, Some(c)) => format!("the output of {}", c.first().cloned().unwrap_or_default()),
+                _ => "none (no Authorization header is sent)".to_string(),
+            };
+            let kind = hcp_manager::store::Store::kind(ws)?;
             let out = json!({
                 "format": "hcp-manager-embedding",
-                "format_version": "1.0",
+                "format_version": "1.1",
                 "config_file": ws.embedding_config_path().display().to_string(),
                 "config_file_present": ws.embedding_config_path().exists(),
-                "config": cfg,
+                "profile": settings.profile,
+                "profiles": settings.profiles,
+                "store_backend": kind.name(),
+                "store_location": kind.location(ws).display().to_string(),
+                "config": shown,
                 "embedder": info,
+                "api_key_source": key_source,
                 "text_leaves_this_machine": info.remote,
                 "remote_requires": if info.remote { json!(["allow_remote: true in embedding.yaml", "--authorize-remote on the command", "embed_remote: true in the inventory entry of each document that may be sent"]) } else { json!([]) },
-                "note": if info.provider == "hashing" { "the hashing provider is lexical (words, word pairs and character trigrams); a semantic model is plugged in with provider `command` or `http`" } else { "" },
+                "note": if info.provider == "hashing" { "the hashing provider is lexical (words, word pairs and character trigrams); a semantic model is plugged in with provider `openai`, `command` or `http`" } else { "" },
             });
             if json {
                 print_json(&out);
             } else {
-                println!("provider {} model {} version {} dim {}; text leaves this machine: {}", info.provider, info.model, info.version, info.dim, if info.remote { "YES (remote)" } else { "no" });
+                println!("profile {} ({} defined): provider {} model {} version {} dim {}; text leaves this machine: {}", settings.profile, settings.profiles.len(), info.provider, info.model, info.version, info.dim, if info.remote { "YES (remote)" } else { "no" });
+                if let Some(e) = &info.endpoint {
+                    println!("endpoint: {e}; API key: {key_source}");
+                }
+                println!("store backend: {} ({})", kind.name(), kind.location(ws).display());
                 println!("config file: {} ({})", ws.embedding_config_path().display(), if ws.embedding_config_path().exists() { "present" } else { "absent: the local default is used" });
             }
             Ok(0)

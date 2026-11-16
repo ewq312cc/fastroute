@@ -14,7 +14,7 @@ It does not judge what a document means, it does not produce rules, and nothing 
 | **fact** | the knowledge packs (HCP YAML) | `<workspace>/packs/<id>/<version>/pack.yaml` | it is the record |
 | **fact** | the configuration of the embedding provider | `<workspace>/embedding.yaml` (optional) | the local default is used |
 | derived | the cached documents, named by digest | `<workspace>/cache/<DOC>/<sha256>.<ext>` | `sources sync` fetches them again and checks the digest |
-| derived | the index: text blocks and vectors, in one SQLite file | `<workspace>/derived/index.db` | `index build` makes it again from the cache |
+| derived | the index: text blocks and vectors, in the store backend in force: SQLite (default) or JSON Lines | `<workspace>/derived/index.db` or `<workspace>/derived/jsonl/` | `index build` makes it again from the cache |
 
 A workspace is one directory. Documents, packs and indexes of different workspaces never meet; inside a workspace packs are kept by id and
 version, blocks by document and the digest of the file they were cut from, and vectors by the identity of the embedding configuration.
@@ -33,7 +33,9 @@ Exit codes as in fastroute: 0 ok, 1 failed, 2 usage, 3 input, 4 output refused, 
 | `init`, `info` | create the directories; the contract (`interface`, commands, capabilities, exit codes) |
 | `sources add\|import\|list\|resolve\|sync\|check` | the inventory; `resolve --device PART` lists the documents for the exact device, best source first, and names similar models that were excluded; `sync` downloads and pins digests (a changed file is reported, not adopted, without `--accept`) |
 | `index build [DOC...] [--force] [--no-vector] [--authorize-remote]` | makes what is missing or stale, keeps what is current |
-| `index rebuild`, `index status` | delete everything derived and build it again; what is built, what is stale, and why |
+| `index rebuild`, `index status` | delete the derived index of the backend in force and build it again; what is built, what is stale, and why; backend, profile and the generations of vectors |
+| `index prune` | remove the vectors of every embedding configuration except the one in force (the only way an older generation goes away) |
+| `--profile NAME`, `--backend sqlite\|jsonl` (any command) | the embedding profile and the store backend for this command (else `active_profile` / `store.backend` of `embedding.yaml`, else the local default and SQLite) |
 | `search WORDS --device --revision --version --source-level --limit --mode keyword\|vector\|hybrid [--authorize-remote]` | filtered by device, version and source level **before** it is ranked; ordered by source priority (official manual, guide, devkit, open board, community), then by score |
 | `chunk show CHUNK_ID` | the block of a hit: document, version, level, devices, page, section, the text and its digest, the cached file and its digest, whether the index of it is current |
 | `embedding show\|test` | the configuration in force and whether text would leave this machine; a test embedding |
@@ -56,8 +58,14 @@ Exit codes as in fastroute: 0 ok, 1 failed, 2 usage, 3 input, 4 output refused, 
 
 ## The index
 
-One SQLite file with these tables: `documents` (per document: the digest of the source, the chunking strategy, a signature of its inventory entry, the number
-of blocks), `chunks` (see the block schema below), `embedders`, `doc_vectors` and `vectors`. No timestamps: building twice gives the same file content.
+The derived index holds `documents` (per document: the digest of the source, the chunking strategy, a signature of its inventory entry, the number of blocks), `chunks` (the blocks, see below), `embedders`, `doc_vectors` and `vectors`. No timestamps: building twice gives the same content. It lives in one of two **store backends** behind one interface (`store::Backend`); each has its own location and is built, checked and removed on its own:
+
+| Backend | Where | What it is |
+|---|---|---|
+| `sqlite` (default) | `derived/index.db` | one SQLite file |
+| `jsonl` | `derived/jsonl/` | plain JSON Lines files (`documents`, `chunks`, `embedders`, `doc_vectors`, `vectors`) and `store.json`, a manifest with the format version and the SHA-256 and line count of every file. It is the reference second format: it shows that the stored format is replaceable and can be read with any tool. It is read into memory when opened and rewritten on change: for small workspaces and debugging, **not** a fast store and not an ANN index |
+
+The backend is chosen by `--backend`, else `store.backend` of `embedding.yaml`, else `sqlite`. The same queries give the same candidates, scores and references on both (compared exactly in `tests/backends.rs`, with a fixed fake embedding); a hit goes back to document, version, page and section with `chunk show` on either. A backend is never converted into the other: build it from the cache. **A store of another layout version, or a damaged one** (a file that does not match its checksum, a database that fails its check, fewer vectors than the record says) is reported by `index status` with the reason and replaced by `index build`, never migrated in place: it holds nothing the cache cannot rebuild.
 
 **A block** (`schemas/chunk-v1.schema.json`, printed by `chunk show`): `chunk_id` (`CHK-<DOC>@<first 8 digits of the document's SHA-256>:p<page>.<n>`),
 `document_id`, `document_version`, `level` (source level), `applies_to` (the devices), `page`, `ordinal`, `section`, `text`, `text_sha256`. Blocks are cut at
@@ -70,8 +78,9 @@ paragraph boundaries (about 400 to 1500 characters; strategy `paragraph-400-1500
 | the cached document changed (another digest) | blocks and vectors of that document are stale |
 | the chunking strategy of the program changed | blocks stale |
 | the inventory entry changed (version, level, devices) | blocks stale: they carry those fields |
-| the embedding configuration changed (provider, model, version, dimension, command, URL) | vectors stale; blocks kept |
-| the store file is damaged or of another layout version | it is replaced (said in the build report) |
+| the embedding configuration changed (provider, model, version, dimension, command, URL) | vectors stale; blocks kept; the vectors of the old configuration are **kept** as an older generation (until `index prune`), never mixed in |
+| the store holds fewer vectors than it recorded | the vectors of that document are stale (`damaged`); blocks kept |
+| the store is damaged or of another layout version | it is replaced by the next build (said in the status and in the build report) |
 
 Search and `evidence verify` use only the blocks of a current index. Text of an older version of a document is never taken for the text of the cached one.
 
@@ -81,13 +90,14 @@ Search and `evidence verify` use only the blocks of a current index. Text of an 
 part of a pack, an IR or a verdict (`hcp_version` 1.0 packs with such fields are refused: `vector_field`; `fr-constraint` and `fastroute` do not link this
 application or the database, which a test checks). A hit carries `hit_semantics`, `matched_by` (`keyword` and/or `vector`), `keyword_score` and `vector_similarity`.
 
-**Providers** (`<workspace>/embedding.yaml`, schema `schemas/embedding-config-v1.schema.json`; without the file the first is used):
+**Providers** (`<workspace>/embedding.yaml`, schema `schemas/embedding-config-v1.schema.json`, an annotated example in [`apps/hcp-manager/config.example.yaml`](../apps/hcp-manager/config.example.yaml); without the file the first is used):
 
 | Provider | What | Leaves the machine? |
 |---|---|---|
 | `hashing` (default) | built in, deterministic, local: words, word pairs and character trigrams hashed into `dim` (default 384) signed buckets. **It is lexical**: it helps with spelling variants and parts of words and identifiers, not with synonyms. No model is bundled. | no |
 | `command` | a program you name (argument list, no shell, run in the workspace directory): `{"texts": [...]}` on stdin, `{"model", "version", "dim", "vectors"}` on stdout; model, version and dimension must be what the configuration says | what the program does is its own business |
-| `http` | an OpenAI-style embeddings endpoint (`{"model", "input"}`; `{"data": [{"index", "embedding"}]}` or `{"embeddings": [...]}`), via `curl`; the API key comes from the environment variable named by `api_key_env`, never from a file | **only if the host is not this machine** |
+| `openai` | an OpenAI-compatible embeddings service (below) | **only if the host is not this machine** |
+| `http` | an OpenAI-style embeddings endpoint (`{"model", "input"}`; `{"data": [{"index", "embedding"}]}` or `{"embeddings": [...]}`), via `curl`; the API key comes from the environment variable named by `api_key_env`, never from a file. Kept as it was; `openai` is the one with retries, batches and a checked dimension | **only if the host is not this machine** |
 
 **Remote embedding is refused unless all of these hold**: `allow_remote: true` in `embedding.yaml`; `--authorize-remote` on the command that would send; and
 `embed_remote: true` on the inventory entry of **each document** that may be sent. The query of a search is sent only under the first two. An endpoint on
@@ -112,11 +122,25 @@ its words are. The vector store sits behind the `VectorIndex` trait (`src/store.
 On these documents the default vectors do not add to the keywords (the questions are a small sample: one question is noise); they find spelling variants that
 the words miss (shown on a fixture), and the layer is where a real model is plugged in. No semantic model was bundled, downloaded or tested here.
 
+### The OpenAI-compatible provider, profiles and generations
+
+* **Request**: `POST <endpoint>` with `{"model", "input": [texts], "encoding_format": "float"}` (and `dimensions` with `send_dimensions: true`), `Content-Type: application/json` and, when a key is configured, `Authorization: Bearer <key>`. **Answer**: `{"data": [{"index", "embedding": [numbers]}]}`; items may come in any order, `index` says which text each belongs to, and the `index` values must be `0..n-1` once each. An empty or malformed answer, a missing `data`, duplicate or out-of-range indices, or a vector of another size than `dim` is an error that says why, and nothing is stored.
+* **Address**: `base_url` with or without the version prefix (`https://h`, `https://h/v1`, `https://h/v1/embeddings` all reach `https://h/v1/embeddings`; a prefix that already ends in a version such as `/api/paas/v4` is kept and `/embeddings` appended); `embeddings_path` replaces everything after the host for services with another path. No credentials or query in the address. `embedding show` prints the endpoint that will be used.
+* **`dim` is required and checked on every answer.** A service that returns another size (a different model, or `dimensions`) is an error that tells you to set `dim` and build again; vectors of another size are never mixed in.
+* **Batches, time, retries**: `batch` texts per request (default 32, at most 2048), `timeout_s` (default 60), `retries` (default 2) after a timeout, a **429** or a **5xx** answer, waiting `retry_backoff_ms` (default 500, doubled each time; `Retry-After` honoured up to 30 s). Nothing else is retried: 401/403 (the credentials were refused; names where the key comes from), 404 (says to check `base_url` and `embeddings_path`), other 4xx (the service's message, cut to 160 characters, with the key blanked out), a refused connection (`cannot be reached`).
+* **The key** comes from the environment variable named by `api_key_env` or from the output of `api_key_command` (a program and arguments, no shell); never from the configuration, never stored. It travels to curl in a file in a private directory, not on a command line, and appears in no output, error message or file (tested by searching every output and every file of the workspace for it). `embedding show` names the source and prints only the program name of a command, not its arguments.
+* **Remote**: unchanged. `allow_remote: true` **and** `--authorize-remote` **and** `embed_remote: true` on each document; with any missing nothing is sent (tested: zero requests reach the mock). A service on localhost is local.
+* **Profiles**: `embedding.yaml` may define several named `profiles` with one `active_profile`; `--profile NAME` picks another for one command. A file with one provider written flat is the profile `default`. An unknown name, several profiles with none named, or a flat provider together with `profiles` is an error, never a fallback to another profile.
+* **Generations**: the vectors belong to the configuration (its key `provider:model:version:dim:digest`, which includes the endpoint) they were made with. Switching the profile, the model, the dimension or the address makes a **new generation**: the old one is **kept** (searches use only the one in force), and `index status` lists every generation. Nothing deletes an older generation but `index prune`. There is no online migration: a new generation is made from the cache.
+* **Offline**: with the service unreachable, `index build` makes the blocks (keyword index complete) and exits 5 for the vectors; `search --mode hybrid` is a keyword search and says why; `--mode vector` is an error. Compile, validate and everything in `fastroute constraints` read neither the service nor the index.
+
+**What has been verified** (see `tests/openai.rs`, `tests/backends.rs`): this program's requests and its handling of answers, errors, limits and timeouts, against a **mock of the protocol** (a real HTTP service on this machine that records every request), for both store backends. **No real OpenAI or other third-party service was called**, so how any of them behaves (their limits, their exact error bodies, their vector sizes and quality) is not verified here; a real service is a configuration you test with `embedding test`. The vectors in the tests are fixed fakes: retrieval quality with a real model is not measured.
+
 ## The contract
 
 `hcp-manager info --json`: `"interface": "1"`. Within interface 1 changes are **additive**: new commands, new options, new JSON fields (and `format_version` of a
 result goes up in its minor part); nothing is removed, renamed or given another meaning. A change that breaks that is `interface: "2"`, and a program that
-speaks 1 refuses it (the Skill's `doctor` does). `capabilities` says what exists (`keyword_search`, `vector_index`, `hybrid_search`, `embedded_store`,
+speaks 1 refuses it (the Skill's `doctor` does). `capabilities` says what exists (`keyword_search`, `vector_index`, `hybrid_search`, `embedded_store`, `vector_backends`, `embedding_profiles`,
 `embedding_providers`, `semantic_model_bundled`, `remote_embedding_by_default`, `builtin_packs`, `pack_inheritance`, `pack_manifest_version`, `release_format`, `pdf_text`, `network_fetch`); `pdf_text` needs `pdftotext` and `network_fetch`
 needs `curl`. A command line is the interface: there is no server and no GUI. The library (`hcp_manager::{inventory, sources, index, search, evidence, packs, embed, store}`)
 is the same code and has the same behaviour; it is not a separate stable API.

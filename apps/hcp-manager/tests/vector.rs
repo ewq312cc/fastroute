@@ -307,8 +307,17 @@ fn another_embedding_configuration_makes_the_vectors_stale_and_keywords_carry_on
     assert!(keys.iter().all(|k| k.1 == "kept" && k.2 == "built"), "{keys:?}");
     let st = jsn(&run(&f.ws, &["--json", "index", "status"]));
     assert_eq!(st["vector_index"], "ready");
-    assert!(st["embedder"]["stored"].as_str().unwrap().starts_with("hashing:hash-ngram:1:128:"), "{st}");
-    assert_eq!(search(&f.ws, "antenna keep-out copper", &["--device", "AC-100", "--mode", "hybrid"])["vector"]["embedder"], st["embedder"]["stored"]);
+    // the configuration in force has its own generation of vectors; the old one is kept (a build never deletes it), until `index prune`
+    let gens = st["embedder"]["generations"].as_array().unwrap();
+    assert_eq!(gens.len(), 2, "{st}");
+    let now = gens.iter().find(|g| g["in_force"] == true).unwrap();
+    assert!(now["embedder_key"].as_str().unwrap().starts_with("hashing:hash-ngram:1:128:"), "{st}");
+    assert!(st["embedder"]["stored"].as_str().unwrap().starts_with("hashing:hash-ngram:1:384:"), "the older generation is the one that is reported as another: {st}");
+    assert_eq!(search(&f.ws, "antenna keep-out copper", &["--device", "AC-100", "--mode", "hybrid"])["vector"]["embedder"], now["embedder_key"]);
+    let pruned = jsn(&run(&f.ws, &["--json", "index", "prune"]));
+    assert_eq!(pruned["removed_generations"], 1, "{pruned}");
+    let st = jsn(&run(&f.ws, &["--json", "index", "status"]));
+    assert_eq!((st["embedder"]["generations"].as_array().unwrap().len(), st["vector_index"].as_str()), (1, Some("ready")));
     // a broken configuration is said, and nothing but the vectors is lost
     write_embedding(&f.ws, "provider: carrier-pigeon\n");
     let st = jsn(&run(&f.ws, &["--json", "index", "status"]));

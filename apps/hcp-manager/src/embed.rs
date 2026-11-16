@@ -1,7 +1,8 @@
 //! Embedding providers: how the text of a block becomes a vector. The vector layer is for finding candidate passages; nothing
 //! downstream reads a vector or a similarity (a pack, an IR and every verdict are made without them).
 //!
-//! Three providers, chosen in `<workspace>/embedding.yaml` (default: the first, with no file at all):
+//! Four providers, chosen in `<workspace>/embedding.yaml` (default: the first, with no file at all; the file may also hold several named
+//! profiles, of which one is in force):
 //!
 //! * `hashing`: local, built in, deterministic. A feature-hashing embedding of words, word pairs and character trigrams. It is
 //!   **lexical**: it finds passages that share words or word parts with the query (spelling variants, parts of identifiers, phrases),
@@ -14,6 +15,11 @@
 //!   provider never receives anything unless all of these hold: the configuration says `allow_remote: true`, the command is run with
 //!   `--authorize-remote`, and, per document, the inventory says `embed_remote: true`. The query of a search is sent only under the
 //!   first two. The API key is read from the environment variable that the configuration names; it is never written anywhere.
+//!
+//! * `openai`: an OpenAI-compatible embeddings service (`POST <base_url>/embeddings`, `{"model", "input": [...]}`, answer
+//!   `{"data": [{"index", "embedding"}]}`): `base_url` with or without `/v1`, a batch size, a timeout, a limited number of retries (timeouts,
+//!   429, 5xx), the API key from an environment variable or an external command, a dimension that is checked on every answer. Same
+//!   remote rules as `http`; the key and the text of your documents never appear in an error message.
 //!
 //! The configuration is part of the identity of the vector index (`embedder_key`): another provider, model, version, dimension,
 //! command or URL makes the existing vectors stale.
@@ -60,6 +66,22 @@ pub struct EmbeddingConfig {
     /// model you plug in. It does not change the vectors, so it is not part of their identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vector_weight: Option<f64>,
+    /// provider `openai`: the service address, with or without `/v1`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// provider `openai`: the path of the endpoint when it is not `<base_url>/embeddings` (after the version prefix)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embeddings_path: Option<String>,
+    /// provider `openai`: send `dimensions: dim` with each request
+    #[serde(default)]
+    pub send_dimensions: bool,
+    /// An external program that prints the API key (no shell). The key is read when a request is made and goes nowhere else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_command: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retries: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_backoff_ms: Option<u64>,
 }
 
 impl EmbeddingConfig {
@@ -74,15 +96,26 @@ fn one_zero() -> String {
 
 impl EmbeddingConfig {
     pub fn local_default() -> EmbeddingConfig {
-        EmbeddingConfig { embedding_version: one_zero(), provider: "hashing".into(), model: None, version: None, dim: None, command: None, url: None, api_key_env: None, allow_remote: false, batch: None, timeout_s: None, vector_weight: None }
+        EmbeddingConfig { embedding_version: one_zero(), provider: "hashing".into(), model: None, version: None, dim: None, command: None, url: None, api_key_env: None, allow_remote: false, batch: None, timeout_s: None, vector_weight: None, base_url: None, embeddings_path: None, send_dimensions: false, api_key_command: None, retries: None, retry_backoff_ms: None }
     }
 }
 
-/// The configuration of the workspace: `embedding.yaml`, or the local default when there is none.
-pub fn load_config(ws: &Workspace) -> Result<EmbeddingConfig> {
+/// The embedding settings in force: the profile (its name and its provider configuration) and the store backend the file asks for.
+#[derive(Debug, Clone, Serialize)]
+pub struct Settings {
+    /// `default` for a flat file or no file
+    pub profile: String,
+    pub config: EmbeddingConfig,
+    /// every profile the file defines
+    pub profiles: Vec<String>,
+    /// `store.backend` of the file, if it says
+    pub backend: Option<String>,
+}
+
+fn read_config_value(ws: &Workspace) -> Result<Option<Value>> {
     let p = ws.embedding_config_path();
     if !p.exists() {
-        return Ok(EmbeddingConfig::local_default());
+        return Ok(None);
     }
     let text = std::fs::read_to_string(&p).map_err(|e| Error::input(format!("{}: {e}", p.display())))?;
     let y: serde_yaml::Value = serde_yaml::from_str(&text).map_err(|e| Error::input(format!("{}: not valid YAML: {e}", p.display())))?;
@@ -92,7 +125,56 @@ pub fn load_config(ws: &Workspace) -> Result<EmbeddingConfig> {
     if let Some(e) = errors.first() {
         return Err(Error::input(format!("{}: not a valid embedding configuration: {}: {} ({} problem(s))", p.display(), e.path, e.message, errors.len())));
     }
-    serde_json::from_value(v).map_err(|e| Error::input(format!("{}: {e}", p.display())))
+    Ok(Some(v))
+}
+
+/// The settings of the workspace: `embedding.yaml` (one provider written flat is the profile `default`, or several named `profiles` of
+/// which `--profile` or `active_profile` picks exactly one), or the local default when there is no file. A name that does not exist is
+/// an error, never a fallback to another profile.
+pub fn load_settings(ws: &Workspace) -> Result<Settings> {
+    let Some(v) = read_config_value(ws)? else {
+        if let Some(p) = ws.profile.as_deref().filter(|p| *p != "default") {
+            return Err(Error::input(format!("no embedding profile '{p}': there is no embedding.yaml, only the local default")));
+        }
+        return Ok(Settings { profile: "default".into(), config: EmbeddingConfig::local_default(), profiles: vec!["default".into()], backend: None });
+    };
+    let file = ws.embedding_config_path().display().to_string();
+    let backend = v["store"]["backend"].as_str().map(str::to_string);
+    if let Some(profiles) = v.get("profiles").and_then(Value::as_object) {
+        if v.get("provider").is_some() {
+            return Err(Error::input(format!("{file}: give either one provider written flat or `profiles`, not both")));
+        }
+        let names: Vec<String> = profiles.keys().cloned().collect();
+        let want = match (ws.profile.clone().or_else(|| v["active_profile"].as_str().map(str::to_string)), names.len()) {
+            (Some(w), _) => w,
+            (None, 1) => names[0].clone(),
+            (None, 0) => return Err(Error::input(format!("{file}: `profiles` is empty"))),
+            (None, _) => return Err(Error::input(format!("{file}: there are several profiles ({}): name the one in force with `active_profile` or --profile", names.join(", ")))),
+        };
+        let cfg = profiles.get(&want).ok_or_else(|| Error::input(format!("{file}: no embedding profile '{want}' (the file has: {})", names.join(", "))))?;
+        let config: EmbeddingConfig = serde_json::from_value(cfg.clone()).map_err(|e| Error::input(format!("{file}: profile {want}: {e}")))?;
+        return Ok(Settings { profile: want, config, profiles: names, backend });
+    }
+    if v.get("provider").is_none() {
+        if backend.is_some() {
+            // only `store:` is given: the default provider with the store that was asked for
+            if let Some(p) = ws.profile.as_deref().filter(|p| *p != "default") {
+                return Err(Error::input(format!("{file}: no embedding profile '{p}'")));
+            }
+            return Ok(Settings { profile: "default".into(), config: EmbeddingConfig::local_default(), profiles: vec!["default".into()], backend });
+        }
+        return Err(Error::input(format!("{file}: needs `provider` (one provider written flat) or `profiles`")));
+    }
+    if let Some(p) = ws.profile.as_deref().filter(|p| *p != "default") {
+        return Err(Error::input(format!("{file}: no embedding profile '{p}': the file has one provider written flat, which is the profile `default`")));
+    }
+    let config: EmbeddingConfig = serde_json::from_value(v.clone()).map_err(|e| Error::input(format!("{file}: {e}")))?;
+    Ok(Settings { profile: "default".into(), config, profiles: vec!["default".into()], backend })
+}
+
+/// The provider configuration in force (see [`load_settings`]).
+pub fn load_config(ws: &Workspace) -> Result<EmbeddingConfig> {
+    Ok(load_settings(ws)?.config)
 }
 
 /// What an embedder is, known from the configuration alone (no program is started, nothing is sent).
@@ -110,6 +192,9 @@ pub struct EmbedderInfo {
     /// The host of the endpoint, for messages
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
+    /// The URL that requests go to (provider `openai`: after the version prefix is normalised)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
 }
 
 fn host_of(url: &str) -> Option<String> {
@@ -124,8 +209,53 @@ fn is_loopback(host: &str) -> bool {
     host == "localhost" || host == "::1" || host.starts_with("127.")
 }
 
+/// The embeddings URL of an OpenAI-compatible service. `base_url` may or may not contain the version prefix: `https://h`,
+/// `https://h/v1` and `https://h/v1/embeddings` all mean `https://h/v1/embeddings`; a prefix of another shape (`/api/paas/v4`) is
+/// kept and `/embeddings` is appended; `embeddings_path` replaces everything after the host. No credentials in the URL.
+pub fn openai_endpoint(base: &str, path_override: Option<&str>) -> Result<String> {
+    // an address with credentials in it is never echoed back
+    let shown = match base.split_once("://") {
+        Some((s, rest)) if rest.split('/').next().is_some_and(|a| a.contains('@')) => format!("{s}://***@{}", rest.split_once('@').map(|x| x.1).unwrap_or("")),
+        _ => base.to_string(),
+    };
+    let bad = |why: &str| Error::input(format!("embedding.yaml: the base_url '{shown}' {why}"));
+    let (scheme, rest) = base.split_once("://").ok_or_else(|| bad("is not http(s)://host/..."))?;
+    if scheme != "http" && scheme != "https" {
+        return Err(bad("is not http(s)://host/..."));
+    }
+    if base.contains(['?', '#']) {
+        return Err(bad("has a query or a fragment: give only the address (https://host or https://host/v1)"));
+    }
+    let (authority, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, ""),
+    };
+    if authority.is_empty() {
+        return Err(bad("has no host"));
+    }
+    if authority.contains('@') {
+        return Err(bad("has credentials in the address: the key goes in `api_key_env` or `api_key_command`, never in the URL"));
+    }
+    let origin = format!("{scheme}://{authority}");
+    if let Some(over) = path_override {
+        return Ok(format!("{origin}{over}"));
+    }
+    let path = path.trim_end_matches('/');
+    let last = path.rsplit('/').next().unwrap_or("");
+    let versioned = last.len() >= 2 && last.starts_with('v') && last[1..].starts_with(|c: char| c.is_ascii_digit());
+    let full = if path.ends_with("/embeddings") {
+        path.to_string()
+    } else if versioned {
+        format!("{path}/embeddings")
+    } else {
+        format!("{path}/v1/embeddings")
+    };
+    Ok(format!("{origin}{full}"))
+}
+
 pub fn describe(cfg: &EmbeddingConfig) -> Result<EmbedderInfo> {
     let need = |v: &Option<String>, what: &str| v.clone().filter(|s| !s.is_empty()).ok_or_else(|| Error::input(format!("embedding.yaml: provider {} needs `{what}`", cfg.provider)));
+    let mut endpoint: Option<String> = None;
     let (model, version, dim, remote, host) = match cfg.provider.as_str() {
         "hashing" => {
             let dim = cfg.dim.unwrap_or(DEFAULT_DIM);
@@ -149,12 +279,26 @@ pub fn describe(cfg: &EmbeddingConfig) -> Result<EmbedderInfo> {
             let dim = cfg.dim.ok_or_else(|| Error::input("embedding.yaml: provider http needs `dim`"))?;
             (need(&cfg.model, "model")?, cfg.version.clone().unwrap_or_else(|| "1".into()), dim, !is_loopback(&host), Some(host))
         }
-        other => return Err(Error::input(format!("embedding.yaml: unknown provider '{other}' (hashing, command, http)"))),
+        "openai" => {
+            let base = need(&cfg.base_url, "base_url")?;
+            let url = openai_endpoint(&base, cfg.embeddings_path.as_deref())?;
+            let host = host_of(&url).ok_or_else(|| Error::input(format!("embedding.yaml: the base_url '{base}' is not http(s)://host/...")))?;
+            let dim = cfg.dim.ok_or_else(|| Error::input("embedding.yaml: provider openai needs `dim` (the number of numbers per vector; it is checked on every answer)"))?;
+            if cfg.api_key_env.is_some() && cfg.api_key_command.is_some() {
+                return Err(Error::input("embedding.yaml: give the API key either with `api_key_env` or with `api_key_command`, not both"));
+            }
+            endpoint = Some(url);
+            (need(&cfg.model, "model")?, cfg.version.clone().unwrap_or_else(|| "1".into()), dim, !is_loopback(&host), Some(host))
+        }
+        other => return Err(Error::input(format!("embedding.yaml: unknown provider '{other}' (hashing, command, http, openai)"))),
     };
-    let ident = json!({"provider": cfg.provider, "model": model, "version": version, "dim": dim, "command": cfg.command, "url": cfg.url});
+    let mut ident = json!({"provider": cfg.provider, "model": model, "version": version, "dim": dim, "command": cfg.command, "url": if cfg.provider == "openai" { json!(endpoint) } else { json!(cfg.url) }});
+    if cfg.provider == "openai" && cfg.send_dimensions {
+        ident["send_dimensions"] = json!(true);
+    }
     let config_sha256 = sha256_hex(fr_constraint::hcp::canonical_json(&ident).as_bytes());
     let key = format!("{}:{model}:{version}:{dim}:{}", cfg.provider, &config_sha256[..8]);
-    Ok(EmbedderInfo { provider: cfg.provider.clone(), model, version, dim, remote, config_sha256, key, host })
+    Ok(EmbedderInfo { provider: cfg.provider.clone(), model, version, dim, remote, config_sha256, key, host, endpoint })
 }
 
 pub trait Embedder {
@@ -181,6 +325,18 @@ pub fn make(cfg: &EmbeddingConfig, authorize_remote: bool, base: &std::path::Pat
     Ok(match cfg.provider.as_str() {
         "hashing" => Box::new(Hashing { info }),
         "command" => Box::new(CommandProvider { info, argv: cfg.command.clone().unwrap_or_default(), cwd: base.to_path_buf(), timeout: Duration::from_secs(cfg.timeout_s.unwrap_or(120)), batch: cfg.batch.unwrap_or(32).max(1) }),
+        "openai" => Box::new(OpenAi {
+            endpoint: info.endpoint.clone().unwrap_or_default(),
+            info,
+            key_env: cfg.api_key_env.clone(),
+            key_cmd: cfg.api_key_command.clone(),
+            cwd: base.to_path_buf(),
+            timeout: cfg.timeout_s.unwrap_or(60),
+            batch: cfg.batch.unwrap_or(32).clamp(1, 2048),
+            retries: cfg.retries.unwrap_or(2).min(10),
+            backoff_ms: cfg.retry_backoff_ms.unwrap_or(500),
+            send_dimensions: cfg.send_dimensions,
+        }),
         _ => Box::new(Http { info, url: cfg.url.clone().unwrap_or_default(), key_env: cfg.api_key_env.clone(), timeout: cfg.timeout_s.unwrap_or(120), batch: cfg.batch.unwrap_or(32).max(1) }),
     })
 }
@@ -429,6 +585,209 @@ impl Embedder for Http {
     }
 }
 
+// ---- an OpenAI-compatible service -----------------------------------------------------------------------------------------
+
+struct OpenAi {
+    info: EmbedderInfo,
+    endpoint: String,
+    key_env: Option<String>,
+    key_cmd: Option<Vec<String>>,
+    cwd: std::path::PathBuf,
+    timeout: u64,
+    batch: usize,
+    retries: u32,
+    backoff_ms: u64,
+    send_dimensions: bool,
+}
+
+struct Reply {
+    status: u16,
+    body: Vec<u8>,
+    retry_after_s: Option<u64>,
+}
+
+enum Transport {
+    Timeout,
+    Refused(String),
+    Other(String),
+}
+
+/// Anything of `secret` in `text` becomes `***`, and the text is cut: what a service says back is shown only in this form.
+fn scrub(text: &str, secret: Option<&str>) -> String {
+    let mut t = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some(s) = secret.filter(|s| s.len() >= 4) {
+        t = t.replace(s, "***");
+    }
+    if t.chars().count() > 160 {
+        t = t.chars().take(160).collect::<String>() + "...";
+    }
+    t
+}
+
+fn curl_post(url: &str, body: &[u8], key: Option<&str>, timeout_s: u64, loopback: bool) -> std::result::Result<Reply, Transport> {
+    // the body and the key go through files in a private directory, not through the argument list (which other users can read)
+    let dir = std::env::temp_dir().join(format!("hcp-manager-embed-{}-{}", std::process::id(), TMP_N.fetch_add(1, std::sync::atomic::Ordering::SeqCst)));
+    std::fs::create_dir_all(&dir).map_err(|e| Transport::Other(format!("{}: {e}", dir.display())))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    let result = (|| {
+        let (body_file, hdr, out_file, resp_hdr) = (dir.join("body.json"), dir.join("headers.txt"), dir.join("response.json"), dir.join("response-headers.txt"));
+        std::fs::write(&body_file, body).map_err(|e| Transport::Other(e.to_string()))?;
+        let mut headers = String::from("Content-Type: application/json\nAccept: application/json\n");
+        if let Some(k) = key {
+            headers.push_str(&format!("Authorization: Bearer {k}\n"));
+        }
+        std::fs::write(&hdr, headers).map_err(|e| Transport::Other(e.to_string()))?;
+        let mut args: Vec<String> = vec!["--silent".into(), "--show-error".into(), "--max-time".into(), timeout_s.to_string()];
+        if loopback {
+            args.extend(["--noproxy".into(), "*".into()]);
+        }
+        args.extend(["-X".into(), "POST".into(), "-H".into(), format!("@{}", hdr.display()), "--data-binary".into(), format!("@{}", body_file.display())]);
+        args.extend(["-o".into(), out_file.display().to_string(), "-D".into(), resp_hdr.display().to_string(), "-w".into(), "%{http_code}".into(), url.to_string()]);
+        let out = Command::new("curl").args(&args).output().map_err(|e| Transport::Other(format!("cannot run curl: {e}")))?;
+        if !out.status.success() {
+            let msg = scrub(&String::from_utf8_lossy(&out.stderr), key);
+            return Err(match out.status.code() {
+                Some(28) => Transport::Timeout,
+                Some(6 | 7) => Transport::Refused(msg),
+                _ => Transport::Other(msg),
+            });
+        }
+        let status: u16 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0);
+        let retry_after_s = std::fs::read_to_string(&resp_hdr).ok().and_then(|h| h.lines().rev().find_map(|l| l.to_ascii_lowercase().strip_prefix("retry-after:").and_then(|v| v.trim().parse::<u64>().ok())));
+        Ok(Reply { status, body: std::fs::read(&out_file).unwrap_or_default(), retry_after_s })
+    })();
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+impl OpenAi {
+    fn who(&self) -> String {
+        format!("the embedding service {}", self.info.host.clone().unwrap_or_default())
+    }
+
+    /// The API key: from an external command or from the environment; never from a file, never kept.
+    fn key(&self) -> Result<Option<String>> {
+        if let Some(cmd) = &self.key_cmd {
+            let out = run_program(cmd, Some(&self.cwd), Vec::new(), Duration::from_secs(15)).map_err(|e| Error::input(format!("{}: the api_key_command could not give a key ({})", self.who(), scrub(&e.message, None))))?;
+            let k = String::from_utf8_lossy(&out).trim().to_string();
+            if k.is_empty() {
+                return Err(Error::input(format!("{}: the api_key_command printed no key", self.who())));
+            }
+            return Ok(Some(k));
+        }
+        match &self.key_env {
+            Some(env) => match std::env::var(env) {
+                Ok(k) if !k.trim().is_empty() => Ok(Some(k.trim().to_string())),
+                _ => Err(Error::input(format!("{}: the environment variable {env} (api_key_env) is not set", self.who()))),
+            },
+            None => Ok(None),
+        }
+    }
+
+    /// One request, with the retries the configuration allows for a timeout, a 429 and a 5xx answer.
+    fn request(&self, texts: &[String], key: Option<&str>) -> Result<Vec<Vec<f32>>> {
+        let who = self.who();
+        let mut body = json!({"model": self.info.model, "input": texts, "encoding_format": "float"});
+        if self.send_dimensions {
+            body["dimensions"] = json!(self.info.dim);
+        }
+        let body = serde_json::to_vec(&body).expect("serialises");
+        let loopback = self.info.host.as_deref().is_some_and(is_loopback);
+        let mut last = String::new();
+        for attempt in 0..=self.retries {
+            let reply = match curl_post(&self.endpoint, &body, key, self.timeout, loopback) {
+                Ok(r) => r,
+                Err(Transport::Timeout) => {
+                    last = format!("no answer within {} s", self.timeout);
+                    self.wait(attempt, None);
+                    continue;
+                }
+                Err(Transport::Refused(m)) => return Err(Error::failed(format!("{who}: cannot be reached ({m})"))),
+                Err(Transport::Other(m)) => return Err(Error::failed(format!("{who}: {m}"))),
+            };
+            let said = || {
+                let v: Value = serde_json::from_slice(&reply.body).unwrap_or(Value::Null);
+                let m = v["error"]["message"].as_str().or_else(|| v["error"].as_str()).or_else(|| v["message"].as_str()).map(str::to_string).unwrap_or_else(|| String::from_utf8_lossy(&reply.body).into_owned());
+                scrub(&m, key)
+            };
+            match reply.status {
+                200..=299 => return self.parse(&reply.body),
+                401 | 403 => return Err(Error::input(format!("{who}: the credentials were refused (HTTP {}){}", reply.status, match (&self.key_env, &self.key_cmd) { (Some(e), _) => format!(": check the key in {e}"), (_, Some(_)) => ": check the key that api_key_command prints".to_string(), _ => ": the service wants an API key (api_key_env or api_key_command)".to_string() }))),
+                404 => return Err(Error::input(format!("{who}: HTTP 404: there is no embeddings endpoint at {}: check base_url (with or without /v1) and embeddings_path", self.endpoint))),
+                429 | 500..=599 => {
+                    last = format!("HTTP {}{}", reply.status, if reply.status == 429 { " (rate limited)" } else { "" });
+                    self.wait(attempt, reply.retry_after_s);
+                }
+                s => return Err(Error::input(format!("{who}: the request was rejected (HTTP {s}): {}{}", said(), if s == 400 || s == 413 || s == 422 { " (a smaller `batch` may help)" } else { "" }))),
+            }
+        }
+        Err(Error::failed(format!("{who}: gave up after {} attempt(s): {last}", self.retries + 1)))
+    }
+
+    fn wait(&self, attempt: u32, retry_after: Option<u64>) {
+        if attempt >= self.retries {
+            return;
+        }
+        let ms = retry_after.map(|s| (s * 1000).min(30_000)).unwrap_or_else(|| self.backoff_ms.saturating_mul(1 << attempt.min(10)));
+        std::thread::sleep(Duration::from_millis(ms));
+    }
+
+    fn parse(&self, body: &[u8]) -> Result<Vec<Vec<f32>>> {
+        let who = self.who();
+        let v: Value = serde_json::from_slice(body).map_err(|_| Error::input(format!("{who}: the answer is not JSON")))?;
+        let data = v.get("data").and_then(Value::as_array).ok_or_else(|| Error::input(format!("{who}: the answer has no `data` list (an OpenAI-compatible embeddings answer is {{\"data\": [{{\"index\", \"embedding\"}}]}})")))?;
+        let mut rows: Vec<(usize, Vec<f32>)> = Vec::with_capacity(data.len());
+        for (i, d) in data.iter().enumerate() {
+            let e = d.get("embedding").and_then(Value::as_array).ok_or_else(|| Error::input(format!("{who}: an item of `data` has no `embedding` list of numbers")))?;
+            let vec: Vec<f32> = e.iter().map(|x| x.as_f64().map(|f| f as f32).unwrap_or(f32::NAN)).collect();
+            let index = match d.get("index") {
+                Some(ix) => ix.as_u64().ok_or_else(|| Error::input(format!("{who}: an `index` that is not a number")))? as usize,
+                None => i,
+            };
+            rows.push((index, vec));
+        }
+        // the answers come in any order; `index` says which text each belongs to
+        rows.sort_by_key(|r| r.0);
+        for (pos, (index, _)) in rows.iter().enumerate() {
+            if *index != pos {
+                return Err(Error::input(format!("{who}: the `index` values of the answer are not 0..{} once each (found {index} at place {pos})", rows.len().saturating_sub(1))));
+            }
+        }
+        if let Some(bad) = rows.iter().find(|r| r.1.len() != self.info.dim) {
+            return Err(Error::input(format!("{who}: it returned vectors of {} numbers, the profile says dim {}: the model, or its `dimensions`, changed; set `dim` to what the service returns and run `index build` (vectors of another size are kept apart, never mixed)", bad.1.len(), self.info.dim)));
+        }
+        Ok(rows.into_iter().map(|r| r.1).collect())
+    }
+}
+
+impl Embedder for OpenAi {
+    fn info(&self) -> &EmbedderInfo {
+        &self.info
+    }
+    fn batch(&self) -> usize {
+        self.batch
+    }
+    fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+        let key = self.key()?;
+        let mut all = Vec::with_capacity(texts.len());
+        for part in texts.chunks(self.batch) {
+            let got = self.request(part, key.as_deref())?;
+            if got.len() != part.len() {
+                return Err(Error::input(format!("{}: {} texts were sent, {} vectors came back", self.who(), part.len(), got.len())));
+            }
+            all.extend(got);
+        }
+        check_vectors(&self.info, texts.len(), all, &self.who())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,6 +809,35 @@ mod tests {
         assert!(hash_embedding("", 384).iter().all(|x| *x == 0.0), "no text, no vector");
         // CJK characters are features too
         assert!(cosine(&hash_embedding("天线禁布区", 384), &hash_embedding("天线 禁布区 尺寸", 384)) > 0.3);
+    }
+
+    #[test]
+    fn an_openai_base_url_is_normalised_whatever_prefix_it_has() {
+        let e = |b: &str, p: Option<&str>| openai_endpoint(b, p).unwrap();
+        assert_eq!(e("https://h", None), "https://h/v1/embeddings");
+        assert_eq!(e("https://h/", None), "https://h/v1/embeddings");
+        assert_eq!(e("https://h/v1", None), "https://h/v1/embeddings");
+        assert_eq!(e("https://h/v1/", None), "https://h/v1/embeddings");
+        assert_eq!(e("https://h/v1/embeddings", None), "https://h/v1/embeddings");
+        assert_eq!(e("https://h:8443/api/v4", None), "https://h:8443/api/v4/embeddings");
+        assert_eq!(e("https://h/openai/v1beta", None), "https://h/openai/v1beta/embeddings");
+        assert_eq!(e("https://h/prefix", None), "https://h/prefix/v1/embeddings", "no version in the prefix: the usual one is added");
+        assert_eq!(e("https://h/ignored", Some("/x/embed")), "https://h/x/embed");
+        assert_eq!(e("http://[::1]:9/v1", None), "http://[::1]:9/v1/embeddings");
+        for bad in ["h/v1", "ftp://h", "https://", "https://u:p@h/v1", "https://h/v1?x=1", "https://h/v1#f"] {
+            assert!(openai_endpoint(bad, None).is_err(), "{bad}");
+        }
+        // credentials are not echoed back
+        assert!(!openai_endpoint("https://user:secret@h/v1", None).unwrap_err().message.contains("secret"));
+    }
+
+    #[test]
+    fn what_a_service_says_is_shown_cut_and_without_the_key() {
+        assert_eq!(scrub("bad key sk-abcdef123456 rejected", Some("sk-abcdef123456")), "bad key *** rejected");
+        assert_eq!(scrub("a
+ b	 c", None), "a b c");
+        assert!(scrub(&"x".repeat(1000), None).chars().count() <= 163);
+        assert_eq!(scrub("abc", Some("ab")), "abc", "a secret too short to be a key is not blanked out of ordinary words");
     }
 
     #[test]

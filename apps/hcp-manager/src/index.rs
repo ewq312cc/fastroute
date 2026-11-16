@@ -72,6 +72,11 @@ pub struct BuildReport {
     pub documents: Vec<DocBuild>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_note: Option<String>,
+    /// `sqlite` or `jsonl`
+    pub backend: &'static str,
+    /// The embedding profile the vectors were made with
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedder: Option<EmbedderInfo>,
     /// Why there are no vectors although they were asked for
@@ -166,7 +171,7 @@ pub fn build(ws: &Workspace, inv: &Inventory, only: &[String], opts: &BuildOptio
                     VectorOutcome { state: "skipped", vectors: 0, reason: Some("not authorised for remote embedding: the inventory entry has no `embed_remote: true`".into()) }
                 } else {
                     let stored = store.chunks_of(id)?;
-                    let fresh = !opts.force && store.vec_row(id, &info.key)?.is_some_and(|v| v.sha256 == meta.sha256 && v.chunker == CHUNKER && v.vectors == stored.len());
+                    let fresh = !opts.force && store.vec_row(id, &info.key)?.is_some_and(|v| v.sha256 == meta.sha256 && v.chunker == CHUNKER && v.vectors == stored.len()) && store.vector_count(id, &info.key)? == stored.len();
                     if fresh {
                         VectorOutcome { state: "kept", vectors: stored.len(), reason: None }
                     } else {
@@ -197,14 +202,17 @@ pub fn build(ws: &Workspace, inv: &Inventory, only: &[String], opts: &BuildOptio
         };
         documents.push(DocBuild { document_id: id.clone(), keyword, chunks, error: None, vectors });
     }
-    Ok(BuildReport { format: "hcp-manager-index-build", format_version: "1.1", documents, store_note, embedder: embedder.as_ref().map(|e| e.info().clone()), embedder_problem })
+    Ok(BuildReport { format: "hcp-manager-index-build", format_version: "1.2", documents, store_note, backend: store.backend().name(), profile: embed::load_settings(ws).ok().map(|s| s.profile), embedder: embedder.as_ref().map(|e| e.info().clone()), embedder_problem })
 }
 
 /// Deletes everything derived and builds it again from the cache.
 pub fn rebuild(ws: &Workspace, inv: &Inventory, opts: &BuildOptions) -> Result<BuildReport> {
-    let d = ws.derived_dir();
-    if d.exists() {
+    // only the backend in force: the other backend keeps its own location and is not touched
+    let d = crate::store::Store::kind(ws)?.location(ws);
+    if d.is_dir() {
         std::fs::remove_dir_all(&d).map_err(|e| Error::output(format!("{}: {e}", d.display())))?;
+    } else if d.exists() {
+        std::fs::remove_file(&d).map_err(|e| Error::output(format!("{}: {e}", d.display())))?;
     }
     build(ws, inv, &[], &BuildOptions { force: true, ..opts.clone() })
 }
@@ -279,9 +287,14 @@ pub struct DocStatus {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct StoreStatus {
+    /// `sqlite` or `jsonl`: the backend in force (each has its own location; the other one is not looked at)
+    pub backend: &'static str,
     pub path: String,
     /// `ready`, `missing`, `unreadable` or `other_version`
     pub state: &'static str,
+    /// Why it is not ready (damage, another layout version)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     pub layout_version: i64,
 }
 
@@ -291,9 +304,27 @@ pub struct EmbedderStatus {
     pub configured: Option<EmbedderInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub problem: Option<String>,
-    /// What the vectors in the store were made with
+    /// What the vectors in the store were made with: the first stored configuration other than the one in force, if any
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stored: Option<String>,
+    /// The profile in force (`default` when embedding.yaml has one provider written flat, or no file)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    /// Every generation of vectors in the store, the one in force and the older ones that are kept until `index prune`
+    pub generations: Vec<GenerationStatus>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GenerationStatus {
+    pub embedder_key: String,
+    pub provider: String,
+    pub model: String,
+    pub version: String,
+    pub dim: usize,
+    pub documents: usize,
+    pub vectors: usize,
+    /// Is this the configuration in force? An older generation is kept, not used, until `index prune`.
+    pub in_force: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -313,11 +344,21 @@ pub fn status(ws: &Workspace, inv: &Inventory) -> Status {
     let probe = Store::probe(ws);
     let store = Store::open_read(ws);
     let rows = store.as_ref().and_then(|s| s.doc_rows().ok()).unwrap_or_default();
-    let (config_info, problem): (Option<EmbedderInfo>, Option<String>) = match embed::load_config(ws).and_then(|c| embed::describe(&c)) {
+    let settings = embed::load_settings(ws);
+    let profile = settings.as_ref().ok().map(|s| s.profile.clone());
+    let (config_info, problem): (Option<EmbedderInfo>, Option<String>) = match settings.and_then(|s| embed::describe(&s.config)) {
         Ok(i) => (Some(i), None),
         Err(e) => (None, Some(e.message)),
     };
-    let stored = store.as_ref().and_then(|s| s.embedders().ok()).and_then(|e| e.first().map(|r| r.embedder_key.clone()));
+    let in_force = config_info.as_ref().map(|i| i.key.clone());
+    let stored = store.as_ref().and_then(|s| s.embedders().ok()).and_then(|e| e.into_iter().map(|r| r.embedder_key).find(|k| Some(k) != in_force.as_ref()));
+    let generations: Vec<GenerationStatus> = store
+        .as_ref()
+        .and_then(|s| s.generations().ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|g| GenerationStatus { in_force: Some(&g.embedder_key) == in_force.as_ref(), embedder_key: g.embedder_key, provider: g.provider, model: g.model, version: g.version, dim: g.dim, documents: g.documents, vectors: g.vectors })
+        .collect();
     let mut documents: Vec<DocStatus> = Vec::new();
     for d in &inv.documents {
         let meta = read_meta(ws, &d.document_id);
@@ -329,12 +370,19 @@ pub fn status(ws: &Workspace, inv: &Inventory) -> Status {
             (_, "not_cached" | "not_indexed") => VectorDocStatus { state: "missing", reason: None, vectors: 0 },
             (_, "stale") => VectorDocStatus { state: "stale", reason: Some("the text blocks are stale".into()), vectors: 0 },
             (Some(info), _) => match store.as_ref().and_then(|s| s.vec_row(&d.document_id, &info.key).ok().flatten()) {
-                Some(v) if meta.as_ref().is_some_and(|m| v.sha256 == m.sha256) && v.chunker == CHUNKER && v.vectors == chunks => VectorDocStatus { state: "current", reason: None, vectors: v.vectors },
+                Some(v) if meta.as_ref().is_some_and(|m| v.sha256 == m.sha256) && v.chunker == CHUNKER && v.vectors == chunks => {
+                    let held = store.as_ref().and_then(|s| s.vector_count(&d.document_id, &info.key).ok()).unwrap_or(0);
+                    if held == v.vectors {
+                        VectorDocStatus { state: "current", reason: None, vectors: v.vectors }
+                    } else {
+                        VectorDocStatus { state: "stale", reason: Some(format!("the store holds {held} of the {} vectors it recorded: damaged, `index build --force` makes them again", v.vectors)), vectors: 0 }
+                    }
+                }
                 Some(_) => VectorDocStatus { state: "stale", reason: Some("the vectors were made from other text blocks".into()), vectors: 0 },
                 None if info.remote && d.embed_remote != Some(true) => VectorDocStatus { state: "skipped", reason: Some("not authorised for remote embedding (embed_remote: true in sources.yaml)".into()), vectors: 0 },
                 None => VectorDocStatus {
                     state: if stored.as_deref().is_some_and(|k| k != info.key) { "stale" } else { "missing" },
-                    reason: stored.as_deref().filter(|k| *k != info.key).map(|k| format!("the vectors were made with another embedding configuration ({k}); now {}", info.key)),
+                    reason: stored.as_deref().filter(|k| *k != info.key).map(|k| format!("the vectors were made with another embedding configuration ({k}); now {}: `index build` makes a new generation, the old one is kept until `index prune`", info.key)),
                     vectors: 0,
                 },
             },
@@ -356,20 +404,21 @@ pub fn status(ws: &Workspace, inv: &Inventory) -> Status {
     } else {
         "empty"
     };
-    let state = match &probe {
-        Probe::Ready => "ready",
-        Probe::Missing => "missing",
-        Probe::Unreadable(_) => "unreadable",
-        Probe::OtherVersion(_) => "other_version",
+    let kind = Store::kind(ws).unwrap_or(crate::store::Kind::Sqlite);
+    let (state, reason) = match &probe {
+        Probe::Ready => ("ready", None),
+        Probe::Missing => ("missing", None),
+        Probe::Unreadable(e) => ("unreadable", Some(format!("{e}: `index build` replaces it, it holds nothing the cache cannot rebuild"))),
+        Probe::OtherVersion(v) => ("other_version", Some(format!("layout version {v}, this program writes {}: `index build` makes it again (there is no in-place migration)", kind.layout_version()))),
     };
     Status {
         format: "hcp-manager-index-status",
-        format_version: "1.1",
+        format_version: "1.2",
         keyword_index,
         vector_index,
         chunker: CHUNKER,
-        store: StoreStatus { path: ws.index_db_path().display().to_string(), state, layout_version: crate::store::STORE_VERSION },
-        embedder: EmbedderStatus { configured: config_info, problem, stored },
+        store: StoreStatus { backend: kind.name(), path: kind.location(ws).display().to_string(), state, reason, layout_version: kind.layout_version() },
+        embedder: EmbedderStatus { configured: config_info, problem, stored, profile, generations },
         documents,
     }
 }
@@ -383,4 +432,24 @@ pub fn chunk_ids(ws: &Workspace) -> BTreeMap<String, Vec<String>> {
         }
     }
     m
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PruneReport {
+    pub format: &'static str,
+    pub format_version: &'static str,
+    pub backend: &'static str,
+    /// the configuration that was kept
+    pub kept: String,
+    pub removed_generations: usize,
+}
+
+/// Removes the vectors of every embedding configuration but the one in force. Nothing else is touched (text blocks, the keyword index
+/// and the other backend stay as they are). This is the only way an older generation of vectors goes away; a build never removes it.
+pub fn prune(ws: &Workspace) -> Result<PruneReport> {
+    let settings = embed::load_settings(ws)?;
+    let info = embed::describe(&settings.config)?;
+    let (mut store, _) = Store::open_write(ws)?;
+    let removed = store.drop_embedders_except(&info.key)?;
+    Ok(PruneReport { format: "hcp-manager-index-prune", format_version: "1.0", backend: store.backend().name(), kept: info.key, removed_generations: removed })
 }

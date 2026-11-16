@@ -40,7 +40,8 @@ missing or without the `constraints` commands the script needs.
 | fetch and pin digests | `research sync [DOC...]` (`--accept` only on a person's say) | hcp-manager |
 | derived index (blocks and vectors), rebuildable | `research index build` / `rebuild` / `status` | hcp-manager |
 | back to the original of a hit | `research chunk show CHUNK_ID` | hcp-manager |
-| embedding provider, what would leave the machine | `research embedding show` / `test` | hcp-manager |
+| embedding provider and profile, store backend, what would leave the machine | `research embedding show` / `test`; `--profile NAME`, `--backend sqlite\|jsonl` | hcp-manager |
+| remove older generations of vectors (a changed model or dimension keeps the old ones) | `research index prune` | hcp-manager |
 | find passages | `research search WORDS --device PART [--version V] [--source-level official] [--mode keyword\|vector\|hybrid]` | hcp-manager |
 | quotations are in the documents | `research verify PACK` | hcp-manager |
 | make, list, show, export, import a pack | `research packs create\|list\|show\|export\|import` | hcp-manager |

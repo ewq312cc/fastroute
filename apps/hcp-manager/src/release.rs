@@ -125,7 +125,7 @@ pub fn load_pack(files: Files, at: Option<&str>) -> std::result::Result<Pack, Ve
     let Some(manifest_bytes) = files.get("pack.yaml") else {
         return Err(vec![problem("manifest_missing", at.unwrap_or("?"), "no pack.yaml (the manifest) in the pack directory")]);
     };
-    let manifest = match std::str::from_utf8(manifest_bytes).map_err(|e| e.to_string()).and_then(|t| yaml_to_value(t)) {
+    let manifest = match std::str::from_utf8(manifest_bytes).map_err(|e| e.to_string()).and_then(yaml_to_value) {
         Ok(v) => v,
         Err(e) => return Err(vec![problem("manifest_unparseable", at.unwrap_or("?"), format!("pack.yaml: {e}"))]),
     };

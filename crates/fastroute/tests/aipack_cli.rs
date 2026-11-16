@@ -451,6 +451,19 @@ fn verify_finds_what_is_wrong_with_a_pack() {
     let o = verify(&c);
     assert_eq!(code(&o), 3);
     assert!(stderr(&o).contains("CLR99"), "{}", stderr(&o));
+    // a report that was edited after the pack was made (it has a size and a hash like a picture)
+    let c = copy("report-edited");
+    let text = std::fs::read_to_string(c.join("inspect.json")).unwrap().replace("\"unrouted_connections\": 2", "\"unrouted_connections\": 0");
+    std::fs::write(c.join("inspect.json"), text).unwrap();
+    let o = verify(&c);
+    assert_eq!(code(&o), 3);
+    assert!(stderr(&o).contains("inspect.json does not match the size / sha256"), "{}", stderr(&o));
+    let m = manifest(&d);
+    for name in ["inspect", "rules", "route_report"] {
+        assert_eq!(m["reports"][name]["sha256"].as_str().unwrap().len(), 64, "{name}");
+        assert!(m["reports"][name]["bytes"].as_u64().unwrap() > 0);
+    }
+    assert!(m["reports"]["drc_report"].get("sha256").is_none(), "no file, no hash");
     // a stray drc-report.json that the manifest does not know
     let c = copy("stray");
     std::fs::write(c.join("drc-report.json"), "{}").unwrap();

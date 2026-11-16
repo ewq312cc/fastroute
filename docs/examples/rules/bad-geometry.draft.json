@@ -1,0 +1,53 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Route VBUS along the top edge."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "clearance",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "VBUS"
+        ]
+      },
+      "params": {
+        "clearance_mm": 0.3,
+        "points": [
+          [
+            1.0,
+            2.0
+          ],
+          [
+            9.0,
+            2.0
+          ]
+        ]
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Route VBUS along the top edge"
+        }
+      ]
+    }
+  ]
+}

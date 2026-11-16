@@ -71,6 +71,30 @@ pub struct ReportEntry {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// Size and SHA-256 of the file (when there is one), so that a changed report is noticed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+impl ReportEntry {
+    /// An entry for a file that exists in `dir`, with its size and hash.
+    pub fn of_file(dir: &Path, name: &str, status: &str, detail: Option<String>) -> ReportEntry {
+        let bytes = std::fs::read(dir.join(name)).ok();
+        ReportEntry {
+            file: Some(name.to_string()),
+            status: status.to_string(),
+            detail,
+            bytes: bytes.as_ref().map(|b| b.len() as u64),
+            sha256: bytes.as_ref().map(|b| crate::load::sha256_hex(b)),
+        }
+    }
+
+    /// An entry for a report that does not exist, with the reason.
+    pub fn missing(status: &str, detail: Option<String>) -> ReportEntry {
+        ReportEntry { file: None, status: status.to_string(), detail, bytes: None, sha256: None }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

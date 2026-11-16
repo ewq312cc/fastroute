@@ -1,0 +1,43 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Keep VBUS wide."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "trace_width",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "VBUS"
+        ]
+      },
+      "params": {
+        "width_mm": 0.8
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "VBUS must be 0.8 mm wide"
+        }
+      ]
+    }
+  ]
+}

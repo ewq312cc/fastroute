@@ -1,0 +1,54 @@
+{
+  "created_by": {
+    "kind": "script",
+    "model": null,
+    "tool": "fastroute rules draft (keyword prototype)"
+  },
+  "design": {
+    "input_sha256": "706420f86c80688382d5a2e5d09f2e65b7b89dc543f637e905dfc00de2731c55",
+    "inspect_sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+  },
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "sha256": "baf31a1170f73df6b2c099fde2809f58d859d96a66cead84196f566e67141811",
+      "text": "Prefer routing ordinary signals on the top layer and the bottom layer.\n"
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json",
+      "sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+    }
+  ],
+  "notes": [
+    "made by the keyword prototype of `fastroute rules draft`; it quotes the sentence of every rule and never guesses a value. Check it with `fastroute rules check` like any other draft"
+  ],
+  "rules": [
+    {
+      "applies_to": {
+        "all": true
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Prefer routing ordinary signals on the top layer and the bottom layer"
+        }
+      ],
+      "id": "R1",
+      "kind": "layer_preference",
+      "params": {
+        "preferred_layers": [
+          "B.Cu",
+          "F.Cu"
+        ]
+      },
+      "rationale": "the engine cannot enforce this (see the capability table); kept as a record of what was asked",
+      "strength": "unsupported"
+    }
+  ]
+}

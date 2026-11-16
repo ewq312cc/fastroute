@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fastroute rule draft (format_version 1.x)",
+  "description": "A set of routing rules proposed by a person, a script or an AI model, before anything is executed. Structure only: `fastroute rules check` adds the checks that a schema cannot express (evidence quotes, the design's baseline, capability of the engine, relaxations). A draft contains rules and never routing geometry.",
+  "type": "object",
+  "required": ["format", "format_version", "created_by", "inputs", "rules"],
+  "properties": {
+    "format": { "const": "fastroute-rule-draft" },
+    "format_version": { "type": "string", "description": "MAJOR.MINOR; minor versions only add properties" },
+    "created_by": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["human", "ai", "script"] },
+        "tool": { "type": "string", "description": "free text; no particular AI service is assumed" },
+        "model": { "type": ["string", "null"] }
+      }
+    },
+    "design": {
+      "type": ["object", "null"],
+      "description": "which design the rules are for (SHA-256 of the DSN / of inspect.json), so that a draft is not applied to another board",
+      "properties": { "input_sha256": { "type": "string" }, "inspect_sha256": { "type": "string" } }
+    },
+    "inputs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/input" }, "description": "everything the rules are derived from; every rule must point into one of these" },
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["natural_language", "ai_pack", "inspect_json", "reference_board"] },
+        "text": { "type": "string", "description": "natural_language: the requirement as written; quotes in evidence must occur in it" },
+        "path": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "applies_to": {
+      "type": "object",
+      "description": "exactly one of nets, net_class, all",
+      "properties": {
+        "nets": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "net_class": { "type": "string" },
+        "all": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["input", "kind"],
+      "properties": {
+        "input": { "type": "string", "description": "id of an entry of inputs" },
+        "kind": { "enum": ["natural_language", "design_data", "reference_board", "human"] },
+        "quote": { "type": "string", "description": "natural_language / human: the words that ask for this rule; must occur in the input text" },
+        "ref": { "type": "string", "description": "design_data / reference_board: what was read, e.g. nets[USB_DP].class" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "kind", "strength", "applies_to", "evidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["diff_pair", "trace_width", "clearance", "length_max", "length_match", "layer_restriction", "layer_preference", "impedance", "current_capacity", "timing_delay", "keepout"] },
+        "strength": {
+          "enum": ["hard", "soft", "unknown", "unsupported"],
+          "description": "hard: must hold, a violation fails the board. soft: a preference the router may trade off. unknown: the value cannot be determined from the inputs (impedance, current, timing): no value is given, `needed` says what is missing, never executed. unsupported: the engine cannot enforce it (value recorded for the record), never executed."
+        },
+        "applies_to": { "$ref": "#/$defs/applies_to" },
+        "params": { "type": "object", "description": "kind specific numbers in mm / ohm / A / ps; never coordinates, traces or vias" },
+        "needed": { "type": "array", "items": { "type": "string" }, "description": "unknown: what has to be provided to make this a real rule" },
+        "weight": { "type": "number", "minimum": 0, "description": "soft: relative importance" },
+        "relaxes": {
+          "type": "object",
+          "description": "declares that this rule loosens a limit that the design already has; without it a loosening is rejected, with it a human must accept it explicitly",
+          "required": ["parameter", "baseline", "reason"],
+          "properties": {
+            "parameter": { "type": "string", "description": "the params key that is loosened" },
+            "baseline": { "type": "number", "description": "the design's current limit; checked against the design data" },
+            "reason": { "type": "string" }
+          }
+        },
+        "rationale": { "type": "string" },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+      }
+    }
+  }
+}

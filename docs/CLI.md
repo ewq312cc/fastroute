@@ -1,6 +1,6 @@
 # Command line
 
-fastroute has one program with four commands, and the original flag interface that every
+fastroute has one program with five commands, and the original flag interface that every
 existing script uses. Nothing was removed: old commands keep running as before.
 
 | Command | Does | Reads | Writes |
@@ -9,6 +9,7 @@ existing script uses. Nothing was removed: old commands keep running as before.
 | `fastroute render` | draws the board or a region as a PNG ([RENDERING.md](RENDERING.md)) | `.dsn` [+ `.ses`] | `.png` + `.manifest.json` |
 | `fastroute inspect` | describes the board as JSON ([AI_DATA_FORMAT.md](AI_DATA_FORMAT.md)) | `.dsn` [+ `.ses`] | `inspect.json` |
 | `fastroute ai-pack` | writes a local analysis pack ([AI_PACK.md](AI_PACK.md)) | `.dsn` [+ `.ses`, `.kicad_pcb`] | a directory |
+| `fastroute rules` | checks, confirms and applies rule drafts from people, scripts or AI models ([AI_RULES.md](AI_RULES.md)) | drafts (JSON), `inspect.json` / ai-pack | check reports, pairs / tune / `.kicad_dru` files |
 | `fastroute -de … -do …` | the original interface | `.dsn` | `.ses` |
 
 `fastroute --help`, `fastroute <command> --help` and `fastroute help <command>` print the same
@@ -22,7 +23,7 @@ All commands share the exit codes, the output rules and the error format below.
 | 0 | done |
 | 1 | failed (anything not covered below) |
 | 2 | usage: unknown or conflicting options, a value that is not a number, an unknown name |
-| 3 | input: a file is missing, unreadable or not what it should be (a KiCad board where a DSN is needed, a design without an outline, a session that is not a session) |
+| 3 | input: a file is missing, unreadable or not what it should be (a KiCad board where a DSN is needed, a design without an outline, a session that is not a session; for `rules`: a draft that is not valid, a confirmation that does not match its draft) |
 | 4 | output: the output exists (without `--force`), is the input, or cannot be written |
 | 5 | `route` / `ai-pack --require-drc`: the result is written, but connections remain unrouted / there is no DRC result |
 
@@ -176,5 +177,5 @@ installation (see the plugin README for the paths).
   save, `--json`, `--fail-on-partial`. Run by `cargo test` (via `crates/fastroute/tests/kicad_adapter_py.rs`) and by
   `python3 -m unittest discover -s integrations/kicad/tests -p 'test_*.py'`.
   They were also run against the previous `route_cli.py`, which fails 11 of the 15.
-* the tests of `render`, `inspect` and `ai-pack` check the same output rules, exit codes and
-  messages for their commands.
+* the tests of `render`, `inspect`, `ai-pack` and `rules` check the same output rules, exit codes
+  and messages for their commands.

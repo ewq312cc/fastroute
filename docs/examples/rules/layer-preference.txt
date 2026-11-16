@@ -1,0 +1,1 @@
+Prefer routing ordinary signals on the top layer and the bottom layer.

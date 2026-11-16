@@ -1,0 +1,1 @@
+Make the USB signals good for high-speed operation. The power supply must carry a lot of current. Keep the design quiet.

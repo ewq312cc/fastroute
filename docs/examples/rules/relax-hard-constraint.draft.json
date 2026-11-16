@@ -1,0 +1,57 @@
+{
+  "created_by": {
+    "kind": "script",
+    "model": null,
+    "tool": "fastroute rules draft (keyword prototype)"
+  },
+  "design": {
+    "input_sha256": "706420f86c80688382d5a2e5d09f2e65b7b89dc543f637e905dfc00de2731c55",
+    "inspect_sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+  },
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "sha256": "347cf6a7d66d351f52594d78a800f7b3fc7c4c923bef5f9602dc47f8fca8088d",
+      "text": "Reduce the clearance to 0.1 mm to make routing easier.\n"
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json",
+      "sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+    }
+  ],
+  "notes": [
+    "R1: loosens clearance_mm of the design (from 0.2); it is declared, and a person must accept it when confirming",
+    "made by the keyword prototype of `fastroute rules draft`; it quotes the sentence of every rule and never guesses a value. Check it with `fastroute rules check` like any other draft"
+  ],
+  "rules": [
+    {
+      "applies_to": {
+        "all": true
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Reduce the clearance to 0.1 mm to make routing easier"
+        }
+      ],
+      "id": "R1",
+      "kind": "clearance",
+      "params": {
+        "clearance_mm": 0.1
+      },
+      "rationale": "clearance as written in the requirement",
+      "relaxes": {
+        "baseline": 0.2,
+        "parameter": "clearance_mm",
+        "reason": "the requirement asks for 0.1 while the design requires 0.2"
+      },
+      "strength": "hard"
+    }
+  ]
+}

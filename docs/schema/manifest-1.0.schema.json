@@ -47,7 +47,9 @@
       "properties": {
         "file": { "type": ["string", "null"], "description": "path relative to the manifest; null when the file does not exist" },
         "status": { "enum": ["present", "not_run", "unavailable", "failed", "timeout"] },
-        "detail": { "type": "string" }
+        "detail": { "type": "string" },
+        "bytes": { "type": "integer", "minimum": 0, "description": "size of the file; verified by `ai-pack --verify`" },
+        "sha256": { "type": "string", "description": "SHA-256 of the file; verified by `ai-pack --verify`" }
       }
     },
     "image": {

@@ -58,6 +58,7 @@ impl From<fr_render::RenderError> for CmdError {
 }
 
 /// One option of a command.
+#[derive(Clone, Copy)]
 pub struct Opt {
     pub long: &'static str,
     pub short: Option<char>,

@@ -1,0 +1,1 @@
+USB D+/D- must be routed as a differential pair with a gap of 0.15 mm and a skew of 0.1 mm. The USB pair should have 90 ohm differential impedance.

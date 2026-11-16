@@ -1,0 +1,53 @@
+(pcb usb_demo.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (host_cad "KiCad's Pcbnew")
+    (host_version "9.0.0")
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (path pcb 0  0 0  40000 0  40000 -25000  0 -25000  0 0))
+    (via "Via[0-1]_600:300_um")
+    (rule (width 250) (clearance 200) (clearance 200 (type default_smd)) (clearance 50 (type smd_smd)))
+  )
+  (placement
+    (component "USB_C_4"
+      (place J1 5000 -12500 front 0)
+    )
+    (component "MCU_4"
+      (place U1 30000 -12500 front 0)
+    )
+  )
+  (library
+    (image "USB_C_4"
+      (pin S_pad 1 0 -3000)
+      (pin S_pad 2 0 -1000)
+      (pin S_pad 3 0 1000)
+      (pin S_pad 4 0 3000)
+    )
+    (image "MCU_4"
+      (pin S_pad 1 0 -3000)
+      (pin S_pad 2 0 -1000)
+      (pin S_pad 3 0 1000)
+      (pin S_pad 4 0 3000)
+    )
+    (padstack S_pad (shape (rect F.Cu -500 -300 500 300)) (attach off))
+    (padstack "Via[0-1]_600:300_um" (shape (circle F.Cu 600)) (shape (circle B.Cu 600)) (attach off))
+  )
+  (network
+    (net VBUS (pins J1-1 U1-1))
+    (net USB_DP (pins J1-2 U1-2))
+    (net USB_DN (pins J1-3 U1-3))
+    (net GND (pins J1-4 U1-4))
+    (class kicad_default "" VBUS USB_DP USB_DN GND
+      (circuit (use_via "Via[0-1]_600:300_um"))
+      (rule (width 250) (clearance 200))
+    )
+  )
+  (wiring
+  )
+)

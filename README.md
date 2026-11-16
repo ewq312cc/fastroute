@@ -109,7 +109,7 @@ dist/windows/fastroute.exe windows-x64 --bin dist/windows-arm64/fastroute.exe wi
 
 ### Commands
 
-`fastroute` has four commands next to the original flags above (which keep working unchanged);
+`fastroute` has five commands next to the original flags above (which keep working unchanged);
 all have `--help`, clear errors, exit codes and never overwrite an existing file without `--force`.
 Details: [docs/CLI.md](docs/CLI.md).
 
@@ -118,6 +118,7 @@ Details: [docs/CLI.md](docs/CLI.md).
 | `fastroute route board.dsn` | autoroute; writes `board.routed.ses`, exit code 5 if connections remain (`--allow-partial`), `--json` summary; also takes a `.kicad_pcb` through the KiCad adapter |
 | `fastroute render -i board.dsn -s routed.ses -o board.png` | the whole board or a region (`--around U1`, `--net NAME`, `--region-mm`, …) as a PNG, offline, with grid, labels and a manifest ([docs/RENDERING.md](docs/RENDERING.md)) |
 | `fastroute inspect -i board.dsn -s routed.ses -o inspect.json` | the board as structured data: nets, pads, unrouted connections and violations with coordinates, rules, check statuses ([docs/AI_DATA_FORMAT.md](docs/AI_DATA_FORMAT.md)) |
+| `fastroute rules check draft.json --ai-pack pack/` | rule drafts from people, scripts or AI models: a deterministic offline checker (evidence, values that cannot be guessed, no silent loosening of the design, no geometry), a named person's confirmation, and `apply` to pairs / tune / `.kicad_dru` inputs — acceptance stays with the real DRC ([docs/AI_RULES.md](docs/AI_RULES.md)) |
 | `fastroute ai-pack -i board.dsn -s routed.ses -o pack/` | pictures + data + rules + KiCad's DRC (if `kicad-cli` is there; otherwise an explicit status, never "passed") in one local directory ([docs/AI_PACK.md](docs/AI_PACK.md)) |
 
 Freerouting's options are accepted: `-mp <passes>`, `--router.<path>=<value>` (e.g.

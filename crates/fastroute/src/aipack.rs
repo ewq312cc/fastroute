@@ -362,7 +362,7 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
     let drc_file = drc_outcome.report_text.is_some().then(|| DRC_REPORT.to_string());
     let doc = inspect::build(&loaded, &analysis, &drc_outcome, drc_file.clone());
     write_atomically(&dir.join(INSPECT), doc.to_json().as_bytes())?;
-    manifest.reports.insert("inspect".into(), ReportEntry { file: Some(INSPECT.into()), status: "present".into(), detail: None });
+    manifest.reports.insert("inspect".into(), ReportEntry::of_file(&dir, INSPECT, "present", None));
 
     let rules_detail = match &user_rules {
         Some((f, text)) => {
@@ -387,7 +387,7 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
             Some("the net classes of the design".into())
         }
     };
-    manifest.reports.insert("rules".into(), ReportEntry { file: Some(RULES.into()), status: "present".into(), detail: rules_detail });
+    manifest.reports.insert("rules".into(), ReportEntry::of_file(&dir, RULES, "present", rules_detail));
 
     let route_detail = match &given_route_report {
         Some((f, text)) => {
@@ -401,14 +401,14 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
             "made from the loaded board; no routing was run by ai-pack, so time_s.route is 0 (pass --report to include the report of a route run)".into()
         }
     };
-    manifest.reports.insert("route_report".into(), ReportEntry { file: Some(ROUTE_REPORT.into()), status: "present".into(), detail: Some(route_detail) });
+    manifest.reports.insert("route_report".into(), ReportEntry::of_file(&dir, ROUTE_REPORT, "present", Some(route_detail)));
 
+    let drc_detail = drc_outcome.detail.clone().or_else(|| drc_outcome.tool.as_ref().map(|t| format!("made by {t}{}", drc_outcome.tool_version.as_ref().map(|v| format!(" ({v})")).unwrap_or_default())));
     manifest.reports.insert(
         "drc_report".into(),
-        ReportEntry {
-            file: drc_file,
-            status: drc_report_status(drc_outcome.status).into(),
-            detail: drc_outcome.detail.clone().or_else(|| drc_outcome.tool.as_ref().map(|t| format!("made by {t}{}", drc_outcome.tool_version.as_ref().map(|v| format!(" ({v})")).unwrap_or_default()))),
+        match drc_file {
+            Some(f) => ReportEntry::of_file(&dir, &f, drc_report_status(drc_outcome.status), drc_detail),
+            None => ReportEntry::missing(drc_report_status(drc_outcome.status), drc_detail),
         },
     );
     manifest.warnings = warnings.clone();
@@ -526,14 +526,19 @@ pub fn verify_pack(dir: &Path) -> Vec<String> {
         match (&r.file, r.status.as_str()) {
             (Some(f), "present") => match std::fs::read_to_string(dir.join(f)) {
                 Err(e) => bad(format!("reports.{name}: {f}: {e}")),
-                Ok(t) => match serde_json::from_str::<Value>(&t) {
+                Ok(t) => {
+                    if r.bytes.is_some_and(|b| b != t.len() as u64) || r.sha256.as_deref().is_some_and(|h| h != load::sha256_hex(t.as_bytes())) {
+                        bad(format!("reports.{name}: {f} does not match the size / sha256 in the manifest (changed after the pack was made)"));
+                    }
+                    match serde_json::from_str::<Value>(&t) {
                     Err(e) => bad(format!("reports.{name}: {f} is not valid JSON: {e}")),
                     Ok(v) => {
                         if name == "inspect" {
                             inspect_doc = Some(v);
                         }
                     }
-                },
+                    }
+                }
             },
             (None, "present") => bad(format!("reports.{name}: status \"present\" but no file")),
             (Some(f), s) => bad(format!("reports.{name}: status \"{s}\" but a file {f} is named")),

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fastroute rule confirmation (format_version 1.x)",
+  "description": "A person's explicit decision about one draft: which rules are executed, which relaxations are accepted, and that the rules that will not be executed are known. It names the draft by its SHA-256, so it is void if the draft changes.",
+  "type": "object",
+  "required": ["format", "format_version", "draft_sha256", "confirmed_by", "accepted_rules", "accepted_relaxations", "acknowledged_not_executed"],
+  "properties": {
+    "format": { "const": "fastroute-rule-confirmation" },
+    "format_version": { "type": "string" },
+    "draft_sha256": { "type": "string", "description": "SHA-256 of the draft file as confirmed" },
+    "confirmed_by": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string", "description": "the person who decided; must not be empty" }, "note": { "type": "string" } }
+    },
+    "accepted_rules": { "type": "array", "items": { "type": "string" }, "description": "ids of the hard / soft rules to execute" },
+    "accepted_relaxations": { "type": "array", "items": { "type": "string" }, "description": "ids of accepted rules that loosen a limit of the design" },
+    "acknowledged_not_executed": { "type": "array", "items": { "type": "string" }, "description": "ids of every rule that will NOT be executed (unknown, unsupported, not applicable here), acknowledged one by one" }
+  }
+}

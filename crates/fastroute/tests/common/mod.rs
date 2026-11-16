@@ -77,93 +77,14 @@ pub fn s(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
-/// Validates `value` against the subset of JSON Schema the published schemas use:
-/// local `$ref`, `type` (also a list), `enum`, `const`, `required`, `properties`,
-/// `additionalProperties` (false or a schema), `items`, `minItems`, `minimum`, `if`/`then`.
-pub fn validate(schema: &Value, value: &Value, path: &str, errors: &mut Vec<String>) {
-    validate_in(schema, schema, value, path, errors)
+/// The JSON Schema interpreter of the program itself (src/jsonschema.rs): the tests check
+/// real output with the same code that enforces the published schemas at run time.
+mod schema {
+    include!("../../src/jsonschema.rs");
 }
 
-fn resolve<'a>(root: &'a Value, reference: &str) -> &'a Value {
-    let pointer = reference.strip_prefix('#').unwrap_or_else(|| panic!("only local $ref is supported: {reference}"));
-    root.pointer(pointer).unwrap_or_else(|| panic!("unresolved $ref {reference}"))
-}
-
-fn validate_in(root: &Value, schema: &Value, value: &Value, path: &str, errors: &mut Vec<String>) {
-    if let Some(r) = schema.get("$ref").and_then(Value::as_str) {
-        return validate_in(root, resolve(root, r), value, path, errors);
-    }
-    if let Some(types) = schema.get("type") {
-        let list: Vec<&str> = match types {
-            Value::String(t) => vec![t.as_str()],
-            Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
-            _ => vec![],
-        };
-        let ok = list.iter().any(|t| match *t {
-            "object" => value.is_object(),
-            "array" => value.is_array(),
-            "string" => value.is_string(),
-            "number" => value.is_number(),
-            "integer" => value.is_i64() || value.is_u64() || value.as_f64().is_some_and(|f| f.fract() == 0.0 && value.is_number() && !value.is_f64()),
-            "boolean" => value.is_boolean(),
-            "null" => value.is_null(),
-            _ => false,
-        });
-        if !ok {
-            errors.push(format!("{path}: expected {list:?}, got {value}"));
-            return;
-        }
-    }
-    if let Some(c) = schema.get("const") {
-        if c != value {
-            errors.push(format!("{path}: expected the constant {c}, got {value}"));
-        }
-    }
-    if let Some(e) = schema.get("enum").and_then(Value::as_array) {
-        if !e.contains(value) {
-            errors.push(format!("{path}: {value} is not one of {e:?}"));
-        }
-    }
-    if let (Some(min), Some(v)) = (schema.get("minimum").and_then(Value::as_f64), value.as_f64()) {
-        if v < min {
-            errors.push(format!("{path}: {v} is below the minimum {min}"));
-        }
-    }
-    if let Some(obj) = value.as_object() {
-        for r in schema.get("required").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
-            if !obj.contains_key(r) {
-                errors.push(format!("{path}: missing required property '{r}'"));
-            }
-        }
-        let props = schema.get("properties").and_then(Value::as_object);
-        for (k, v) in obj {
-            match props.and_then(|p| p.get(k)) {
-                Some(s) => validate_in(root, s, v, &format!("{path}.{k}"), errors),
-                None => match schema.get("additionalProperties") {
-                    Some(Value::Bool(false)) => errors.push(format!("{path}: unexpected property '{k}'")),
-                    Some(s @ Value::Object(_)) => validate_in(root, s, v, &format!("{path}.{k}"), errors),
-                    _ => {}
-                },
-            }
-        }
-    }
-    if let (Some(cond), Some(then)) = (schema.get("if"), schema.get("then")) {
-        let mut inner = Vec::new();
-        validate_in(root, cond, value, path, &mut inner);
-        if inner.is_empty() {
-            validate_in(root, then, value, path, errors);
-        }
-    }
-    if let (Some(arr), Some(items)) = (value.as_array(), schema.get("items")) {
-        if let Some(n) = schema.get("minItems").and_then(Value::as_u64) {
-            if (arr.len() as u64) < n {
-                errors.push(format!("{path}: needs at least {n} items"));
-            }
-        }
-        for (i, v) in arr.iter().enumerate() {
-            validate_in(root, items, v, &format!("{path}[{i}]"), errors);
-        }
-    }
+pub fn validate(schema_doc: &Value, value: &Value, _path: &str, errors: &mut Vec<String>) {
+    errors.extend(schema::validate(schema_doc, value));
 }
 
 /// Fails the test with every violation if `value` does not match the schema file.

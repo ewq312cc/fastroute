@@ -35,6 +35,8 @@ mod render_cmd;
 mod report;
 mod reports;
 mod route_cmd;
+mod rules;
+mod jsonschema;
 
 use std::io::Write as _;
 use std::process::ExitCode;
@@ -241,6 +243,7 @@ commands (each has its own --help, e.g. `fastroute route --help`):
   render     draw the board or a region of it as a PNG, offline
   inspect    describe the board as structured JSON
   ai-pack    write a local analysis pack (pictures, data, rules, DRC) for an AI model
+  rules      check, confirm and apply rule drafts from people, scripts or AI models
 
 The original interface below keeps working unchanged (docs/CLI.md has the translation table):
 
@@ -834,12 +837,14 @@ fn dispatch(argv: &[String]) -> Option<ExitCode> {
         "inspect" => inspect::run(rest),
         "ai-pack" => aipack::run(rest),
         "route" => route_cmd::run(rest),
+        "rules" => rules::run(rest),
         "help" => {
             match rest.first().map(String::as_str) {
                 Some("render") => print!("{}", render_cmd::SPEC.help_text()),
                 Some("inspect") => print!("{}", inspect::SPEC.help_text()),
                 Some("ai-pack") => print!("{}", aipack::SPEC.help_text()),
                 Some("route") => print!("{}", route_cmd::SPEC.help_text()),
+                Some("rules") => print!("{}", rules::help_for(rest.get(1).map(String::as_str))),
                 _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
             }
             Ok(())

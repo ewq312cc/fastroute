@@ -1,0 +1,44 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Match the lengths of USB_DP and USB_DN to within 0.3 mm."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "length_match",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "params": {
+        "tolerance_mm": 0.3
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Match the lengths of USB_DP and USB_DN to within 0.3 mm"
+        }
+      ]
+    }
+  ]
+}

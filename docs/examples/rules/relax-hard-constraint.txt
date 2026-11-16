@@ -1,0 +1,1 @@
+Reduce the clearance to 0.1 mm to make routing easier.

@@ -1,0 +1,46 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Make the USB pair match the reference board."
+    },
+    {
+      "id": "ref",
+      "kind": "reference_board",
+      "path": "reference-usb.png"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "impedance",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "params": {
+        "target_ohm": 50,
+        "differential": true
+      },
+      "evidence": [
+        {
+          "input": "ref",
+          "kind": "reference_board",
+          "ref": "reference-usb.png: the traces of the USB pair"
+        }
+      ],
+      "rationale": "looks like a 50 ohm line"
+    }
+  ]
+}

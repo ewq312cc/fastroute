@@ -143,3 +143,44 @@ fn the_real_drc_is_run_read_and_located_in_the_frame_of_inspect() {
     assert!(compared > 0, "the demo board's report names no pad: pick another FASTROUTE_KICAD_DEMO");
     assert!(worst < 0.01, "DRC items are {worst} mm off the pads of inspect.json ({compared} compared)");
 }
+
+/// Clearance violations that KiCad's own DRC finds on `routed`, checked against the rules in `dru`.
+fn clearance_violations(k: &Kicad, routed: &Path, dru: &str) -> usize {
+    let d = routed.parent().unwrap();
+    let board = d.join("check.kicad_pcb");
+    std::fs::copy(routed, &board).unwrap();
+    std::fs::write(d.join("check.kicad_dru"), dru).unwrap();
+    let report = d.join("check-drc.json");
+    let _ = std::fs::remove_file(&report);
+    let o = Command::new(&k.cli).args(["pcb", "drc", "--format", "json", "--units", "mm", "--severity-all", "--output", &s(&report), &s(&board)]).output().unwrap();
+    assert!(report.is_file(), "{}", String::from_utf8_lossy(&o.stderr));
+    json(&report)["violations"].as_array().unwrap().iter().filter(|v| v["type"] == "clearance").count()
+}
+
+#[test]
+fn a_kicad_dru_clearance_rule_reaches_the_router_and_the_real_drc_agrees() {
+    let Some(k) = kicad() else { return skip("kicad-cli / pcbnew / a demo board") };
+    if k.major < 8 {
+        return skip("KiCad 7 cannot route headless (see the first test)");
+    }
+    // a rule for every pair of net classes (what `fastroute rules apply` writes for "all nets")
+    let dru = "(version 1)\n(rule \"all\" (constraint clearance (min 0.3mm)))\n";
+    let d = tmp("real-clearance");
+    let route = |name: &str, with_rule: bool| -> PathBuf {
+        let dir = d.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        let board = dir.join("b.kicad_pcb");
+        std::fs::copy(&k.demo, &board).unwrap();
+        if with_rule {
+            std::fs::write(dir.join("b.kicad_dru"), dru).unwrap();
+        }
+        let o = run(&["route", &s(&board), "--python", &s(&k.python), "--clear", "--max-time", "60", "-q", "--allow-partial", "-o", &s(&dir.join("routed.kicad_pcb"))]);
+        assert!(matches!(code(&o), 0 | 5), "{}", stderr(&o));
+        assert!(!stderr(&o).contains("NOT applied"), "the rule must be carried over: {}", stderr(&o));
+        dir.join("routed.kicad_pcb")
+    };
+    let without = clearance_violations(&k, &route("without", false), dru);
+    let with = clearance_violations(&k, &route("with", true), dru);
+    assert!(without > 0, "the demo board should break a 0.3 mm rule that the router did not see ({without})");
+    assert!(with < without, "the router did not follow the rule: {with} clearance violations with it, {without} without");
+}

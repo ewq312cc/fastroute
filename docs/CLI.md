@@ -177,7 +177,7 @@ The stand-ins in the tests prove the logic; these were also run against real KiC
 | `kicad-cli pcb drc --format json --units mm --severity-all --output` | **does not exist** (`pcb` has only `export`): `drc_status: unavailable` naming the version, pack `partial`, `--require-drc` exits 5, never "passed" | works; the report is read: `drc_status` `failed`/`passed`, issues with coordinates, `--verify` consistent |
 | `render --from-report drc.json --select DRC72,DRC73,DRC74` | – | the region follows the items; the numbered markers sit on the pads and holes they name |
 | `fastroute route board.kicad_pcb` | refused in 0.2 s with the reason (`ImportSpecctraSES` takes only a file name and needs the PCB editor; the same failure happened with the original `route_cli.py`) | routes, imports the session, saves; KiCad's own count after the import is 0 open connections |
-| a `.kicad_dru` written by `fastroute rules apply` | – | read and evaluated by KiCad's DRC (a 3 mm `track_width` rule gave 7 violations on the net it names; a 0.3 mm `clearance` rule 12 more) |
+| a `.kicad_dru` written by `fastroute rules apply` | – | read and evaluated by KiCad's DRC (a 3 mm `track_width` rule gave 7 violations on the net it names; a 0.3 mm `clearance` rule 12 more); the clearance rule reaches the router (below) |
 
 What the real runs found and fixed:
 
@@ -190,18 +190,23 @@ What the real runs found and fixed:
   connections on `pic_programmer` (connections through a zone), KiCad 0, so the result is `complete`.
 * KiCad 8 writes a project (`.kicad_pro`) and local settings (`.kicad_prl`) next to every board
   it saves, also next to the temporary file; they were left behind. Now removed.
-* The plugin applies only some `.kicad_dru` rules to the router (`diff_pair_gap`, `track_width` per
-  net class and layer) and prints `NOT applied` for the rest, e.g. every `clearance` rule. The text
-  that `rules apply` wrote ("the plugin carries them into the DSN") promised more; it now says that
-  KiCad's DRC checks all of them and the router follows only some.
+* The plugin did not hand `clearance` rules to the router (`NOT applied`) unless they compared net
+  classes, while the text that `rules apply` wrote said it carries them into the DSN. They now
+  reach the router: a rule without a condition applies to every pair of net classes, and the nets
+  of an `A.NetName` / `A.NetClass` condition get a class of their own (same circuit, width and via
+  rules) whose pairs get the clearance. With KiCad 8.0.9's DRC on `pic_programmer`: a 0.3 mm rule
+  for all nets left 0 clearance violations (79 when the router did not see it); a 0.45 mm rule for
+  two nets and a 0.35 mm rule for a third left none on those nets (4-6 each before). What still is
+  not applied is printed as `NOT applied`: conditions on item types (`A.Type`), areas, `B.` terms on
+  nets, and `track_width` rules that are not per net class and layer. A `(layer ...)` restriction
+  is applied to all layers and a value below a class's own clearance lowers it; both are said.
 * `pads[].x/y` is the pad centre as the router uses it; for custom-shaped pads (JP1 of `pic_programmer`)
   this is 0.25 mm from KiCad's pad position. KiCad's DSN export also renames duplicate pad names
   (`HOLE`, `HOLE@1`) and drops mounting holes without copper (both in [AI_DATA_FORMAT.md](AI_DATA_FORMAT.md)).
 * The demo boards come without a library table, so KiCad's DRC reports `lib_footprint_issues`
   warnings and `drc_status` is `failed` with 0 errors. Read `errors` / `warnings`.
 
-Not run: KiCad 9 and 10, and a routing run that follows a `.kicad_dru` clearance rule (the plugin
-does not hand those to the router).
+Not run: KiCad 9 and 10.
 
 ## Tests
 

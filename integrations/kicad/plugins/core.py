@@ -339,23 +339,161 @@ _DRU_TYPE_TERM = re.compile(r"([AB])\.Type\s*(==|!=)\s*'([^']*)'")
 _HANDLED_RULES = set()
 # clearance rules applied without their A.Type/B.Type terms (to all item types)
 _TYPE_DROPPED_RULES = set()
+# rule name -> what of the rule was carried over only in part (shown by dru_warnings)
+_RULE_NOTES = {}
 
 
-def add_dru_class_clearances(board, dsn_path):
-    """Carries simple net-class clearance rules of the board's .kicad_dru into the DSN.
+def _note(rule, text):
+    _RULE_NOTES.setdefault(rule, [])
+    if text not in _RULE_NOTES[rule]:
+        _RULE_NOTES[rule].append(text)
 
-    KiCad's DSN export has one clearance per net class; custom rules are lost.
-    Rules whose condition only compares net classes (A.NetClass == 'X' combined
-    with B.NetClass == / != 'Y' terms, joined by &&) and whose constraint is a
-    minimum clearance become Specctra class_class clearances. Returns the rules
-    that were carried over (name, pairs).
+
+def _dsn_token(text, k):
+    """(raw token, value, end) of the quoted or bare DSN token at or after `k`; (None, None, k)
+    at a parenthesis or at the end."""
+    n = len(text)
+    while k < n and text[k].isspace():
+        k += 1
+    if k >= n or text[k] in "()":
+        return None, None, k
+    if text[k] == '"':
+        j = text.find('"', k + 1)
+        j = n - 1 if j < 0 else j
+        return text[k : j + 1], text[k + 1 : j], j + 1
+    j = k
+    while j < n and not text[j].isspace() and text[j] not in "()":
+        j += 1
+    return text[k:j], text[k:j], j
+
+
+def _dsn_class_blocks(text):
+    """The `(class NAME net ... (circuit ...) (rule ...))` scopes of the network, in order:
+    dicts with start, end, name, name_raw, nets (values), nets_raw, header_end and body (the text
+    of the child scopes)."""
+    start = text.find("(network")
+    if start < 0:
+        return []
+    end = _scope_end(text, start)
+    blocks = []
+    for m in re.finditer(r"\(class\s", text[start:end]):
+        s0 = start + m.start()
+        raw, name, k = _dsn_token(text, s0 + len("(class"))
+        if raw is None:
+            continue
+        nets, nets_raw = [], []
+        while True:
+            r, v, k2 = _dsn_token(text, k)
+            if r is None:
+                break
+            k = k2
+            if v != "":  # (an empty name is no net)
+                nets.append(v)
+                nets_raw.append(r)
+        e = _scope_end(text, s0)
+        blocks.append(
+            {"start": s0, "end": e, "name": name, "name_raw": raw, "nets": nets, "nets_raw": nets_raw,
+             "header_end": k, "body": text[k : e - 1]}
+        )
+    return blocks
+
+
+def split_nets_into_classes(text, wanted, tag, skip_classes=()):
+    """Moves the nets named in `wanted` out of their DSN classes into classes of their own that
+    keep the circuit, rule and layer rules of the class they came from (so the nets are routed as
+    before; only class-pair clearances can differ). One new class per class that held such nets.
+    Returns (text, [(new class, class it came from)], the wanted nets that stayed because their
+    class is in `skip_classes`)."""
+    taken = {b["name"] for b in _dsn_class_blocks(text)}
+    safe = re.sub(r"\W", "_", tag) or "rule"
+    created, stayed = [], []
+    for b in reversed(_dsn_class_blocks(text)):
+        moving = [r for r, v in zip(b["nets_raw"], b["nets"]) if v in wanted]
+        if not moving:
+            continue
+        if b["name"] in skip_classes:
+            stayed += [v for v in b["nets"] if v in wanted]
+            continue
+        name, i = f"fr_dru_{safe}", 1
+        while name in taken:
+            i += 1
+            name = f"fr_dru_{safe}_{i}"
+        taken.add(name)
+        keep = [r for r, v in zip(b["nets_raw"], b["nets"]) if v not in wanted]
+        old = f"(class {b['name_raw']} " + " ".join(keep) + b["body"] + ")"
+        new = f"(class {name} " + " ".join(moving) + b["body"] + ")"
+        text = text[: b["start"]] + old + "\n    " + new + text[b["end"] :]
+        created.append((name, b["name"]))
+    return text, created[::-1], stayed
+
+
+def _board_nets(board):
+    """{net name: KiCad net class name} of the board, or {} if the API cannot say."""
+    try:
+        return {str(n): _net_class_name(net) for n, net in board.GetNetsByName().items() if str(n)}
+    except Exception:
+        return {}
+
+
+def add_dru_class_clearances(board, dsn_path, ignored_classes=()):
+    """Carries the clearance rules of the board's .kicad_dru into the DSN as Specctra
+    class_class clearances (KiCad's DSN export has one clearance per net class; custom rules are
+    lost). A rule is carried if its constraint is a minimum clearance and its condition is
+
+    * absent: it applies to every pair of net classes;
+    * only net-class terms (A.NetClass == 'X' combined with B.NetClass == / != 'Y' terms, joined
+      by &&; A.Type / B.Type terms are dropped, which is stricter): the pairs of those classes;
+    * only A.NetName / A.NetClass / A.inDiffPair terms (joined by && and ||): the nets that match
+      get a class of their own (same circuit, rule and layer rules as before) and its pairs with
+      every class, itself included, get the clearance.
+
+    A (layer ...) restriction is dropped (one clearance per class pair: stricter). Returns the
+    rules that were carried over, as (name, classes or pairs).
     """
     try:
         dru = Path(board.GetFileName()).with_suffix(".kicad_dru")
         rules_text = dru.read_text(encoding="utf-8", errors="replace")
     except Exception:
         return []
-    text = Path(dsn_path).read_text(encoding="utf-8", errors="replace")
+    text = original = Path(dsn_path).read_text(encoding="utf-8", errors="replace")
+    ignored = set(ignored_classes) | ({"kicad_default"} if "Default" in ignored_classes else set())
+
+    rules = []  # (name, body, clearance in mm, condition text or None)
+    for name, body in _DRU_RULE.findall(rules_text):
+        cons = re.search(r"\(constraint\s+clearance\s+\(min\s+([\d.]+)\s*(mm|mil|um)?\)", body)
+        if not cons:
+            continue
+        cond = re.search(r"\(condition\s+\"([^\"]*)\"", body)
+        mm = float(cons.group(1)) * {"mm": 1.0, "mil": 0.0254, "um": 0.001}[cons.group(2) or "mm"]
+        rules.append((name, body, mm, cond.group(1) if cond else None))
+
+    # rules that select nets (not classes): those nets get classes of their own first, so that
+    # the class pairs below can name them
+    nets = _board_nets(board)
+    own_classes = {}  # rule name -> new DSN classes
+    derived = {}  # DSN class -> the classes made out of nets of it (they are still of that class)
+    for name, body, mm, cond in rules:
+        if cond is None or _class_terms(cond) is not None:
+            continue
+        matches = [_dru_matches(cond, n, c) for n, c in nets.items()]
+        if not nets or any(m is None for m in matches):
+            continue  # a term the router cannot use: dru_warnings() reports it
+        wanted = {n for (n, c), m in zip(nets.items(), matches) if m}
+        if not wanted:
+            _HANDLED_RULES.add(name)
+            _note(name, "its condition matches no net of the board; nothing to apply")
+            continue
+        text, created, stayed = split_nets_into_classes(text, wanted, name, ignored)
+        if stayed:
+            _note(name, f"not applied to {len(stayed)} net(s) whose net class the autorouter ignores ({stayed[0]}...)" if len(stayed) > 1 else f"not applied to {stayed[0]}: its net class is ignored by the autorouter")
+        _HANDLED_RULES.add(name)
+        if created:
+            own_classes[name] = [c for c, _ in created]
+            for c, origin in created:
+                derived.setdefault(origin, []).append(c)
+        elif not stayed:
+            _note(name, "none of its nets is in the DSN")
+
     classes = re.findall(r"\(class\s+\"?([^\s\"()]+)", text)
     dsn_name = {c: c for c in classes}
     dsn_name["Default"] = "kicad_default" if "kicad_default" in classes else "Default"
@@ -378,46 +516,60 @@ def add_dru_class_clearances(board, dsn_path):
         for b in names[i + 1:]:
             if own[a] != own[b]:
                 pairs[tuple(sorted((a, b)))] = max(own[a], own[b])
+
+    def grow(a, b, um, rule):
+        key = tuple(sorted((a, b)))
+        clearance = um / unit_um
+        if clearance > pairs.get(key, 0.0):
+            pairs[key] = clearance
+            base = max(own.get(a, 0.0), own.get(b, 0.0))
+            if clearance < base:  # (KiCad's rule replaces the class clearance, and so does this)
+                _note(rule, f"lowers the clearance of {a} / {b} from {base * unit_um / 1000:g} to {um / 1000:g} mm; the router follows the rule")
+
     carried = []
-    for name, body in _DRU_RULE.findall(rules_text):
-        cond = re.search(r"\(condition\s+\"([^\"]*)\"", body)
-        cons = re.search(r"\(constraint\s+clearance\s+\(min\s+([\d.]+)\s*(mm|mil|um)?\)", body)
-        if not cond or not cons:
-            continue
-        terms = [t.strip() for t in cond.group(1).split("&&")]
-        # A.Type / B.Type terms are dropped: the clearance then applies to all item types,
-        # which is at least as strict as the rule
-        type_terms = [t for t in terms if _DRU_TYPE_TERM.fullmatch(t)]
-        terms = [t for t in terms if not _DRU_TYPE_TERM.fullmatch(t)]
-        parsed = [_DRU_TERM.fullmatch(t) for t in terms]
-        if not terms or not all(parsed):
-            continue
-        a_eq = [p.group(3) for p in parsed if p.group(1) == "A" and p.group(2) == "=="]
-        if len(a_eq) != 1 or any(p.group(1) == "A" and p.group(2) == "!=" for p in parsed):
-            continue
-        b_eq = [p.group(3) for p in parsed if p.group(1) == "B" and p.group(2) == "=="]
-        b_ne = {p.group(3) for p in parsed if p.group(1) == "B" and p.group(2) == "!="}
-        value, unit = float(cons.group(1)), cons.group(2) or "mm"
-        um = value * {"mm": 1000.0, "mil": 25.4, "um": 1.0}[unit]
-        a = dsn_name.get(a_eq[0])
-        others = [dsn_name.get(b) for b in b_eq] if b_eq else [c for c in classes if c not in {dsn_name.get(x) for x in b_ne}]
-        if a is None:
-            continue
-        done = []
-        for b in others:
-            if b is None:
-                continue
-            key = tuple(sorted((a, b)))
-            clearance = um / unit_um
-            if clearance > pairs.get(key, 0.0):
-                pairs[key] = clearance
-            done.append(b)
-        if done:
-            carried.append((name, done))
+    for name, body, mm, cond in rules:
+        um = mm * 1000.0
+        if re.search(r"\(layer\s", body):
+            _note(name, "applied to all layers (the router has one clearance per class pair); this is stricter")
+        if cond is None:
+            for i, a in enumerate(classes):
+                for b in classes[i:]:
+                    grow(a, b, um, name)
+            carried.append((name, ["every pair of net classes"]))
             _HANDLED_RULES.add(name)
-            if type_terms:
-                _TYPE_DROPPED_RULES.add(name)
+            continue
+        terms_ok = _class_terms(cond)
+        if terms_ok is not None:
+            a_eq, b_eq, b_ne, type_terms = terms_ok
+            a = dsn_name.get(a_eq)
+            if a is None:
+                continue
+            # (nets that were moved to a class of their own are still of the class they came from)
+            expand = lambda c: [c] + derived.get(c, [])  # noqa: E731
+            excluded = {y for x in b_ne for y in expand(dsn_name.get(x))}
+            others = [y for b in b_eq for y in expand(dsn_name.get(b))] if b_eq else [c for c in classes if c not in excluded]
+            done = []
+            for a2 in expand(a):
+                for b in others:
+                    if b is None:
+                        continue
+                    grow(a2, b, um, name)
+                    done.append(b)
+            if done:
+                carried.append((name, done))
+                _HANDLED_RULES.add(name)
+                if type_terms:
+                    _TYPE_DROPPED_RULES.add(name)
+            continue
+        for a in own_classes.get(name, []):
+            for b in classes:
+                grow(a, b, um, name)
+        if name in own_classes:
+            carried.append((name, own_classes[name]))
+            _HANDLED_RULES.add(name)
     if not pairs:
+        if text != original:
+            Path(dsn_path).write_text(text, encoding="utf-8")
         return carried
     start = text.find("(network")
     if start < 0:
@@ -429,6 +581,24 @@ def add_dru_class_clearances(board, dsn_path):
     text = text[: end - 1] + block + "  " + text[end - 1 :]
     Path(dsn_path).write_text(text, encoding="utf-8")
     return carried
+
+
+def _class_terms(cond):
+    """(A class, [B classes ==], {B classes !=}, [A.Type / B.Type terms]) if the condition only
+    compares net classes (A.NetClass == 'X' once, B.NetClass == / != 'Y' terms) joined by &&
+    (Type terms are returned, not understood); else None."""
+    terms = [t.strip() for t in cond.split("&&")]
+    type_terms = [t for t in terms if _DRU_TYPE_TERM.fullmatch(t)]
+    terms = [t for t in terms if not _DRU_TYPE_TERM.fullmatch(t)]
+    parsed = [_DRU_TERM.fullmatch(t) for t in terms]
+    if not terms or not all(parsed):
+        return None
+    a_eq = [p.group(3) for p in parsed if p.group(1) == "A" and p.group(2) == "=="]
+    if len(a_eq) != 1 or any(p.group(1) == "A" and p.group(2) == "!=" for p in parsed):
+        return None
+    b_eq = [p.group(3) for p in parsed if p.group(1) == "B" and p.group(2) == "=="]
+    b_ne = {p.group(3) for p in parsed if p.group(1) == "B" and p.group(2) == "!="}
+    return a_eq[0], b_eq, b_ne, type_terms
 
 
 _DRU_NET_TERM = re.compile(r"A\.(NetClass|NetName)\s*==\s*'([^']*)'")
@@ -660,6 +830,8 @@ def dru_warnings(board, layer_widths=()):
             cls = re.fullmatch(r"\s*A\.NetClass\s*==\s*'([^']*)'\s*", cond_text)
             handled = bool(cls) and (cls.group(1), layer.group(1)) in width_keys
         if handled:
+            for note in _RULE_NOTES.get(name, ()):
+                out.append(f"rule '{name}': {note}")
             if name in _TYPE_DROPPED_RULES:
                 out.append(f"rule '{name}': applied to all item types (its A.Type/B.Type terms cannot be translated; this is stricter)")
             if "length" in relevant and re.search(r"\(constraint\s+length\s+[^\n]*\(max\s", body):
@@ -1406,12 +1578,15 @@ class Router:
         fix_rule_area_keepouts(self.board, self._dsn)
         _HANDLED_RULES.clear()
         _TYPE_DROPPED_RULES.clear()
-        self.dru_rules = add_dru_class_clearances(self.board, self._dsn)
-        self.layer_widths = add_dru_layer_widths(self.board, self._dsn)
+        _RULE_NOTES.clear()
         ignored = set()
         for a in self.extra_args:
             if a.startswith("--router.autorouter.ignore_net_classes="):
                 ignored |= {c.strip() for c in a.split("=", 1)[1].split(",") if c.strip()}
+        # (the layer widths first: a net that a clearance rule moves into a class of its own
+        # takes the width rules of its class along)
+        self.layer_widths = add_dru_layer_widths(self.board, self._dsn)
+        self.dru_rules = add_dru_class_clearances(self.board, self._dsn, ignored)
         self.hole_keepouts = add_hole_clearance_keepouts(self.board, self._dsn, ignored)
         self.cutout_keepouts = add_cutout_edge_keepouts(self.board, self._dsn)
         self.pad_keepouts = add_netless_pad_keepouts(self.board, self._dsn)

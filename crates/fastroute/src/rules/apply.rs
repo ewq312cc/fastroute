@@ -167,7 +167,7 @@ pub fn build(draft: &Value, report: &CheckReport, accepted: &HashSet<String>, dr
     }
     if !dru.is_empty() {
         // (a .kicad_dru starts with its version; `#` lines are comments)
-        a.dru = Some(format!("(version 1)\n{}{dru}", header("rules for KiCad: put next to the board as <board>.kicad_dru. KiCad's DRC enforces all of them; the plugin hands only some to the router and prints NOT applied for the rest")));
+        a.dru = Some(format!("(version 1)\n{}{dru}", header("rules for KiCad: put next to the board as <board>.kicad_dru. KiCad's DRC enforces all of them; the plugin hands the router clearance rules, diff_pair_gap and per-class track_width and prints NOT applied for the rest")));
     }
     if !args.is_empty() {
         a.route_args = Some(args.join("\n") + "\n");

@@ -159,6 +159,10 @@ KiCad 10 DRC after re-routing from scratch (unconnected items / routing violatio
 
 - Uses the classic `pcbnew` Python action-plugin API (KiCad 7–10). The KiCad 10
   IPC plugin API has no Specctra export yet.
+- `.kicad_dru` clearance rules reach the router as class-pair clearances: without a condition for
+  every pair of net classes; with `A.NetName` / `A.NetClass` terms the nets that match get a class of
+  their own (same circuit, width and via rules). `A.Type`, area terms and `B.` terms on nets are
+  reported as `NOT applied`; a `(layer ...)` restriction is applied to all layers (stricter).
 - `route_cli.py` (no GUI) needs **KiCad 8 or newer**: in KiCad 7 `pcbnew.ImportSpecctraSES` takes only
   a file name and works on the board open in the PCB editor, so the headless import is impossible.
   `route_cli.py` checks this first and exits 2 with that message instead of failing after the

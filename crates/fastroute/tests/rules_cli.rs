@@ -199,9 +199,9 @@ fn asking_to_loosen_a_hard_constraint_is_declared_and_needs_an_explicit_acceptan
     let dru = std::fs::read_to_string(out.join("rules.kicad_dru")).unwrap();
     assert!(dru.starts_with("(version 1)") && dru.contains("(rule \"R1\"") && dru.contains("(constraint clearance (min 0.1mm))"), "{dru}");
     assert_eq!(json(&out.join("apply-report.json"))["relaxations_accepted"], json!(["R1"]));
-    // KiCad's DRC checks a .kicad_dru; the router gets only some of its rules. Say so: with a real
-    // KiCad 8.0.9 the plugin printed "NOT applied" for clearance / track_width rules written in
-    // this form, while the file said it "carries them into the DSN"
+    // KiCad's DRC checks a .kicad_dru; the router gets only some of its rules (clearance rules,
+    // diff_pair_gap, track_width per class and layer). Say so: the file used to say that the plugin
+    // "carries them into the DSN", which a real KiCad 8.0.9 run showed to be false for some
     let next = json(&out.join("apply-report.json"))["next_steps"].to_string();
     assert!(next.contains("NOT applied") && next.contains("checked, not obeyed"), "{next}");
     assert!(!next.contains("carries its rules into the DSN"), "{next}");

@@ -79,7 +79,7 @@ pub const KINDS: &[Kind] = &[
     Kind {
         name: "clearance",
         capability: Capability::ViaKicad,
-        maps_to: "`.kicad_dru` `clearance` constraint: KiCad's DRC checks it; the plugin does not translate `clearance` rules for the router (it prints `NOT applied`), which keeps the clearances of the board's net classes (seen with KiCad 8.0.9)",
+        maps_to: "`.kicad_dru` `clearance` constraint: KiCad's DRC checks it and the plugin hands it to the router as class-pair clearances (every pair of classes without a condition; the nets of an `A.NetName` / `A.NetClass` condition get a class of their own); a `layer` restriction is applied to all layers (stricter); conditions on item types or areas are not applied (`NOT applied`)",
         required: &["clearance_mm"],
         one_of: &[],
         params: &[Param { key: "clearance_mm", ty: MM }, Param { key: "layer", ty: "string" }],

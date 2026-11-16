@@ -1,0 +1,194 @@
+{
+  "format": "fastroute-manifest",
+  "format_version": "1.0",
+  "fastroute_version": "0.1.14",
+  "generated_by": "fastroute render",
+  "status": "ok",
+  "input": {
+    "path": "render_demo.dsn",
+    "bytes": 2567,
+    "sha256": "8e8568536bbbbb20ca9e64cb37d3e256a3c4a2e55145496e239425295110bae6"
+  },
+  "session": {
+    "path": "render_demo.ses",
+    "bytes": 2230,
+    "sha256": "ec1edbec7b568daa3d37badd3b0ac504b9312560ec597f111601e12dae00897b"
+  },
+  "coordinate_system": {
+    "unit": "mm",
+    "x_axis": "right",
+    "y_axis": "down",
+    "origin": "origin of the Specctra design (for a KiCad export: the KiCad board origin); y is the DSN y negated, so coordinates equal KiCad's",
+    "pixel_origin": "top-left corner of the image; pixel centres are at +0.5",
+    "pixel_axes": "u to the right, v downwards; world and pixel axes are not flipped against each other"
+  },
+  "images": [
+    {
+      "file": "overview.png",
+      "purpose": "region",
+      "selection": {
+        "type": "board"
+      },
+      "bytes": 68915,
+      "sha256": "b253cd0122403d39077950c3533e533f1a5357ebf6489afefa80e17235797503",
+      "width_px": 900,
+      "height_px": 684,
+      "region_mm": {
+        "x": -0.7999999999999972,
+        "y": -0.807999999999998,
+        "width": 41.599999999999994,
+        "height": 31.616
+      },
+      "px_per_mm": 21.634615384615387,
+      "mm_per_px": 0.04622222222222222,
+      "transform": {
+        "world_to_pixel_u": {
+          "scale": 21.634615384615387,
+          "offset": 17.307692307692246
+        },
+        "world_to_pixel_v": {
+          "scale": 21.634615384615387,
+          "offset": 17.48076923076919
+        },
+        "pixel_to_world_x": {
+          "scale": 0.04622222222222222,
+          "offset": -0.7999999999999972
+        },
+        "pixel_to_world_y": {
+          "scale": 0.04622222222222222,
+          "offset": -0.807999999999998
+        }
+      },
+      "layers": [
+        "F.Cu",
+        "B.Cu"
+      ],
+      "annotations": [
+        "scale",
+        "layer",
+        "nets",
+        "markers"
+      ],
+      "airlines": true,
+      "contains": {
+        "components": [
+          "J1",
+          "R1",
+          "U1"
+        ],
+        "nets": [
+          "GND",
+          "NC",
+          "SIG",
+          "VCC"
+        ],
+        "issues": [
+          "CLR1",
+          "OPEN1",
+          "OPEN2"
+        ]
+      },
+      "labels": {
+        "drawn": 10,
+        "skipped_overlap": 1,
+        "skipped_small": 1
+      }
+    },
+    {
+      "file": "u1-region.png",
+      "purpose": "region-layer",
+      "selection": {
+        "type": "component",
+        "targets": [
+          "U1"
+        ],
+        "padding_mm": 2.0
+      },
+      "bytes": 58215,
+      "sha256": "28760d448bd5c64aed603c1d61ae0507b21d7cd1a1b806d5567a03de895edcbf",
+      "width_px": 488,
+      "height_px": 428,
+      "region_mm": {
+        "x": 5.933333333333334,
+        "y": 6.433333333333334,
+        "width": 8.133333333333333,
+        "height": 7.133333333333333
+      },
+      "px_per_mm": 60.0,
+      "mm_per_px": 0.016666666666666666,
+      "transform": {
+        "world_to_pixel_u": {
+          "scale": 60.0,
+          "offset": -356.0
+        },
+        "world_to_pixel_v": {
+          "scale": 60.0,
+          "offset": -386.0
+        },
+        "pixel_to_world_x": {
+          "scale": 0.016666666666666666,
+          "offset": 5.933333333333334
+        },
+        "pixel_to_world_y": {
+          "scale": 0.016666666666666666,
+          "offset": 6.433333333333334
+        }
+      },
+      "layers": [
+        "F.Cu"
+      ],
+      "annotations": [
+        "grid",
+        "scale",
+        "layer",
+        "nets",
+        "pads",
+        "markers"
+      ],
+      "airlines": true,
+      "contains": {
+        "components": [
+          "U1"
+        ],
+        "nets": [
+          "GND",
+          "NC",
+          "SIG",
+          "VCC"
+        ],
+        "issues": [
+          "OPEN2"
+        ]
+      },
+      "labels": {
+        "drawn": 24,
+        "skipped_overlap": 1,
+        "skipped_small": 0
+      }
+    }
+  ],
+  "reports": {
+    "inspect": {
+      "file": "inspect.json",
+      "status": "present"
+    },
+    "route_report": {
+      "file": null,
+      "status": "not_run",
+      "detail": "no route report was produced for this example"
+    },
+    "drc_report": {
+      "file": null,
+      "status": "not_run",
+      "detail": "kicad-cli was not run"
+    },
+    "rules": {
+      "file": null,
+      "status": "not_run"
+    }
+  },
+  "warnings": [
+    "the session replaces the 7 traces and vias of the design (a session holds the complete wiring)"
+  ],
+  "errors": []
+}

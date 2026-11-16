@@ -65,11 +65,39 @@ pub struct Violation {
     pub second: ItemRef,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompInfo {
+    pub name: String,
+    /// `front` or `back`.
+    pub side: &'static str,
+    pub rotation_deg: f64,
+}
+
+/// A value on each copper layer, in board order.
+pub type PerLayer = Vec<(String, f64)>;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClassRule {
+    pub name: String,
+    pub nets: Vec<String>,
+    pub trace_width_mm: PerLayer,
+    /// Clearance between two traces of this class.
+    pub clearance_mm: PerLayer,
+    pub ignored_by_autorouter: bool,
+    pub min_length_mm: Option<f64>,
+    pub max_length_mm: Option<f64>,
+}
+
 pub struct Analysis {
     pub geometry: BoardGeometry,
     pub per_mm: f64,
     pub unrouted: Vec<Unrouted>,
     pub violations: Vec<Violation>,
+    /// Details of `geometry.components`, same order.
+    pub components: Vec<CompInfo>,
+    /// Net class name per net number (index 0 = no net).
+    pub net_class: Vec<String>,
+    pub classes: Vec<ClassRule>,
 }
 
 struct Conv {
@@ -206,6 +234,7 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
         }
     }
 
+    let mut comp_info = Vec::new();
     for c in basic.components.get_all() {
         let mut bbox: Option<Rect> = None;
         for k in basic.get_component_items(c.id) {
@@ -217,6 +246,7 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
         }
         let (Some(bbox), Some(loc)) = (bbox, c.get_location()) else { continue };
         g.components.push(Component { name: c.name.clone(), center: conv.fp(&loc.to_float()), bbox });
+        comp_info.push(CompInfo { name: c.name.clone(), side: if c.placed_on_front() { "front" } else { "back" }, rotation_deg: c.get_rotation_in_degree() });
     }
 
     // unrouted connections
@@ -265,7 +295,30 @@ pub fn analyse(board: &RoutingBoard, name: &str, synthetic: &HashSet<ItemId>) ->
             second: item_ref(basic, v.second_item),
         });
     }
-    Analysis { geometry: g, per_mm: conv.per_mm, unrouted, violations }
+
+    // net classes and their rules
+    let mut net_class = vec![String::new()];
+    for n in 1..=basic.rules.nets.max_net_number() {
+        net_class.push(basic.rules.nets.get(n).map(|net| basic.rules.net_classes[net.get_net_class()].get_name().to_string()).unwrap_or_default());
+    }
+    let rules = &basic.rules;
+    let mut classes = Vec::new();
+    for id in rules.net_classes.iter() {
+        let c = &rules.net_classes[id];
+        let cl = c.get_trace_clearance_class();
+        let per_layer = |f: &dyn Fn(i32) -> f64| -> PerLayer { (0..g.layers.len()).map(|l| (g.layers[l].name.clone(), f(l as i32))).collect() };
+        let positive = |v: f64| Some(conv.len(v)).filter(|x| *x > 0.0);
+        classes.push(ClassRule {
+            name: c.get_name().to_string(),
+            nets: (1..g.nets.len()).filter(|&n| net_class[n] == c.get_name()).map(|n| g.nets[n].clone()).collect(),
+            trace_width_mm: per_layer(&|l| conv.len(2.0 * c.get_trace_half_width(l) as f64)),
+            clearance_mm: per_layer(&|l| conv.len(rules.clearance_matrix.get_value(cl, cl, l, false) as f64)),
+            ignored_by_autorouter: c.is_ignored_by_autorouter,
+            min_length_mm: positive(c.get_minimum_trace_length()),
+            max_length_mm: positive(c.get_maximum_trace_length()),
+        });
+    }
+    Analysis { geometry: g, per_mm: conv.per_mm, unrouted, violations, components: comp_info, net_class, classes }
 }
 
 /// Total trace length (mm) per net number, from the extracted geometry.

@@ -138,8 +138,13 @@ manifest say how many. Thin lines never vanish: nothing is drawn thinner than on
 
 `-o FILE` is written through a temporary file and a rename. An existing file is refused
 unless `--force`; the input design and session are never overwritten, also not with
-`--force` and not under another spelling of the same path. `--manifest FILE` writes the
-manifest of the image (`-` = standard output; then the summary line is not printed).
+`--force` and not under another spelling of the same path.
+
+Every image gets a manifest, so a picture is never separated from its region and scale:
+`board.png` comes with `board.manifest.json` (region, pixel size, scale, the mm↔pixel
+transform, layers, what is in the image; see [AI_DATA_FORMAT.md](AI_DATA_FORMAT.md)).
+`--manifest FILE` chooses another place (`-` = standard output; then the summary line is not
+printed), `--no-manifest` writes none. Both files are checked before anything is written.
 `-q` prints nothing on success.
 
 Exit codes: 0 done, 2 usage (bad or conflicting options, unknown names), 3 input (missing or

@@ -362,3 +362,25 @@ fn the_manifest_matches_the_published_schema() {
     validate(&schema, &bad, "$", &mut errors);
     assert!(errors.len() >= 3, "{errors:?}");
 }
+
+#[test]
+fn every_image_gets_a_manifest_next_to_it_unless_declined() {
+    let d = tmp("sidecar");
+    let o = run(&["render", "-i", &s(&demo_dsn()), "-o", &s(&d.join("board.png")), "--size", "300", "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let m = json(&d.join("board.manifest.json"));
+    assert_valid("manifest-1.0.schema.json", &m);
+    assert_eq!(m["images"][0]["file"], "board.png");
+    assert_eq!(m["images"][0]["width_px"].as_u64().unwrap(), png_size(&d.join("board.png")).0 as u64);
+    assert_eq!(m["images"][0]["sha256"].as_str().unwrap().len(), 64);
+    // the sidecar is protected like the image
+    let o = run(&["render", "-i", &s(&demo_dsn()), "-o", &s(&d.join("other.png")), "--manifest", &s(&d.join("board.manifest.json")), "-q"]);
+    assert_eq!(code(&o), 4, "{}", stderr(&o));
+    assert!(!d.join("other.png").exists(), "nothing is written when the manifest would not be");
+    // declined
+    let o = run(&["render", "-i", &s(&demo_dsn()), "-o", &s(&d.join("plain.png")), "--no-manifest", "--size", "300", "-q"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(d.join("plain.png").exists() && !d.join("plain.manifest.json").exists());
+    let o = run(&["render", "-i", &s(&demo_dsn()), "-o", &s(&d.join("x.png")), "--no-manifest", "--manifest", "-"]);
+    assert_eq!(code(&o), 2, "{}", stderr(&o));
+}

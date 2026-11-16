@@ -63,6 +63,11 @@ pub fn parse_report(text: &str) -> Result<ParsedReport, String> {
     let kind;
     if obj.get("format").and_then(Value::as_str) == Some("fastroute-inspect") {
         kind = ReportKind::Inspect;
+        // minor versions only add properties; a new major version may change their meaning
+        let version = obj.get("format_version").and_then(Value::as_str).unwrap_or("");
+        if version.split('.').next() != Some("1") {
+            return Err(format!("inspect.json format_version \"{version}\" is not supported (this fastroute reads 1.x)"));
+        }
         if obj.get("status").and_then(Value::as_str) == Some("error") {
             return Err("this inspect.json records a failed run (status \"error\"), it has no locations".into());
         }
@@ -163,14 +168,18 @@ mod tests {
     #[test]
     fn inspect_report_keeps_its_ids() {
         let r = parse_report(
-            r#"{"format":"fastroute-inspect","unrouted":[{"id":"OPEN7","from":{"x":0,"y":0},"to":{"x":2,"y":2}}],
+            r#"{"format":"fastroute-inspect","format_version":"1.3","unrouted":[{"id":"OPEN7","from":{"x":0,"y":0},"to":{"x":2,"y":2}}],
                 "violations":[{"id":"CLR3","x":1,"y":1}],"drc":{"issues":[{"id":"DRC9","x":4,"y":4}]}}"#,
         )
         .unwrap();
         assert_eq!(r.kind, ReportKind::Inspect);
         assert_eq!(r.issues.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(), ["OPEN7", "CLR3", "DRC9"]);
-        let failed = parse_report(r#"{"format":"fastroute-inspect","status":"error"}"#).unwrap_err();
+        let failed = parse_report(r#"{"format":"fastroute-inspect","format_version":"1.0","status":"error"}"#).unwrap_err();
         assert!(failed.contains("failed run"), "{failed}");
+        for v in ["2.0", "0.9", "", "x"] {
+            let e = parse_report(&format!(r#"{{"format":"fastroute-inspect","format_version":"{v}","unrouted":[]}}"#)).unwrap_err();
+            assert!(e.contains("not supported"), "{v}: {e}");
+        }
     }
 
     #[test]

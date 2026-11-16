@@ -21,7 +21,10 @@ pub fn mm_dsn() -> PathBuf {
 
 /// A fresh empty directory for one test.
 pub fn tmp(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("fastroute-it-{}-{name}", std::process::id()));
+    // (unique per call: the tests of one binary run in parallel)
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let d = std::env::temp_dir().join(format!("fastroute-it-{}-{name}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     d
@@ -76,7 +79,7 @@ pub fn s(p: &Path) -> String {
 
 /// Validates `value` against the subset of JSON Schema the published schemas use:
 /// local `$ref`, `type` (also a list), `enum`, `const`, `required`, `properties`,
-/// `additionalProperties` (false or a schema), `items`, `minItems`, `minimum`.
+/// `additionalProperties` (false or a schema), `items`, `minItems`, `minimum`, `if`/`then`.
 pub fn validate(schema: &Value, value: &Value, path: &str, errors: &mut Vec<String>) {
     validate_in(schema, schema, value, path, errors)
 }
@@ -126,14 +129,15 @@ fn validate_in(root: &Value, schema: &Value, value: &Value, path: &str, errors: 
             errors.push(format!("{path}: {v} is below the minimum {min}"));
         }
     }
-    if let (Some(obj), Some(props)) = (value.as_object(), schema.get("properties").and_then(Value::as_object)) {
+    if let Some(obj) = value.as_object() {
         for r in schema.get("required").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
             if !obj.contains_key(r) {
                 errors.push(format!("{path}: missing required property '{r}'"));
             }
         }
+        let props = schema.get("properties").and_then(Value::as_object);
         for (k, v) in obj {
-            match props.get(k) {
+            match props.and_then(|p| p.get(k)) {
                 Some(s) => validate_in(root, s, v, &format!("{path}.{k}"), errors),
                 None => match schema.get("additionalProperties") {
                     Some(Value::Bool(false)) => errors.push(format!("{path}: unexpected property '{k}'")),
@@ -142,11 +146,12 @@ fn validate_in(root: &Value, schema: &Value, value: &Value, path: &str, errors: 
                 },
             }
         }
-    } else if let (Some(obj), Some(ap)) = (value.as_object(), schema.get("additionalProperties")) {
-        if ap.is_object() {
-            for (k, v) in obj {
-                validate_in(root, ap, v, &format!("{path}.{k}"), errors);
-            }
+    }
+    if let (Some(cond), Some(then)) = (schema.get("if"), schema.get("then")) {
+        let mut inner = Vec::new();
+        validate_in(root, cond, value, path, &mut inner);
+        if inner.is_empty() {
+            validate_in(root, then, value, path, errors);
         }
     }
     if let (Some(arr), Some(items)) = (value.as_array(), schema.get("items")) {
@@ -169,18 +174,36 @@ pub fn assert_valid(schema_file: &str, value: &Value) {
     assert!(errors.is_empty(), "{schema_file}:\n{}", errors.join("\n"));
 }
 
-/// The session of the demo board routed by the legacy command line (done once per test binary).
+/// The session of the demo board routed by the legacy command line, and the `--report` of that
+/// run (done once per test binary).
+pub fn routed_demo() -> (PathBuf, PathBuf) {
+    static ROUTED: std::sync::OnceLock<(PathBuf, PathBuf)> = std::sync::OnceLock::new();
+    ROUTED
+        .get_or_init(|| {
+            let d = tmp("routed-demo");
+            let (ses, report) = (d.join("demo.ses"), d.join("demo-report.json"));
+            let o = std::process::Command::new(env!("CARGO_BIN_EXE_fastroute"))
+                .args(["-de", &s(&demo_dsn()), "-do", &s(&ses), &format!("--report={}", s(&report)), "--max-time=60", "--router.optimizer.enabled=false"])
+                .output()
+                .expect("route the demo board");
+            assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+            (ses, report)
+        })
+        .clone()
+}
+
 pub fn routed_demo_ses() -> PathBuf {
-    static SES: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    SES.get_or_init(|| {
-        let d = tmp("routed-demo");
-        let ses = d.join("demo.ses");
-        let o = std::process::Command::new(env!("CARGO_BIN_EXE_fastroute"))
-            .args(["-de", &s(&demo_dsn()), "-do", &s(&ses), "--max-time=60", "--router.optimizer.enabled=false"])
-            .output()
-            .expect("route the demo board");
-        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-        ses
-    })
-    .clone()
+    routed_demo().0
+}
+
+/// RGBA pixels of a PNG file: (width, height, bytes).
+pub fn png_pixels(path: &Path) -> (u32, u32, Vec<u8>) {
+    let mut dec = png::Decoder::new(std::fs::File::open(path).unwrap());
+    dec.set_transformations(png::Transformations::EXPAND);
+    let mut r = dec.read_info().unwrap();
+    let mut buf = vec![0; r.output_buffer_size()];
+    let info = r.next_frame(&mut buf).unwrap();
+    assert_eq!(info.color_type, png::ColorType::Rgba, "{}", path.display());
+    buf.truncate(info.buffer_size());
+    (info.width, info.height, buf)
 }

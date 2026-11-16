@@ -27,7 +27,8 @@ const OPTS: &[Opt] = &[
     opt("padding-mm", None, Some("N"), "margin around --around / --net / --select regions (default 2)"),
     opt("annotate", None, Some("LIST"), "labels: scale, layer, grid, grid=MM, nets, pads, refs, markers, all, none\n(default scale,layer,markers); labels never overlap, those that would are left out"),
     opt("no-airlines", None, None, "do not draw the unrouted connections"),
-    opt("manifest", None, Some("FILE"), "also write a manifest.json for this image ('-' = standard output)"),
+    opt("manifest", None, Some("FILE"), "where to write the manifest of this image (default: next to the image, <name>.manifest.json;\n'-' = standard output)"),
+    opt("no-manifest", None, None, "do not write a manifest"),
     opt("force", None, None, "replace existing output files"),
     opt("quiet", Some('q'), None, "no summary line"),
 ];
@@ -38,6 +39,8 @@ pub const SPEC: Spec = Spec {
     usage: "render --input design.dsn --output board.png [options]",
     opts: OPTS,
     footer: "Coordinates are millimetres, x to the right, y downwards (as in KiCad and --report).\n\
+             Every image gets a manifest (board.png -> board.manifest.json) with its region, scale and\n\
+             the mm <-> pixel transform; see docs/AI_DATA_FORMAT.md.\n\
              Whole board:   fastroute render -i board.dsn -s routed.ses -o board.png --size 4096\n\
              One component: fastroute render -i board.dsn --around U1 --padding-mm 3 --px-per-mm 80 -o u1.png\n\
              A pair:        fastroute render -i board.dsn --net USB_DP --net USB_DN --layers F.Cu -o usb.png\n\
@@ -150,7 +153,13 @@ pub fn run(args: &[String]) -> Result<(), CmdError> {
     };
     let output = p.path("output").ok_or_else(|| CmdError::usage("no output file (--output board.png)"))?;
     let session = p.path("session");
-    let manifest_path = p.path("manifest");
+    let manifest_path = match (p.path("manifest"), p.flag("no-manifest")) {
+        (Some(_), true) => return Err(CmdError::usage("--manifest and --no-manifest contradict each other")),
+        (Some(m), false) => Some(m),
+        // every image comes with its metadata: the region, scale and transform are what make it usable
+        (None, false) => Some(output.with_extension("manifest.json")),
+        (None, true) => None,
+    };
     let force = p.flag("force");
     // refuse early, before the board is loaded
     let mut inputs: Vec<&Path> = vec![&input];

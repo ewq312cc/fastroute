@@ -24,7 +24,9 @@
 //! result; a second signal exits at once) or killed leaves its best result behind.
 
 mod cmd;
+mod drc;
 mod extract;
+mod inspect;
 mod live;
 mod load;
 mod manifest;
@@ -795,9 +797,11 @@ fn dispatch(argv: &[String]) -> Option<ExitCode> {
     let (name, rest) = (argv.first()?.as_str(), &argv[1..]);
     let result = match name {
         "render" => render_cmd::run(rest),
+        "inspect" => inspect::run(rest),
         "help" => {
             match rest.first().map(String::as_str) {
                 Some("render") => print!("{}", render_cmd::SPEC.help_text()),
+                Some("inspect") => print!("{}", inspect::SPEC.help_text()),
                 _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
             }
             Ok(())

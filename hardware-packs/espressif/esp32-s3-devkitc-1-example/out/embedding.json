@@ -1,0 +1,1024 @@
+{
+  "format": "hcp-board-embedding",
+  "format_version": "1.0",
+  "status": "needs_attention",
+  "board": {
+    "id": "espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1",
+    "version": "0.1.0",
+    "hardware_revision": "v1.1",
+    "canonical_sha256": "46ac681cd7f3f275c4e5c26acfbdd49c9694174aa0052c7ea87ab23c0a079cf2",
+    "device": "DEV-DEVKITC1-N16R8-V11"
+  },
+  "carrier": {
+    "name": "sensor-carrier",
+    "outline": {
+      "x_mm": 0,
+      "y_mm": 0,
+      "width_mm": 80,
+      "height_mm": 100
+    }
+  },
+  "placement": {
+    "ref": "U1",
+    "origin_mm": [
+      27.3,
+      37.1
+    ],
+    "rotation_deg": 0
+  },
+  "request_sha256": "91862210417b4b3a244c7b041832a15c932499ce0ce36e352067e93489cac0ce",
+  "board_in_carrier": {
+    "body_mm": [
+      [
+        27.3,
+        37.1
+      ],
+      [
+        52.7,
+        37.1
+      ],
+      [
+        52.7,
+        99.965
+      ],
+      [
+        27.3,
+        99.965
+      ]
+    ],
+    "headers": [
+      {
+        "id": "J1",
+        "pins": [
+          {
+            "id": "J1.1",
+            "number": "1",
+            "name": "3V3",
+            "kind": "power",
+            "position_mm": [
+              28.57,
+              98.4
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J1.2",
+            "number": "2",
+            "name": "3V3",
+            "kind": "power",
+            "position_mm": [
+              28.57,
+              95.86
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J1.3",
+            "number": "3",
+            "name": "RST",
+            "kind": "reset",
+            "position_mm": [
+              28.57,
+              93.32
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J1.4",
+            "number": "4",
+            "name": "GPIO4",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              90.78
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.5",
+            "number": "5",
+            "name": "GPIO5",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              88.24
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.6",
+            "number": "6",
+            "name": "GPIO6",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              85.7
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.7",
+            "number": "7",
+            "name": "GPIO7",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              83.16
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.8",
+            "number": "8",
+            "name": "GPIO15",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              80.62
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.9",
+            "number": "9",
+            "name": "GPIO16",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              78.08
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.10",
+            "number": "10",
+            "name": "GPIO17",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              75.54
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.11",
+            "number": "11",
+            "name": "GPIO18",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              73.0
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.12",
+            "number": "12",
+            "name": "GPIO8",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              70.46
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.13",
+            "number": "13",
+            "name": "GPIO3",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              67.92
+            ],
+            "usability": "unknown"
+          },
+          {
+            "id": "J1.14",
+            "number": "14",
+            "name": "GPIO46",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              65.38
+            ],
+            "usability": "unknown"
+          },
+          {
+            "id": "J1.15",
+            "number": "15",
+            "name": "GPIO9",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              62.84
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.16",
+            "number": "16",
+            "name": "GPIO10",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              60.3
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.17",
+            "number": "17",
+            "name": "GPIO11",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              57.76
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.18",
+            "number": "18",
+            "name": "GPIO12",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              55.22
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.19",
+            "number": "19",
+            "name": "GPIO13",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              52.68
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.20",
+            "number": "20",
+            "name": "GPIO14",
+            "kind": "gpio",
+            "position_mm": [
+              28.57,
+              50.14
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J1.21",
+            "number": "21",
+            "name": "5V",
+            "kind": "power",
+            "position_mm": [
+              28.57,
+              47.6
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J1.22",
+            "number": "22",
+            "name": "GND",
+            "kind": "ground",
+            "position_mm": [
+              28.57,
+              45.06
+            ],
+            "usability": "reserved"
+          }
+        ]
+      },
+      {
+        "id": "J3",
+        "pins": [
+          {
+            "id": "J3.1",
+            "number": "1",
+            "name": "GND",
+            "kind": "ground",
+            "position_mm": [
+              51.43,
+              98.4
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J3.2",
+            "number": "2",
+            "name": "TX",
+            "kind": "uart",
+            "position_mm": [
+              51.43,
+              95.86
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.3",
+            "number": "3",
+            "name": "RX",
+            "kind": "uart",
+            "position_mm": [
+              51.43,
+              93.32
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.4",
+            "number": "4",
+            "name": "GPIO1",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              90.78
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.5",
+            "number": "5",
+            "name": "GPIO2",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              88.24
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.6",
+            "number": "6",
+            "name": "GPIO42",
+            "kind": "jtag",
+            "position_mm": [
+              51.43,
+              85.7
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.7",
+            "number": "7",
+            "name": "GPIO41",
+            "kind": "jtag",
+            "position_mm": [
+              51.43,
+              83.16
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.8",
+            "number": "8",
+            "name": "GPIO40",
+            "kind": "jtag",
+            "position_mm": [
+              51.43,
+              80.62
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.9",
+            "number": "9",
+            "name": "GPIO39",
+            "kind": "jtag",
+            "position_mm": [
+              51.43,
+              78.08
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.10",
+            "number": "10",
+            "name": "GPIO38",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              75.54
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.11",
+            "number": "11",
+            "name": "GPIO37",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              73.0
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J3.12",
+            "number": "12",
+            "name": "GPIO36",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              70.46
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J3.13",
+            "number": "13",
+            "name": "GPIO35",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              67.92
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J3.14",
+            "number": "14",
+            "name": "GPIO0",
+            "kind": "boot",
+            "position_mm": [
+              51.43,
+              65.38
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.15",
+            "number": "15",
+            "name": "GPIO45",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              62.84
+            ],
+            "usability": "unknown"
+          },
+          {
+            "id": "J3.16",
+            "number": "16",
+            "name": "GPIO48",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              60.3
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.17",
+            "number": "17",
+            "name": "GPIO47",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              57.76
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.18",
+            "number": "18",
+            "name": "GPIO21",
+            "kind": "gpio",
+            "position_mm": [
+              51.43,
+              55.22
+            ],
+            "usability": "usable"
+          },
+          {
+            "id": "J3.19",
+            "number": "19",
+            "name": "GPIO20",
+            "kind": "usb",
+            "position_mm": [
+              51.43,
+              52.68
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.20",
+            "number": "20",
+            "name": "GPIO19",
+            "kind": "usb",
+            "position_mm": [
+              51.43,
+              50.14
+            ],
+            "usability": "onboard"
+          },
+          {
+            "id": "J3.21",
+            "number": "21",
+            "name": "GND",
+            "kind": "ground",
+            "position_mm": [
+              51.43,
+              47.6
+            ],
+            "usability": "reserved"
+          },
+          {
+            "id": "J3.22",
+            "number": "22",
+            "name": "GND",
+            "kind": "ground",
+            "position_mm": [
+              51.43,
+              45.06
+            ],
+            "usability": "reserved"
+          }
+        ]
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "REG-CARRIER-OUTLINE",
+      "kind": "board_outline",
+      "editable": false,
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          80.0,
+          0.0
+        ],
+        [
+          80.0,
+          100.0
+        ],
+        [
+          0.0,
+          100.0
+        ]
+      ]
+    },
+    {
+      "id": "REG-BOARD-BODY",
+      "kind": "module_body",
+      "editable": false,
+      "polygon": [
+        [
+          27.3,
+          37.1
+        ],
+        [
+          52.7,
+          37.1
+        ],
+        [
+          52.7,
+          99.965
+        ],
+        [
+          27.3,
+          99.965
+        ]
+      ]
+    },
+    {
+      "id": "REG-DK-ANT",
+      "kind": "antenna_keepout",
+      "editable": false,
+      "polygon": [
+        [
+          31.05,
+          99.94
+        ],
+        [
+          49.05,
+          99.94
+        ],
+        [
+          49.05,
+          106.25
+        ],
+        [
+          31.05,
+          106.25
+        ]
+      ]
+    },
+    {
+      "id": "REG-DK-USB-J2",
+      "kind": "connector",
+      "editable": false,
+      "polygon": [
+        [
+          29.33,
+          36.227
+        ],
+        [
+          37.27,
+          36.227
+        ],
+        [
+          37.27,
+          37.1
+        ],
+        [
+          29.33,
+          37.1
+        ]
+      ]
+    },
+    {
+      "id": "REG-DK-USB-J4",
+      "kind": "connector",
+      "editable": false,
+      "polygon": [
+        [
+          42.625,
+          36.227
+        ],
+        [
+          50.025,
+          36.227
+        ],
+        [
+          50.025,
+          37.1
+        ],
+        [
+          42.625,
+          37.1
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-1",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          27.3,
+          0.0
+        ],
+        [
+          27.3,
+          100.0
+        ],
+        [
+          0.0,
+          100.0
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-2",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          27.3,
+          0.0
+        ],
+        [
+          29.33,
+          0.0
+        ],
+        [
+          29.33,
+          37.1
+        ],
+        [
+          27.3,
+          37.1
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-3",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          29.33,
+          0.0
+        ],
+        [
+          37.27,
+          0.0
+        ],
+        [
+          37.27,
+          36.227
+        ],
+        [
+          29.33,
+          36.227
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-4",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          37.27,
+          0.0
+        ],
+        [
+          42.625,
+          0.0
+        ],
+        [
+          42.625,
+          37.1
+        ],
+        [
+          37.27,
+          37.1
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-5",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          42.625,
+          0.0
+        ],
+        [
+          50.025,
+          0.0
+        ],
+        [
+          50.025,
+          36.227
+        ],
+        [
+          42.625,
+          36.227
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-6",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          50.025,
+          0.0
+        ],
+        [
+          52.7,
+          0.0
+        ],
+        [
+          52.7,
+          37.1
+        ],
+        [
+          50.025,
+          37.1
+        ]
+      ]
+    },
+    {
+      "id": "REG-CARRIER-FREE-7",
+      "kind": "editable",
+      "editable": true,
+      "polygon": [
+        [
+          52.7,
+          0.0
+        ],
+        [
+          80.0,
+          0.0
+        ],
+        [
+          80.0,
+          100.0
+        ],
+        [
+          52.7,
+          100.0
+        ]
+      ]
+    }
+  ],
+  "pin_pool": [
+    "J1.10",
+    "J1.11",
+    "J1.12",
+    "J1.15",
+    "J1.16",
+    "J1.17",
+    "J1.18",
+    "J1.19",
+    "J1.20",
+    "J1.4",
+    "J1.5",
+    "J1.6",
+    "J1.7",
+    "J1.8",
+    "J1.9",
+    "J3.16",
+    "J3.17",
+    "J3.18",
+    "J3.4",
+    "J3.5",
+    "J3.6",
+    "J3.7",
+    "J3.8",
+    "J3.9"
+  ],
+  "excluded_pins": [
+    {
+      "pin": "J1.1",
+      "name": "3V3",
+      "usability": "reserved",
+      "reason": "a power pin of the board (guide: Power Supply Options: 5V and G, 3V3 and G, or USB; mutually exclusive): not a signal pin, in no pool"
+    },
+    {
+      "pin": "J1.2",
+      "name": "3V3",
+      "usability": "reserved",
+      "reason": "a power pin of the board (guide: Power Supply Options: 5V and G, 3V3 and G, or USB; mutually exclusive): not a signal pin, in no pool"
+    },
+    {
+      "pin": "J1.3",
+      "name": "RST",
+      "usability": "onboard",
+      "reason": "EN (CHIP_PU): the Reset button and its RC circuit are on the board; the pin is the board's reset line, not a signal pin"
+    },
+    {
+      "pin": "J1.13",
+      "name": "GPIO3",
+      "usability": "unknown",
+      "reason": "GPIO3 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO3); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool"
+    },
+    {
+      "pin": "J1.14",
+      "name": "GPIO46",
+      "usability": "unknown",
+      "reason": "GPIO46 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO46); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool"
+    },
+    {
+      "pin": "J1.21",
+      "name": "5V",
+      "usability": "reserved",
+      "reason": "a power pin of the board (guide: Power Supply Options: 5V and G, 3V3 and G, or USB; mutually exclusive): not a signal pin, in no pool"
+    },
+    {
+      "pin": "J1.22",
+      "name": "GND",
+      "usability": "reserved",
+      "reason": "ground: not a signal pin, in no pool"
+    },
+    {
+      "pin": "J3.1",
+      "name": "GND",
+      "usability": "reserved",
+      "reason": "ground: not a signal pin, in no pool"
+    },
+    {
+      "pin": "J3.2",
+      "name": "TX",
+      "usability": "onboard",
+      "reason": "U0TXD / U0RXD (UART0): the same nets as the on-board USB-to-UART bridge, which the board uses to flash and talk to the chip (user guide; schematic sheet 2, read from the drawing)"
+    },
+    {
+      "pin": "J3.3",
+      "name": "RX",
+      "usability": "onboard",
+      "reason": "U0TXD / U0RXD (UART0): the same nets as the on-board USB-to-UART bridge, which the board uses to flash and talk to the chip (user guide; schematic sheet 2, read from the drawing)"
+    },
+    {
+      "pin": "J3.10",
+      "name": "GPIO38",
+      "usability": "onboard",
+      "reason": "drives the addressable RGB LED of board revision v1.1 (the initial revision used GPIO48)"
+    },
+    {
+      "pin": "J3.11",
+      "name": "GPIO37",
+      "usability": "reserved",
+      "reason": "GPIO35, GPIO36 and GPIO37 are used for the internal communication with the Octal SPI PSRAM of the module (N16R8): not available for external use"
+    },
+    {
+      "pin": "J3.12",
+      "name": "GPIO36",
+      "usability": "reserved",
+      "reason": "GPIO35, GPIO36 and GPIO37 are used for the internal communication with the Octal SPI PSRAM of the module (N16R8): not available for external use"
+    },
+    {
+      "pin": "J3.13",
+      "name": "GPIO35",
+      "usability": "reserved",
+      "reason": "GPIO35, GPIO36 and GPIO37 are used for the internal communication with the Octal SPI PSRAM of the module (N16R8): not available for external use"
+    },
+    {
+      "pin": "J3.14",
+      "name": "GPIO0",
+      "usability": "onboard",
+      "reason": "GPIO0 is the Boot button of the board and a strapping pin (module pack rule C-ESP-STRAP-IO0, boot rule C-ESP-BOOT-IO0)"
+    },
+    {
+      "pin": "J3.15",
+      "name": "GPIO45",
+      "usability": "unknown",
+      "reason": "GPIO45 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO45); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool"
+    },
+    {
+      "pin": "J3.19",
+      "name": "GPIO20",
+      "usability": "onboard",
+      "reason": "USB D- (GPIO19) / D+ (GPIO20): wired to the board's second Micro-USB connector, the ESP32-S3 USB port (user guide; schematic sheet 2 `ESP USB`)"
+    },
+    {
+      "pin": "J3.20",
+      "name": "GPIO19",
+      "usability": "onboard",
+      "reason": "USB D- (GPIO19) / D+ (GPIO20): wired to the board's second Micro-USB connector, the ESP32-S3 USB port (user guide; schematic sheet 2 `ESP USB`)"
+    },
+    {
+      "pin": "J3.21",
+      "name": "GND",
+      "usability": "reserved",
+      "reason": "ground: not a signal pin, in no pool"
+    },
+    {
+      "pin": "J3.22",
+      "name": "GND",
+      "usability": "reserved",
+      "reason": "ground: not a signal pin, in no pool"
+    }
+  ],
+  "onboard_blocks": [
+    "BLK-DK-RESET",
+    "BLK-DK-BOOT",
+    "BLK-DK-USB-UART",
+    "BLK-DK-USB",
+    "BLK-DK-POWER",
+    "BLK-DK-RGB"
+  ],
+  "allowed_blocks": [
+    "BLK-DK-PERIPHERAL"
+  ],
+  "allowed_ops": [
+    "add_component",
+    "connect",
+    "add_track"
+  ],
+  "targets": [
+    {
+      "name": "temperature sensor (I2C)",
+      "block": "BLK-DK-PERIPHERAL",
+      "pins": [
+        "J1.4",
+        "J1.5"
+      ],
+      "status": "feasible",
+      "reasons": []
+    }
+  ],
+  "unknown": [
+    "J1.13 (GPIO3): GPIO3 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO3); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool",
+    "J1.14 (GPIO46): GPIO46 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO46); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool",
+    "J3.15 (GPIO45): GPIO45 is a strapping pin of the module (module pack rule C-ESP-STRAP-IO45); the board documents list it on the header and do not say that it is free for external circuits: nothing is assumed, and the pin is in no pool",
+    "rule C-DK-ANT-CLEARANCE (keepout): The DXF gives the antenna part of the module (18 x 6.3 mm, beyond the board's top edge) and that is the only zone this pack forbids. The user guide of the board says nothing about the clearance a carrier must keep beside or under it; the module's guideline (cut the base board away on both sides of the antenna and below it) is written for a module soldered to a base board, not for a board plugged into a carrier, and this pack does not apply it by guess. A person has to decide."
+  ],
+  "notes": [
+    "2 sliver(s) of free area narrower than 0.5 mm are not editable"
+  ],
+  "carrier_pack_canonical_sha256": "3ac748e0266513eefe6641f8cad68227f1386739e7d3d18f698ad5420cc446fc",
+  "provenance": {
+    "from_the_board_pack": {
+      "devices": 1,
+      "blocks": 7,
+      "rules": 2,
+      "board_regions": 4,
+      "header_pins": 44
+    },
+    "generated_for_the_carrier": {
+      "regions": 9,
+      "editable_regions": 7,
+      "pin_pool": 24
+    }
+  }
+}

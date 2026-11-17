@@ -6,6 +6,7 @@ documents:
   version: v2.2
   applies_to:
   - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
   - part_number: ESP32-S3
   url: https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
   sha256: 2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f
@@ -19,6 +20,7 @@ documents:
   version: latest-2026-11-16
   applies_to:
   - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
   - part_number: ESP32-S3
   url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html
   sha256: 6cc621dfa1caec2c39105dfd96ab9917d8748ed4cb449c1544eca63c89c6b6c9
@@ -32,6 +34,7 @@ documents:
   version: latest-2026-11-16
   applies_to:
   - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
   - part_number: ESP32-S3
   url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/pcb-layout-design.html
   sha256: 92318f21920eb2fc7d2ea0dc158c27edaa735e467a45b0f4e648759feaccc7a6

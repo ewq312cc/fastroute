@@ -4,6 +4,9 @@ Six packs, a chip pack and a module pack for each series, written from Espressif
 (`hardware-packs/index.yaml`). This file is their acceptance record: what is in them, what is not, and what a person still has to confirm.
 Every pack is `review: draft`. Nobody has reviewed them.
 
+Two more packs are in the same release and are described at the end: the module pack `espressif/esp32-s3/esp32-s3-wroom-1/n16r8` and the board pack of the
+ESP32-S3-DevKitC-1 v1.1 (see "The development board pack"). `coverage.yaml` and the nine tests of `espressif.rs` are about the six packs of the table below.
+
 | Series | Chip pack | Module pack (inherits the chip pack) |
 |---|---|---|
 | ESP32 | `espressif/esp32/esp32/d0wd-v3` (ESP32-D0WD-V3, QFN48) | `espressif/esp32/esp32-wroom-32e/n4` (ESP32-WROOM-32E-N4) |
@@ -83,11 +86,36 @@ Nine tests, run offline:
 normalised text): 313 entries over the six packs, none failing, when this record was written. That needs the documents (cache or network); it is
 not part of the offline test run.
 
+## The development board pack (ESP32-S3-DevKitC-1 v1.1, N16R8)
+
+`espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1` is a pack of kind `board` (#20): a ready-made development board as a fixed module of a carrier.
+It is built on the module pack `espressif/esp32-s3/esp32-s3-wroom-1/n16r8` (16 MB quad flash, 8 MB octal PSRAM; the same facts as the N8R8 module pack with
+the variant's own ordering-table row as evidence), which is built on the S3 chip pack. The board's DevKitC-1 variants are in its user guide's ordering table: there is **no N8R8 board**,
+so the N8R8 module pack is not the module of any DevKitC-1.
+
+* Written by `hardware-packs/tools/build_devkitc.py` from three locked documents: the user guide v1.1 (HTML: the header tables, the components, the notes), the board
+  schematic V1.1 (PDF, sheet 2: which nets reach the USB-to-UART bridge, the second USB connector, the buttons and the LED) and the DXF dimensions source file (the outline, the
+  2 x 22 header pad centres, the antenna outline and the USB connector overhang, read by `hardware-packs/tools/dxf_geometry.py`). The build compares the DXF's silkscreen labels
+  with the guide's names for every header pin and stops on a difference.
+* 44 header pins: **24 usable**, 7 on the board (RST, GPIO0, TX, RX, GPIO19, GPIO20, GPIO38), 10 reserved (GPIO35 to GPIO37, power, ground), **3 unknown** (the strapping pins GPIO3, GPIO45 and
+  GPIO46, which the board documents do not call free). A header pin that the board calls usable but the module pack protects (strapping, reset, boot, octal PSRAM) is an error of the pack check.
+* **The RF clearance a carrier must keep around the antenna is unknown** (`C-DK-ANT-CLEARANCE`); the forbidden zone of the pack is only the antenna part of the module (18 x 6.3 mm beyond the
+  board's top edge). The example embedding (`esp32-s3-devkitc-1-example/`) is therefore **exit 5, needs attention**, and its report lists the open questions.
+* 208 of 208 quotations verified by `hcp-manager evidence verify`. The documents are Espressif's and their disclaimer grants no licence, so they are not in the repository (URL, version and SHA-256
+  only); the pack keeps short quotations, page or section locators and measured dimensions. Whether coordinates measured from a vendor's CAD file may be kept in a GPL-licensed repository is a question a
+  person should answer before this pack is shipped to others.
+* `apps/hcp-manager/tests/devkitc.rs`: nine offline tests: the pack resolves and checks clean and every pin has its evidence or reason; the geometry; the protected-pin conflicts for all eight protected pins;
+  the N8R8 module is refused; the embedding at four rotations; the refusals (another revision, another variant, a changed pack); the edit boundary of #17 on the real carrier (legal and illegal edits: pins
+  that are not brought out, on-board, reserved and unknown pins, the boot button / reset circuit / bridge / regulator added again, moving or removing the board, the body, the antenna zone and the USB
+  connectors, a track across the board, a via, the carrier outline); and the committed example equals what the command writes today.
+* Not covered: other hardware revisions (the initial revision drives its RGB LED from GPIO48), the other variants (WROOM-1U, WROOM-2, the end-of-life N8 and N8R2) and the part heights.
+
 ## Rebuild
 
 ```bash
 cargo build --release -p fastroute -p hcp-manager
-python3 hardware-packs/tools/build_espressif.py          # writes hcp.yaml, sources.yaml, the manifests and the reports
+python3 hardware-packs/tools/build_espressif.py          # writes hcp.yaml, sources.yaml, the manifests and the reports (the six packs, the N16R8 module, the #16 example)
+python3 hardware-packs/tools/build_devkitc.py            # the DevKitC-1 board pack (needs the N16R8 module pack built first)
 hcp-manager release index --packs hardware-packs         # rewrites and checks index.yaml
 ```
 

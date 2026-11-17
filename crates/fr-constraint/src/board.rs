@@ -347,6 +347,12 @@ pub fn embed(board: &Value, bound_sha256: &str, request: &Value) -> Result<Embed
         })
         .cloned()
         .collect();
+    // a rule of the board that its documents leave unknown is as much an open question as an unknown pin: it is listed, and the embedding needs attention
+    for r in &rules {
+        if s(r, "modifiability") == Some("unknown") {
+            unknown.push(format!("rule {} ({}): {}", s(r, "id").unwrap_or(""), s(r, "kind").unwrap_or(""), s(r, "missing").or(s(r, "title")).unwrap_or("")));
+        }
+    }
     let device: Vec<Value> = arr(board, "devices").iter().filter(|d| s(d, "id") == Some(dev_id.as_str())).cloned().collect();
 
     // the targets are checked, never granted

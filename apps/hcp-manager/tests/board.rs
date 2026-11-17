@@ -182,7 +182,7 @@ fn a_request_for_another_revision_a_changed_pack_or_the_wrong_board_is_refused_a
     assert!(err(&o).contains("board_pack_changed"), "{}", err(&o));
     // the pack in the workspace changed after the request was made
     let p = ws.join("packs").join(ID).join("0.1.0").join("pack.yaml");
-    let edited = std::fs::read_to_string(&p).unwrap().replace("GPIO5 is usable", "GPIO5 is usable").replace("name: GPIO5", "name: GPIO5-x");
+    let edited = std::fs::read_to_string(&p).unwrap().replace("name: GPIO5", "name: GPIO5-x");
     std::fs::write(&p, edited).unwrap();
     let o = bare(&ws, &["packs", "embed", "--board", ID, "--request", req.to_str().unwrap(), "--out", out.to_str().unwrap()]);
     assert_eq!(code(&o), 3, "{}", err(&o));

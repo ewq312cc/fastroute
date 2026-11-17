@@ -4,9 +4,7 @@
 100 mm x 100 mm carrier. It exists to show the shape of a board pack and to be run by anyone, offline, without a licence question: both files are released
 under CC0 1.0 (`LICENSE.txt`). It is **not** a real product; its quotations are invented and its source URL is `example.invalid`.
 
-It is not a real board. A pack for a real development board (for example Espressif's ESP32-S3-DevKitC-1) has to be written from that board's documents
-and checked against them; that has not been done, and the redistribution terms of the vendor's schematics and drawings have to be read before they are
-quoted or shipped. See [../../hcp-board-embedding.md](../../hcp-board-embedding.md) for what a board pack must say.
+It is not a real board. A pack for a real one is `espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1` with its example in `hardware-packs/espressif/esp32-s3-devkitc-1-example/`: written from Espressif's documents (which are not redistributed), a draft that nobody has reviewed. See [../../hcp-board-embedding.md](../../hcp-board-embedding.md) for what a board pack must say.
 
 ```bash
 cargo build --release -p hcp-manager

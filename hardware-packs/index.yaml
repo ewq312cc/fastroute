@@ -32,13 +32,47 @@ packs:
     hcp_schema_version: '1.1'
     ir_version: '1.0'
     min_app_version: 0.1.14
+- id: espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1
+  kind: board
+  version: 0.1.0
+  path: espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1/0.1.0
+  content: full
+  part_number: ESP32-S3-DevKitC-1-N16R8
+  manifest_sha256: 57ca24ec704536ce1491b6fb352d8b92938e8b493ca03cc6e46e3cd80d537164
+  hcp_sha256: 62c73c7399668aa1b6256e0cbcebc155ff2247ccd4a460610e4d9b244d9e5c56
+  hcp_canonical_sha256: 46ac681cd7f3f275c4e5c26acfbdd49c9694174aa0052c7ea87ab23c0a079cf2
+  requires:
+  - id: espressif/esp32-s3/esp32-s3-wroom-1/n16r8
+    version: 0.1.0
+    kind: module
+  compatibility:
+    hcp_schema_version: '1.1'
+    ir_version: '1.0'
+    min_app_version: 0.1.14
+- id: espressif/esp32-s3/esp32-s3-wroom-1/n16r8
+  kind: module
+  version: 0.1.0
+  path: espressif/esp32-s3/esp32-s3-wroom-1/n16r8/0.1.0
+  content: full
+  part_number: ESP32-S3-WROOM-1-N16R8
+  manifest_sha256: 99669a41236952d4ce5f84595e35b5fa084ecd3926496c955e3c4a56ada68e74
+  hcp_sha256: 1f0e90e9f20146fcc1d5dbad6c586f7b2ddf9fdae3091e160bfc81bdeb0a11f3
+  hcp_canonical_sha256: 8792ab8d13468f00cce34ad5fb9a09fb0d4890535baae53625b6e1caaac93cbc
+  requires:
+  - id: espressif/esp32-s3/esp32-s3/qfn56
+    version: 0.1.0
+    kind: chip
+  compatibility:
+    hcp_schema_version: '1.1'
+    ir_version: '1.0'
+    min_app_version: 0.1.14
 - id: espressif/esp32-s3/esp32-s3-wroom-1/n8r8
   kind: module
   version: 0.1.0
   path: espressif/esp32-s3/esp32-s3-wroom-1/n8r8/0.1.0
   content: full
   part_number: ESP32-S3-WROOM-1-N8R8
-  manifest_sha256: eed985308af1ab59d17d29bfea955d4483805dcdcacbd43ee026233775ae3e6c
+  manifest_sha256: 1f8af36d5d5eae4d8783b7dc1cafde4df8a77e9c4af1fa55ee58d9edbe965ad5
   hcp_sha256: b90cdb9f5319015e828eeb9f4c78a7b64c74067cff83e996ec4342bd88f90004
   hcp_canonical_sha256: d10b440dd6f62d727f5e75671cd2ddc449c604ad391f9bbb11356d01a411287e
   requires:
@@ -55,7 +89,7 @@ packs:
   path: espressif/esp32-s3/esp32-s3/qfn56/0.1.0
   content: full
   part_number: ESP32-S3
-  manifest_sha256: ac9e0a6acfc4895396ec790f81e7873a67180707bf6701c59ad90289128aee49
+  manifest_sha256: dfdd3eca7f2f6383f655a46424b1bb0dfa5eff82ff02a8fb93bbc17b36e05325
   hcp_sha256: d67b79b772c232b5db74fdb1a251eeca521ad02bc797220b18b251d3b7c12037
   hcp_canonical_sha256: b4cca4c2fe2282bb40c5c51513082e7a889c462cee647152218282cc8714c6f6
   requires: []

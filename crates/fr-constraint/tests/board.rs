@@ -428,3 +428,28 @@ fn the_report_says_what_is_fixed_what_may_be_used_and_what_is_unknown() {
     let en = report(&f.e.result, &f.e.carrier_pack, false);
     assert!(en.contains("What the board fixes") && en.contains("Already on the board") && en.contains("unknown"), "{en}");
 }
+
+#[test]
+fn an_unknown_rule_about_the_board_is_listed_with_what_is_missing_and_needs_attention() {
+    // `board()` has an unknown pin already; take it away so that the rule is the only open question
+    let mut b = board();
+    let pin = &mut b["board_integration"]["exposed_headers"][1]["pins"][4];
+    pin["usability"] = json!("reserved");
+    pin["reason"] = json!("kept free by the board design (stated)");
+    let clean = board::embed(&b, &canonical_sha256(&b), &request(&b, 0, [20.0, 10.0])).unwrap();
+    assert_eq!(clean.result["status"], json!("ok"), "{}", clean.result["unknown"]);
+    assert_eq!(clean.result["unknown"], json!([]));
+    // an unknown rule on a fixed region of the board: nothing else changes, but it is listed and the status says so
+    b["rules"].as_array_mut().unwrap().push(json!({
+        "id": "C-DB-ANT-CLEARANCE", "kind": "keepout", "modifiability": "unknown", "title": "RF clearance around the antenna",
+        "subject": {"region": "REG-DB-ANT"}, "params": {"forbid": ["track", "via", "component", "zone"]},
+        "missing": "the user guide gives no clearance for a carrier"
+    }));
+    let e = board::embed(&b, &canonical_sha256(&b), &request(&b, 0, [20.0, 10.0])).unwrap_or_else(|x| panic!("{x:#?}"));
+    assert_eq!(e.result["status"], json!("needs_attention"));
+    let list = e.result["unknown"].as_array().unwrap();
+    assert_eq!(list.len(), 1, "{list:?}");
+    assert!(list[0].as_str().unwrap().contains("C-DB-ANT-CLEARANCE") && list[0].as_str().unwrap().contains("no clearance for a carrier"), "{list:?}");
+    // the same pool as without it: an unknown rule widens nothing
+    assert_eq!(e.result["pin_pool"], clean.result["pin_pool"]);
+}

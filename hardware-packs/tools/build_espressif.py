@@ -70,12 +70,15 @@ class Doc:
             sys.exit(f"{doc_id} is not cached: hcp-manager --workspace {WS} sources sync")
         self.path = files[0]
         self.pdf = self.path.endswith(".pdf")
+        self.plain = self.path.endswith((".dxf", ".txt", ".md"))   # read as text, as hcp-manager does
         self._html = None
 
     def ok(self, quote, page=None):
         if self.pdf:
             ps = pdfq.pages(self.path)
             return page is not None and 1 <= page <= len(ps) and nfkc(quote) in nfkc(ps[page - 1])
+        if self.plain:
+            return nfkc(quote) in nfkc(pathlib.Path(self.path).read_text(encoding="latin-1"))
         if self._html is None:
             self._html = html_text(self.path)
         return nfkc(quote) in nfkc(self._html)
@@ -653,31 +656,51 @@ def build_s3_chip():
     write_pack(S3_CHIP, "chip", "ESP32-S3", hcp, [], ["DOC-ESP32S3-DS", "DOC-ESP32S3-HDG-SCH", "DOC-ESP32S3-HDG-PCB"], package="QFN56")
 
 
-def build_s3_module():
-    data = yaml.safe_load((DATA / "esp32-s3-wroom-1-n8r8.module.yaml").read_text(encoding="utf-8"))
+S3_MOD16 = "espressif/esp32-s3/esp32-s3-wroom-1/n16r8"
+
+
+def s3_module_data(variant):
+    """The module-level facts of one WROOM-1 variant. The pin table, the boot configuration, the supply and the circuits are the same for all of
+    them (one datasheet); what differs is the device id, the part number and the ordering-table row that proves the octal PSRAM (IO35 to IO37)."""
+    text = (DATA / "esp32-s3-wroom-1-n8r8.module.yaml").read_text(encoding="utf-8")
+    if variant == "n16r8":
+        text = text.replace("ESP32-S3-WROOM-1-N8R8 8 MB (Quad SPI) 8 MB (Octal SPI)", "ESP32-S3-WROOM-1-N16R8 16 MB (Quad SPI) 8 MB (Octal SPI)")
+        text = text.replace("DEV-ESP32S3-WROOM1-N8R8", "DEV-ESP32S3-WROOM1-N16R8").replace("ESP32-S3-WROOM-1-N8R8", "ESP32-S3-WROOM-1-N16R8")
+    return yaml.safe_load(text)
+
+
+def build_s3_module(variant="n8r8"):
+    data = s3_module_data(variant)
+    pid, part = (S3_MOD, "ESP32-S3-WROOM-1-N8R8") if variant == "n8r8" else (S3_MOD16, "ESP32-S3-WROOM-1-N16R8")
     dev = data["devices"][0]["id"]
     # the facts come from the file above; each quotation is looked up again on its page before anything is written
     docs_by_src = {"SRC-ESP32S3-WROOM1-DS": "DOC-ESP32S3-WROOM1-DS", "SRC-ESP32S3-DS": "DOC-ESP32S3-DS", "SRC-ESP32S3-HDG-SCH": "DOC-ESP32S3-HDG-SCH", "SRC-ESP32S3-HDG-PCB": "DOC-ESP32S3-HDG-PCB"}
+    bad = []
 
     def recheck(obj):
         if isinstance(obj, dict):
             if "quote" in obj and "source_id" in obj and obj["basis"] != "pending":
                 d = doc(docs_by_src[obj["source_id"]])
-                if obj["source_id"].startswith("SRC-ESP32S3-HDG") and False:
-                    pass
                 if not d.ok(obj["quote"], obj.get("locator", {}).get("page")):
-                    # the text of an HTML page is normalised differently from the one the first pack was checked with: report, do not guess
-                    print("  note: not found by the builder's normaliser:", obj["source_id"], repr(obj["quote"][:80]), file=sys.stderr)
+                    bad.append((obj["source_id"], obj["quote"][:90]))
             for v in obj.values():
                 recheck(v)
         elif isinstance(obj, list):
             for v in obj:
                 recheck(v)
     recheck(data)
+    if variant != "n8r8" and bad:
+        sys.exit("a quotation of the %s module is not found on its page: %s" % (variant, bad))
+    for b in bad:
+        print("  note: not found by the builder's normaliser:", *b, file=sys.stderr)
     up = [{"id": S3_CHIP, "version": VERSION, "kind": "chip", "canonical_sha256": digest(S3_CHIP), "inherit": {"devices": ["DEV-ESP32S3"], "rules": inheritable(S3_CHIP)}}]
-    hcp = {"hcp_version": "1.1", "pack": pack_meta(S3_MOD, "module", "ESP32-S3-WROOM-1-N8R8 模组级约束包", "草案，尚无人工复核。天线禁区的尺寸来自指南中的一张图（按图上的标注读取，待人工确认）；其余未在资料中给出的参数保持 unknown。", language="zh-CN", upstream=up)}
+    hcp = {"hcp_version": "1.1", "pack": pack_meta(pid, "module", part + " 模组级约束包", "草案，尚无人工复核。天线禁区的尺寸来自指南中的一张图（按图上的标注读取，待人工确认）；其余未在资料中给出的参数保持 unknown。", language="zh-CN", upstream=up)}
     hcp.update(data)
-    write_pack(S3_MOD, "module", "ESP32-S3-WROOM-1-N8R8", hcp, [(S3_CHIP, "chip")], ["DOC-ESP32S3-WROOM1-DS", "DOC-ESP32S3-DS", "DOC-ESP32S3-HDG-SCH", "DOC-ESP32S3-HDG-PCB"], package="module 41 pins")
+    write_pack(pid, "module", part, hcp, [(S3_CHIP, "chip")], ["DOC-ESP32S3-WROOM1-DS", "DOC-ESP32S3-DS", "DOC-ESP32S3-HDG-SCH", "DOC-ESP32S3-HDG-PCB"], package="module 41 pins")
+
+
+def build_s3_module16():
+    build_s3_module("n16r8")
 
 
 def build_s3_example():
@@ -696,7 +719,7 @@ def build_s3_example():
     flat.unlink()
 
 
-BUILDERS = {"esp32-chip": build_esp32_chip, "esp32-module": build_esp32_module, "c3-chip": build_c3_chip, "c3-module": build_c3_module, "s3-chip": build_s3_chip, "s3-module": build_s3_module, "s3-example": build_s3_example}
+BUILDERS = {"esp32-chip": build_esp32_chip, "esp32-module": build_esp32_module, "c3-chip": build_c3_chip, "c3-module": build_c3_module, "s3-chip": build_s3_chip, "s3-module": build_s3_module, "s3-module16": build_s3_module16, "s3-example": build_s3_example}
 
 if __name__ == "__main__":
     only = sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else list(BUILDERS)

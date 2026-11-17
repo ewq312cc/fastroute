@@ -70,7 +70,9 @@ carrier outline as an area. These are tested on a fictional board (`crates/fr-co
 
 ## The sample
 
-`docs/examples/hcp-devboard-sample/` holds a board pack (`board-pack.yaml`) and a request (`request.json`) for a **made-up** board, released under CC0 1.0, so that the command can be run offline and the files redistributed without a licence question. A test keeps the files equal to what the tests build and embeds them. It is not a real board: a pack for a real development board (for example the ESP32-S3-DevKitC-1) has to be written from that board's documents, and the redistribution terms of its schematics and drawings have to be read first. That has not been done.
+`docs/examples/hcp-devboard-sample/` holds a board pack (`board-pack.yaml`) and a request (`request.json`) for a **made-up** board, released under CC0 1.0, so that the command can be run offline and the files redistributed without a licence question. A test keeps the files equal to what the tests build and embeds them.
+
+A **real** board pack is `espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1` (ESP32-S3-DevKitC-1 v1.1, N16R8), with an example request and its reports in `hardware-packs/espressif/esp32-s3-devkitc-1-example/`. It is written from Espressif's user guide, schematic and DXF (which are not in the repository: their disclaimer grants no licence), is a draft that nobody has reviewed, and its embedding says it needs attention: three strapping pins and the RF clearance around the antenna are unknown. An unknown rule of a board pack is listed in the embedding's `unknown` and in the report, like an unknown pin, and makes the status `needs_attention`.
 
 ## Limits of this version (stated, not hidden)
 

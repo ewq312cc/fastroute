@@ -1,0 +1,43 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Widen the supply to 0.5 mm."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "trace_width",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "VDD_CORE"
+        ]
+      },
+      "params": {
+        "width_mm": 0.5
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Widen the supply to 0.5 mm"
+        }
+      ]
+    }
+  ]
+}

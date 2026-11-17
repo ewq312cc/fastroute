@@ -1,0 +1,65 @@
+# The manifest of this pack. The authored part is above `files`; `files`, `hcp_canonical_sha256`, `source_digests` and the digests
+# of the dependencies are written by `hcp-manager release seal` and checked by `hcp-manager release index` / `packs builtin verify`.
+manifest_version: '1.0'
+id: espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1
+kind: board
+identity:
+  vendor: espressif
+  family: esp32-s3
+  device: esp32-s3-devkitc-1
+  variant: n16r8-v1.1
+  part_number: ESP32-S3-DevKitC-1-N16R8
+  revision: v1.1
+  package: development board
+version: 0.1.0
+content: full
+review: draft
+compatibility:
+  hcp_schema_version: '1.1'
+  ir_version: '1.0'
+  min_app_version: 0.1.14
+dependencies:
+- id: espressif/esp32-s3/esp32-s3-wroom-1/n16r8
+  kind: module
+  version: 0.1.0
+  canonical_sha256: 8792ab8d13468f00cce34ad5fb9a09fb0d4890535baae53625b6e1caaac93cbc
+files:
+  hcp:
+    path: hcp.yaml
+    sha256: 62c73c7399668aa1b6256e0cbcebc155ff2247ccd4a460610e4d9b244d9e5c56
+  sources:
+    path: sources.yaml
+    sha256: afb910836846c2047aac86246a84d3fc408e0e9999436b5c3c58ac041e0b66cf
+  reports:
+  - path: reports/pack-report.zh.md
+    sha256: 3645b007ecd462cc1d4b6576651ce2ac354e1c95ffae3644f76f9381654186fc
+hcp_canonical_sha256: 46ac681cd7f3f275c4e5c26acfbdd49c9694174aa0052c7ea87ab23c0a079cf2
+source_digests:
+- document_id: DOC-DEVKITC1-UG-V11
+  version: latest-2026-11-17
+  sha256: 5120d2d6e8c55bb937a4b36b6b1a554e8c04193b993c74127f6991de046c6ff1
+  url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
+  redistribution: reference_only
+- document_id: DOC-DEVKITC1-SCH-V11
+  version: V1.1_20221130
+  sha256: f116b5d9f1fdce126e9a63d8450388eb11295d8322d831502fbc9729442b72e4
+  url: https://dl.espressif.com/dl/schematics/SCH_ESP32-S3-DevKitC-1_V1.1_20221130.pdf
+  redistribution: reference_only
+- document_id: DOC-DEVKITC1-DXF-V11
+  version: V1.1_20220429
+  sha256: 02c88dea5acf89ef20c8073acd19f1c5fd1ac908fc57a5c0fd005cd021304983
+  url: https://dl.espressif.com/dl/schematics/esp_idf/DXF_ESP32-S3-DevKitC-1_V1.1_20220429.dxf
+  redistribution: reference_only
+license:
+  pack: GPL-3.0-or-later
+  documents:
+  - document_id: DOC-DEVKITC1-UG-V11
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  - document_id: DOC-DEVKITC1-SCH-V11
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  - document_id: DOC-DEVKITC1-DXF-V11
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  note: The pack states facts with short quotations and page locators; the original documents are not part of it.

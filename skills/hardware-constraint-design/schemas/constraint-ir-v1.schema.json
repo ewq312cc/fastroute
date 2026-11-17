@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ewq312cc/fastroute/skills/hardware-constraint-design/schemas/constraint-ir-v1.schema.json",
+  "title": "Constraint IR v1",
+  "description": "What a Hardware Constraint Pack compiles to: deterministic, with the evidence of every rule, and with an explicit statement per rule of what the validator and the fastroute adapter can execute. Nothing in it comes from a vector index.",
+  "type": "object",
+  "required": ["ir_version", "compiler", "pack", "sources", "devices", "blocks", "regions", "rules", "diagnostics", "integrity"],
+  "additionalProperties": false,
+  "properties": {
+    "ir_version": { "const": "1.0" },
+    "compiler": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "pack": {
+      "type": "object",
+      "required": ["id", "version", "sha256", "review"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "review": { "enum": ["draft", "reviewed", "approved"] }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "document_id", "title", "version", "level", "sha256", "applies_to"],
+        "additionalProperties": false,
+        "properties": {
+          "source_id": { "type": "string" },
+          "document_id": { "type": "string" },
+          "title": { "type": "string" },
+          "version": { "type": "string" },
+          "level": { "type": "string" },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "applies_to": { "type": "array", "items": { "type": "string" } },
+          "url": { "type": "string" }
+        }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "vendor", "part_number", "package", "pins"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "vendor": { "type": "string" },
+          "part_number": { "type": "string" },
+          "revision": { "type": "string" },
+          "package": { "type": "string" },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["number", "name", "class", "functions"],
+              "additionalProperties": false,
+              "properties": {
+                "number": { "type": "string" },
+                "name": { "type": "string" },
+                "class": { "type": "string" },
+                "functions": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "kind", "modifiability", "components", "connects", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "kind": { "type": "string" },
+          "modifiability": { "type": "string" },
+          "device": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "object" } },
+          "connects": { "type": "array", "items": { "type": "object" } },
+          "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+          "missing": { "type": "string" }
+        }
+      }
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "frame", "layers", "modifiability", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "frame": { "enum": ["board", "device"] },
+          "device": { "type": "string" },
+          "polygon": { "type": "array", "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } } },
+          "circle": { "type": "object" },
+          "layers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "modifiability": { "type": "string" },
+          "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+        }
+      }
+    },
+    "base_design": { "type": "object" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "kind", "modifiability", "severity", "status", "subject", "params", "applies_when", "evidence", "derived_from", "execution", "origin"],
+        "additionalProperties": false,
+        "properties": {
+          "rule_id": { "type": "string", "pattern": "^(C|PINMUX)-[A-Z0-9][A-Z0-9_-]*$" },
+          "kind": { "type": "string" },
+          "modifiability": { "enum": ["fixed", "required", "configurable", "derived", "optional", "ai_editable", "unknown", "conflict"] },
+          "severity": { "enum": ["error", "warning"] },
+          "status": { "enum": ["executable", "unsupported", "unknown", "conflict"] },
+          "title": { "type": "string" },
+          "subject": { "type": "object" },
+          "params": { "type": "object" },
+          "applies_when": { "type": "array", "items": { "type": "string" } },
+          "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+          "derived_from": { "type": "array", "items": { "type": "string" } },
+          "execution": {
+            "type": "object",
+            "required": ["validator", "fastroute"],
+            "additionalProperties": false,
+            "properties": {
+              "validator": { "enum": ["supported", "unsupported"] },
+              "fastroute": { "enum": ["supported", "unsupported", "not_applicable"] },
+              "reason": { "type": "string" },
+              "unchecked_params": { "type": "array", "items": { "type": "string" } },
+              "unmapped_params": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "missing": { "type": "string" },
+          "conflict": { "type": "object" },
+          "origin": { "enum": ["hcp", "pin_table"] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "status": { "enum": ["unknown", "conflict"] } }, "required": ["status"] },
+            "then": { "properties": { "execution": { "properties": { "validator": { "const": "unsupported" } } } } }
+          }
+        ]
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "path", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "severity": { "enum": ["error", "warning"] },
+          "path": { "type": "string" },
+          "object": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["algorithm", "sha256"],
+      "additionalProperties": false,
+      "properties": { "algorithm": { "const": "sha256-canonical-json" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evidence": {
+      "type": "object",
+      "required": ["source_id", "locator", "quote", "basis"],
+      "additionalProperties": false,
+      "properties": {
+        "source_id": { "type": "string" },
+        "chunk_id": { "type": "string" },
+        "locator": { "type": "object" },
+        "quote": { "type": "string" },
+        "basis": { "enum": ["explicit", "derived", "observed", "pending"] }
+      }
+    }
+  }
+}

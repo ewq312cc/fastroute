@@ -23,8 +23,21 @@
 //! board, so a run that is stopped (Ctrl+C / SIGTERM / Ctrl+Break: stop and write the best
 //! result; a second signal exits at once) or killed leaves its best result behind.
 
+mod aipack;
+mod cmd;
+mod drc;
+mod extract;
+mod inspect;
 mod live;
+mod load;
+mod manifest;
+mod render_cmd;
 mod report;
+mod reports;
+mod route_cmd;
+mod constraints_cmd;
+mod rules;
+mod jsonschema;
 
 use std::io::Write as _;
 use std::process::ExitCode;
@@ -58,10 +71,19 @@ struct Args {
     initial_session: Option<String>,
     live: Option<u16>,
     verbose: bool,
+    quiet: bool,
     rest: Vec<String>,
 }
 
-fn parse_args() -> Result<Args, String> {
+/// What a run came to, for the exit code and the summary of `fastroute route`.
+pub struct RunOutcome {
+    /// Connections that are still unrouted.
+    pub unrouted: usize,
+    /// Clearance violations in the result.
+    pub violations: usize,
+}
+
+fn parse_args(raw: Vec<String>) -> Result<Args, String> {
     let mut args = Args {
         design_in: None,
         design_out: None,
@@ -82,9 +104,9 @@ fn parse_args() -> Result<Args, String> {
         initial_session: None,
         live: None,
         verbose: false,
+        quiet: false,
         rest: Vec::new(),
     };
-    let raw: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
     while i < raw.len() {
         let a = &raw[i];
@@ -133,6 +155,11 @@ fn parse_args() -> Result<Args, String> {
             }
             "-v" => {
                 args.verbose = true;
+                i += 1;
+                continue;
+            }
+            "--quiet" => {
+                args.quiet = true;
                 i += 1;
                 continue;
             }
@@ -212,6 +239,16 @@ fn parse_args() -> Result<Args, String> {
 const DEFAULT_LIVE_PORT: u16 = 7878;
 
 const HELP: &str = "\
+commands (each has its own --help, e.g. `fastroute route --help`):
+  route      autoroute a Specctra design (.dsn) or a KiCad board (.kicad_pcb)
+  render     draw the board or a region of it as a PNG, offline
+  inspect    describe the board as structured JSON
+  ai-pack    write a local analysis pack (pictures, data, rules, DRC) for an AI model
+  rules      check, confirm and apply rule drafts from people, scripts or AI models
+  constraints  check, compile and validate hardware constraint packs (HCP) against a design
+
+The original interface below keeps working unchanged (docs/CLI.md has the translation table):
+
 usage: fastroute -de <design.dsn> [-do <out.ses>] [options] [--router.<path>=<value> ...]
 
 options:
@@ -247,6 +284,7 @@ options:
   --time-limit-factor=N    count-mode budget factor (default 10)
   --no-time-limits         deterministic limits, no stage wall-clock limits
   -v                       debug output
+  --quiet                  only warnings and errors (no progress lines)
 
 tune file: one group per `group` line, followed by net names (* = any text):
   group sdram_data tolerance=0.5            # match to the longest net, -0.5 mm allowed
@@ -357,11 +395,17 @@ fn open_browser(url: &str) {
         .spawn();
 }
 
-fn run() -> Result<(), String> {
-    let args = parse_args()?;
+pub fn run(raw: Vec<String>) -> Result<RunOutcome, String> {
+    let args = parse_args(raw)?;
     let logger = LOGGER.get_or_init(|| Logger { start: Instant::now(), verbose: args.verbose });
     let _ = log::set_logger(logger);
-    log::set_max_level(if args.verbose { log::LevelFilter::Debug } else { log::LevelFilter::Info });
+    log::set_max_level(if args.verbose {
+        log::LevelFilter::Debug
+    } else if args.quiet {
+        log::LevelFilter::Warn
+    } else {
+        log::LevelFilter::Info
+    });
 
     log::info!(target: "fastroute", "fastroute {}", env!("CARGO_PKG_VERSION"));
     let stop = StopToken::new();
@@ -703,7 +747,8 @@ fn run() -> Result<(), String> {
         }
         log::info!(target: "fastroute", "length tuning finished in {:.2} s", t.elapsed().as_secs_f64());
     }
-    report_violations(&board);
+    let violations = report_violations(&board);
+    let unrouted = fr_engine::pipeline::stats::incomplete_count(&board, None) as usize;
     if let Some(out) = args.design_out {
         // The Java CLI names the session after the input file stem.
         let bytes = fr_io::ses_writer::ses_bytes(&board, &design_name);
@@ -719,7 +764,7 @@ fn run() -> Result<(), String> {
     if let Some(live) = LIVE.get() {
         live.finish(&board, Duration::from_secs(3));
     }
-    Ok(())
+    Ok(RunOutcome { unrouted, violations })
 }
 
 /// Writes via a temporary file and a rename, so a reader (or a kill) never sees half a file.
@@ -729,11 +774,12 @@ fn write_ses_atomically(out: &str, bytes: &[u8]) -> std::io::Result<()> {
     std::fs::rename(&tmp, out)
 }
 
-/// Lists the clearance violations of the result (up to 50) with location and items.
-fn report_violations(board: &RoutingBoard) {
+/// Lists the clearance violations of the result (up to 50) with location and items; returns
+/// how many there are.
+fn report_violations(board: &RoutingBoard) -> usize {
     let violations = fr_engine::drc::all_clearance_violations(board);
     if violations.is_empty() {
-        return;
+        return 0;
     }
     let res = board.communication.resolution.max(1) as f64;
     let layer_name =
@@ -754,6 +800,7 @@ fn report_violations(board: &RoutingBoard) {
             describe_item(board, v.second_item)
         );
     }
+    violations.len()
 }
 
 fn describe_item(board: &BasicBoard, key: ItemKey) -> String {
@@ -784,11 +831,51 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: dhat::Alloc = dhat::Alloc;
 
+/// The subcommands (`fastroute render ...`); `None` if `argv` is the legacy flag interface.
+fn dispatch(argv: &[String]) -> Option<ExitCode> {
+    let (name, rest) = (argv.first()?.as_str(), &argv[1..]);
+    let result = match name {
+        "render" => render_cmd::run(rest),
+        "inspect" => inspect::run(rest),
+        "ai-pack" => aipack::run(rest),
+        "route" => route_cmd::run(rest),
+        "rules" => rules::run(rest),
+        "constraints" => constraints_cmd::run(rest),
+        "help" => {
+            match rest.first().map(String::as_str) {
+                Some("render") => print!("{}", render_cmd::SPEC.help_text()),
+                Some("inspect") => print!("{}", inspect::SPEC.help_text()),
+                Some("ai-pack") => print!("{}", aipack::SPEC.help_text()),
+                Some("route") => print!("{}", route_cmd::SPEC.help_text()),
+                Some("rules") => print!("{}", rules::help_for(rest.get(1).map(String::as_str))),
+                Some("constraints") => print!("{}", constraints_cmd::help_for(rest.get(1).map(String::as_str))),
+                _ => println!("fastroute {}\n{HELP}", env!("CARGO_PKG_VERSION")),
+            }
+            Ok(())
+        }
+        _ => return None,
+    };
+    Some(match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("fastroute {name}: {}", e.message);
+            if e.code == cmd::exit::USAGE {
+                eprintln!("(see `fastroute {name} --help`)");
+            }
+            ExitCode::from(e.code)
+        }
+    })
+}
+
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
-    match run() {
-        Ok(()) => ExitCode::SUCCESS,
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(code) = dispatch(&argv) {
+        return code;
+    }
+    match run(argv) {
+        Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("fastroute: {e}");
             ExitCode::FAILURE

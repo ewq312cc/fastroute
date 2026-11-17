@@ -6,12 +6,22 @@ Run with the Python interpreter that ships with KiCad (it provides `pcbnew`):
     Linux:   python3 (with the distribution's KiCad Python module installed)
     Windows: "C:\\Program Files\\KiCad\\<ver>\\bin\\python.exe"
 
-    python3 route_cli.py board.kicad_pcb [-o routed.kicad_pcb] [--clear | --keep-existing] [--mode fast|exact|quick]
-                         [--max-passes N] [--threads N] [--max-time SECONDS] [--fastroute PATH]
+    python3 route_cli.py board.kicad_pcb [-o routed.kicad_pcb] [--force] [--clear | --keep-existing]
+                         [--mode fast|exact|quick] [--max-passes N] [--threads N] [--max-time SECONDS]
+                         [--fastroute PATH] [--json] [--fail-on-partial]
                          [-- extra fastroute args, e.g. --router.autorouter.ignore_net_classes=GUC]
+
+The input board is never overwritten by default: without -o the result is written to
+<board>.routed.kicad_pcb next to it, and an output file that already exists is refused (before any
+work is done) unless --force is given. Writing over the input needs -o <the input> and --force.
+
+Exit codes: 0 done, 1 routing failed, 2 the board cannot be used, 4 the output is refused or cannot
+be written, 5 (--fail-on-partial only) the result is written but connections remain unrouted.
 """
 
 import argparse
+import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -23,10 +33,55 @@ import pcbnew  # noqa: E402
 import core  # noqa: E402
 
 
+def default_output(board):
+    """Where the result goes when -o is not given: next to the input, never the input itself."""
+    return board.with_name(board.stem + ".routed.kicad_pcb")
+
+
+def check_output(out, force):
+    """Why `out` may not be written, or None. Checked before any work is done."""
+    if out.is_dir():
+        return f"{out}: is a directory"
+    if out.exists() and not force:
+        return f"{out}: already exists (use --force to replace it; the input board is never overwritten by default)"
+    if not out.parent.is_dir():
+        return f"{out}: the directory {out.parent} does not exist"
+    return None
+
+
+def save_board(board, out):
+    """Saves through a temporary file, so that a failure never leaves half a board at `out`."""
+    tmp = out.with_name("." + out.name + ".tmp.kicad_pcb")
+    # KiCad 8 writes a project (.kicad_pro) and its local settings (.kicad_prl) next to what it
+    # saves, also for this temporary name: remove what this call made, not what was there before
+    sidecars = [tmp.with_suffix(".kicad_pro"), tmp.with_suffix(".kicad_prl")]
+    present = [p for p in sidecars if p.exists()]
+    try:
+        pcbnew.SaveBoard(str(tmp), board)
+        os.replace(tmp, out)
+    finally:
+        for p in [tmp] + sidecars:
+            if p.exists() and p not in present:
+                p.unlink()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Autoroute a KiCad board with fastroute")
     ap.add_argument("board", type=Path)
-    ap.add_argument("-o", "--output", type=Path, help="output board (default: overwrite input)")
+    ap.add_argument(
+        "-o", "--output", type=Path,
+        help="output board (default: <board>.routed.kicad_pcb next to the input; the input is never "
+        "the default)",
+    )
+    ap.add_argument("--force", action="store_true", help="replace an existing output file")
+    ap.add_argument(
+        "--json", action="store_true",
+        help="print one JSON summary line on standard output (the human messages go to standard error)",
+    )
+    ap.add_argument(
+        "--fail-on-partial", action="store_true",
+        help="exit with 5 if connections remain unrouted (the result is written anyway)",
+    )
     existing = ap.add_mutually_exclusive_group()
     existing.add_argument("--clear", action="store_true", help="remove unlocked tracks and vias first")
     existing.add_argument(
@@ -94,14 +149,34 @@ def main(argv=None):
         argv, extra = argv[:i], argv[i + 1:]
     args = ap.parse_args(argv)
     args.extra = extra
+    out = args.output or default_output(args.board)
+    started = time.monotonic()
+    # (with --json the human text goes to standard error, so that standard output is one JSON line)
+    say = (lambda *a, **k: print(*a, file=sys.stderr, **k)) if args.json else print
+
+    def finish(code, status, error=None, **fields):
+        if args.json:
+            summary = {"status": status, "exit_code": code, "input": str(args.board), "output": str(out) if status != "failed" else None,
+                       "error": error, "seconds": round(time.monotonic() - started, 3)}
+            summary.update(fields)
+            print(json.dumps(summary))
+        if error:
+            print(f"error: {error}", file=sys.stderr)
+        return code
 
     if not args.board.is_file():
-        print(f"error: {args.board}: no such file", file=sys.stderr)
-        return 2
+        return finish(2, "failed", f"{args.board}: no such file")
+    problem = None if args.export_only else check_output(out, args.force)
+    if problem:
+        return finish(4, "failed", problem)
     board = pcbnew.LoadBoard(str(args.board))
     if board is None or not core.has_board_outline(board):
-        print(f"error: {args.board}: not a board with an outline on Edge.Cuts", file=sys.stderr)
-        return 2
+        return finish(2, "failed", f"{args.board}: not a board with an outline on Edge.Cuts")
+    if not args.export_only:
+        # before a route that can take hours, not after it
+        problem = core.headless_import_problem()
+        if problem:
+            return finish(2, "failed", problem)
     if args.work_dir:
         args.work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -134,26 +209,25 @@ def main(argv=None):
 
     if args.export_only:
         if not args.work_dir:
-            print("error: --export-only needs --work-dir", file=sys.stderr)
-            return 2
+            return finish(2, "failed", "--export-only needs --work-dir")
         failed = router.prepare()
         if failed is not None:
-            print(f"error: {failed.message}", file=sys.stderr)
-            return 1
+            return finish(1, "failed", failed.message)
         for w in getattr(router, "warnings", []):
             print(f"WARN  .kicad_dru {w}", file=sys.stderr)
         # the arguments after the binary, one per line (paths as written in work_dir)
         (args.work_dir / "args.txt").write_text("\n".join(router.command()[1:]) + "\n")
-        print(f"exported to {args.work_dir}")
-        return 0
+        say(f"exported to {args.work_dir}")
+        return finish(0, "exported", work_dir=str(args.work_dir))
 
     t = time.monotonic()
     result = router.run(show)
     if not result.ok:
-        print(f"error: {result.message}", file=sys.stderr)
-        return 1
-    out = args.output or args.board
-    pcbnew.SaveBoard(str(out), board)
+        return finish(1, "failed", result.message)
+    try:
+        save_board(board, out)
+    except Exception as e:  # pcbnew raises RuntimeError / IOError, depending on the version
+        return finish(4, "failed", f"{out}: cannot write the board: {e}")
     if result.partial:
         print(f"warning: {result.message.splitlines()[0]}", file=sys.stderr)
     for w in result.warnings:
@@ -161,14 +235,29 @@ def main(argv=None):
             print(f"warning: {w}", file=sys.stderr)
     if result.unrouted_ignored:
         print(f"{result.unrouted_ignored} of the unrouted connections are in ignored net classes", file=sys.stderr)
-    print(
+    say(
         f"routed in {time.monotonic() - t:.1f} s: score {result.score}, "
         f"{result.unrouted} unrouted, {result.violations} violations"
         + (f" ({result.violations_unfixable} pre-existing, unfixable)" if result.violations_unfixable else "")
         + (f", KiCad: {result.kicad_unconnected} open connections" if result.kicad_unconnected is not None else "")
         + f" -> {out}"
     )
-    return 0
+    # "complete" only if nothing is left open. KiCad's own count after the import is the authority
+    # (a connection through a zone is unrouted to the router and connected to KiCad); without it,
+    # the router's. An unknown count is not a claim of success.
+    if result.kicad_unconnected is not None:
+        complete = result.kicad_unconnected == 0
+    else:
+        complete = result.unrouted == 0
+    return finish(
+        5 if (not complete and args.fail_on_partial) else 0,
+        "complete" if complete else "partial",
+        unrouted=result.unrouted,
+        violations=result.violations,
+        violations_unfixable=result.violations_unfixable,
+        kicad_unconnected=result.kicad_unconnected,
+        score=result.score,
+    )
 
 
 if __name__ == "__main__":

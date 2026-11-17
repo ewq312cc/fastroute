@@ -1,0 +1,322 @@
+# A syntactically complete Hardware Constraint Pack for a FICTIONAL device ("Acme FM-100"
+# module). Nothing here is a fact about a real part: the documents do not exist, their digests
+# are all zeros and the numbers are made up for the example. Use it to learn the format, not as data.
+hcp_version: "1.0"
+
+pack:
+  id: example/acme-fm-100
+  title: Acme FM-100 example module (fictional)
+  version: "0.1.0"
+  language: en
+  created: "2026-11-16"
+  extractor:
+    kind: human
+    tool: hand-written example
+  review:
+    status: draft
+    note: Fictional example; there is no real source behind any value.
+
+sources:
+  - source_id: SRC-FM100-DS
+    document_id: DOC-FM100-DS
+    title: Acme FM-100 datasheet (fictional)
+    version: v1.0
+    level: official_manual
+    url: https://example.invalid/fm-100/datasheet.pdf
+    retrieved: "2026-11-16"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    applies_to: [DEV-FM100]
+  - source_id: SRC-FM100-HDG
+    document_id: DOC-FM100-HDG
+    title: Acme FM-100 hardware design guide (fictional)
+    version: v1.0
+    level: official_guide
+    url: https://example.invalid/fm-100/hardware-design-guide.pdf
+    retrieved: "2026-11-16"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    applies_to: [DEV-FM100]
+  - source_id: SRC-OPENBOARD
+    document_id: DOC-OPENBOARD
+    title: Open FM-100 carrier board (fictional), commit abc
+    version: abc
+    level: open_board
+    url: https://example.invalid/open-board
+    retrieved: "2026-11-16"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    applies_to: [DEV-FM100]
+
+devices:
+  - id: DEV-FM100
+    vendor: Acme
+    part_number: FM-100
+    revision: A
+    package: Module 12-pin castellated
+    pins:
+      - { number: "1", name: GND, class: ground }
+      - { number: "2", name: VDD, class: power, functions: [VDD33] }
+      - number: "3"
+        name: EN
+        class: reset
+        functions: [RESET_N]
+      - number: "4"
+        name: IO0
+        class: boot
+        functions: [BOOT_SEL, GPIO0]
+      - { number: "5", name: IO1, class: gpio, functions: [GPIO1, ADC1] }
+      - { number: "6", name: TXD, class: uart, functions: [UART0_TX, GPIO2] }
+      - { number: "7", name: RXD, class: uart, functions: [UART0_RX, GPIO3] }
+      - { number: "8", name: DP, class: usb, functions: [USB_DP, GPIO4] }
+      - { number: "9", name: DM, class: usb, functions: [USB_DM, GPIO5] }
+      - number: "10"
+        name: RSVD1
+        class: reserved
+        note: Connected to the internal flash inside the module.
+      - { number: "11", name: RSVD2, class: reserved }
+      - { number: "12", name: GND2, class: ground }
+
+peripheral_blocks:
+  - id: BLK-POWER
+    title: Supply decoupling
+    kind: power_decoupling
+    modifiability: required
+    device: DEV-FM100
+    components:
+      - { role: bulk, kind: capacitor, min_count: 1, min_value_nf: 10000 }
+      - { role: bypass, kind: capacitor, min_count: 1, min_value_nf: 100 }
+    connects:
+      - { pin: "2", net_pattern: "3V3*" }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 7, section: "3.2 Power supply" }
+        quote: "Place a 10 uF and a 100 nF capacitor close to the VDD pin."
+        basis: explicit
+  - id: BLK-RESET
+    title: Reset circuit
+    kind: reset_circuit
+    modifiability: required
+    device: DEV-FM100
+    components:
+      - { role: pull_up, kind: resistor, min_count: 1, value_ohm: 10000 }
+      - { role: filter, kind: capacitor, min_count: 1, min_value_nf: 1 }
+    connects:
+      - { pin: "3", net_pattern: "EN*" }
+    evidence:
+      - source_id: SRC-FM100-HDG
+        locator: { section: "4.1 Reset" }
+        quote: "EN needs a 10 kOhm pull-up and a 1 nF capacitor to ground."
+        basis: explicit
+  - id: BLK-BOOT
+    title: Boot-mode button
+    kind: boot_button
+    modifiability: required
+    device: DEV-FM100
+    components:
+      - { role: button, kind: switch, min_count: 1 }
+    connects:
+      - { pin: "4", net_pattern: "BOOT*" }
+    evidence:
+      - source_id: SRC-FM100-HDG
+        locator: { section: "4.2 Boot mode" }
+        quote: "Pull IO0 low while EN is released to enter download mode."
+        basis: explicit
+  - id: BLK-LED
+    title: User status LED (a block the AI may add)
+    kind: generic
+    modifiability: ai_editable
+    components:
+      - { role: led, kind: led, min_count: 1 }
+      - { role: series, kind: resistor, min_count: 1 }
+    evidence:
+      - source_id: SRC-OPENBOARD
+        locator: { section: "LED example" }
+        quote: "R1 330 ohm in series with D1."
+        basis: observed
+
+rules:
+  - id: C-RESERVED
+    kind: reserved_pin
+    modifiability: fixed
+    title: Internal flash pins must stay unconnected
+    subject: { device: DEV-FM100 }
+    params: { pins: ["10", "11"], reason: used by the internal flash }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 5, table: "Pin definitions" }
+        quote: "RSVD1 and RSVD2 are connected to the flash inside the module; do not use."
+        basis: explicit
+  - id: C-GND
+    kind: fixed_net
+    modifiability: fixed
+    title: Both ground pins to the ground net
+    subject: { device: DEV-FM100 }
+    params: { pin: "1", net_pattern: "GND*" }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 5, table: "Pin definitions" }
+        quote: "GND: ground."
+        basis: explicit
+  - id: C-USB-EXCL
+    kind: exclusive_functions
+    modifiability: fixed
+    subject: { device: DEV-FM100 }
+    params: { functions: [USB_DP, GPIO4] }
+    applies_when: ["pin 8 (DP) is used as USB"]
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 6, section: "3.1 Pin multiplexing" }
+        quote: "A pin is either USB or a GPIO, never both."
+        basis: explicit
+  - id: C-NEED-POWER
+    kind: required_block
+    modifiability: required
+    subject: { block: BLK-POWER }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 7, section: "3.2 Power supply" }
+        quote: "Place a 10 uF and a 100 nF capacitor close to the VDD pin."
+        basis: explicit
+  - id: C-NEED-RESET
+    kind: required_block
+    modifiability: required
+    subject: { block: BLK-RESET }
+    evidence:
+      - source_id: SRC-FM100-HDG
+        locator: { section: "4.1 Reset" }
+        quote: "EN needs a 10 kOhm pull-up and a 1 nF capacitor to ground."
+        basis: explicit
+  - id: C-NEED-BOOT
+    kind: required_block
+    modifiability: required
+    subject: { block: BLK-BOOT }
+    evidence:
+      - source_id: SRC-FM100-HDG
+        locator: { section: "4.2 Boot mode" }
+        quote: "Pull IO0 low while EN is released to enter download mode."
+        basis: explicit
+  - id: C-STRAP-IO0
+    kind: strapping
+    modifiability: fixed
+    title: IO0 selects the boot mode at reset
+    subject: { device: DEV-FM100, pin: "4" }
+    params: { sampled_at: reset, default_level: high, external_drive_allowed: false }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 8, section: "3.3 Strapping pins" }
+        quote: "IO0 is sampled at reset; the internal pull-up selects normal boot."
+        basis: explicit
+  - id: C-RESET
+    kind: reset_pin
+    modifiability: fixed
+    subject: { device: DEV-FM100, pin: "3" }
+    params: { active_level: low }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 5, table: "Pin definitions" }
+        quote: "EN: active low reset."
+        basis: explicit
+  - id: C-USB
+    kind: high_speed
+    modifiability: configurable
+    title: USB full-speed pair
+    subject: { device: DEV-FM100 }
+    params: { nets: ["USB_DP", "USB_DM"], differential: true, impedance_ohm: 90, skew_mm: 0.5 }
+    applies_when: ["the USB interface is used"]
+    evidence:
+      - source_id: SRC-FM100-HDG
+        locator: { section: "5.3 USB layout" }
+        quote: "Route D+ and D- as a 90 Ohm differential pair, matched within 0.5 mm."
+        basis: explicit
+  - id: C-USB-GAP
+    kind: high_speed
+    modifiability: unknown
+    title: USB pair spacing
+    params: { nets: ["USB_DP", "USB_DM"], differential: true, gap_mm: null }
+    missing: The documents do not give a spacing; it depends on the stackup.
+  - id: C-ANT
+    kind: keepout
+    modifiability: fixed
+    subject: { region: REG-ANT }
+    params: { forbid: [track, via, component, zone] }
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 12, section: "6.2 Antenna keep-out" }
+        quote: "Keep the area around the antenna free of copper on all layers."
+        basis: explicit
+  - id: C-MOUNT
+    kind: mechanical_fixed
+    modifiability: fixed
+    subject: { region: REG-MOUNT1 }
+    evidence:
+      - source_id: SRC-OPENBOARD
+        locator: { section: "Mechanical drawing" }
+        quote: "Mounting hole 1 at 3,3."
+        basis: observed
+
+regions:
+  - id: REG-OUTLINE
+    kind: board_outline
+    unit: mm
+    modifiability: fixed
+    polygon: [[0, 0], [60, 0], [60, 40], [0, 40]]
+    evidence:
+      - source_id: SRC-OPENBOARD
+        locator: { section: "Mechanical drawing" }
+        quote: "Board 60 x 40 mm."
+        basis: observed
+  - id: REG-MOUNT1
+    kind: mount_hole
+    unit: mm
+    modifiability: fixed
+    circle: { center: [3, 3], radius_mm: 1.6 }
+    evidence:
+      - source_id: SRC-OPENBOARD
+        locator: { section: "Mechanical drawing" }
+        quote: "Mounting hole 1 at 3,3."
+        basis: observed
+  - id: REG-ANT
+    kind: antenna_keepout
+    unit: mm
+    frame: board
+    modifiability: fixed
+    polygon: [[40, 0], [60, 0], [60, 10], [40, 10]]
+    layers: [all]
+    evidence:
+      - source_id: SRC-FM100-DS
+        locator: { page: 12, section: "6.2 Antenna keep-out" }
+        quote: "Keep the area around the antenna free of copper on all layers."
+        basis: explicit
+  - id: REG-USER
+    kind: editable
+    title: Free area for user circuits
+    unit: mm
+    modifiability: ai_editable
+    polygon: [[5, 15], [35, 15], [35, 38], [5, 38]]
+    layers: [all]
+    evidence:
+      - source_id: SRC-OPENBOARD
+        locator: { section: "Mechanical drawing" }
+        quote: "Prototyping area."
+        basis: observed
+
+base_design:
+  id: BASE-FM100-CARRIER
+  title: Open FM-100 carrier board
+  binding:
+    repo:
+      url: https://example.invalid/open-board
+      commit: "0000000000000000000000000000000000000abc"
+    files:
+      - path: carrier.kicad_pcb
+        sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  immutable:
+    components: [U1, J1]
+    connectors: [J1]
+    board_outline: true
+    mount_holes: true
+    regions: [REG-ANT]
+  editable_regions:
+    - region: REG-USER
+      allowed_blocks: [BLK-LED]
+      pin_pool:
+        - { device: DEV-FM100, pins: ["5"] }
+      allowed_ops: [add_component, connect, add_track]

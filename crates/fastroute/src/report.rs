@@ -140,8 +140,8 @@ pub fn write_report(
 ) -> std::io::Result<()> {
     let t = std::time::Instant::now();
     let basic: &BasicBoard = board;
-    let res = board.communication.resolution.max(1) as f64;
-    let u = Units { board: basic, per_mm: res * 1000.0 };
+    // (not `resolution * 1000`: that is only right for designs in um, which is what KiCad writes)
+    let u = Units { board: basic, per_mm: crate::extract::units_per_mm(basic) };
     let mut stats = BoardStatistics::from_board(basic);
     let router_score = stats.get_router_score(Some(settings));
     let optimizer_score = if unclamped_optimizer_score {

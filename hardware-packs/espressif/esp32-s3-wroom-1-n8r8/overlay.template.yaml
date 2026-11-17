@@ -1,0 +1,262 @@
+# The example carrier of the ESP32-S3-WROOM-1-N8R8 pack: only what belongs to the carrier (its outline, mounting holes, the free area, the LED block, the base design).
+# Everything about the module comes from the module pack espressif/esp32-s3/esp32-s3-wroom-1/n8r8 by inheritance; pack.yaml is generated:
+#   python3 hardware-packs/tools/build_espressif.py --only s3-example
+# (@@MODULE_DIGEST@@ is the canonical digest of the module pack's hcp.yaml, filled in by the builder.)
+hcp_version: '1.1'
+pack:
+  id: espressif/esp32-s3-wroom-1-n8r8
+  title: ESP32-S3-WROOM-1-N8R8 模组级约束包（示例）
+  version: 0.1.0
+  language: zh-CN
+  created: '2026-11-16'
+  extractor:
+    kind: mixed
+    tool: hcp-manager + tools/extract_pin_table.py, rules written by an AI assistant from the locked documents
+  review:
+    status: draft
+    note: 草案，尚无人工复核。天线禁区的尺寸来自指南中的一张图（按图上的标注读取），需要人工确认；其余未在资料中给出的参数保持 unknown。
+  kind: board
+  upstream:
+  - id: espressif/esp32-s3/esp32-s3-wroom-1/n8r8
+    version: 0.1.0
+    kind: module
+    canonical_sha256: '@@MODULE_DIGEST@@'
+    inherit:
+      devices:
+      - DEV-ESP32S3-WROOM1-N8R8
+      rules:
+      - C-ESP-RESERVED-PSRAM
+      - C-ESP-GND-1
+      - C-ESP-GND-40
+      - C-ESP-EN
+      - C-ESP-STRAP-IO0
+      - C-ESP-STRAP-IO46
+      - C-ESP-STRAP-IO45
+      - C-ESP-STRAP-IO3
+      - C-ESP-BOOT-IO0
+      - C-ESP-NEED-RESET
+      - C-ESP-EN-RC-VALUES
+      - C-ESP-NEED-BOOT
+      - C-ESP-NEED-UART
+      - C-ESP-NEED-POWER
+      - C-ESP-ELECTRICAL-VDD33
+      - C-ESP-USB
+      - C-ESP-USB-SKEW
+      - C-ESP-USB-GAP
+      - C-ESP-ANT-KEEPOUT
+      blocks:
+      - BLK-ESP-POWER
+      - BLK-ESP-RESET
+      - BLK-ESP-BOOT
+      - BLK-ESP-UART-DL
+      regions:
+      - REG-ESP-ANT
+sources:
+- source_id: SRC-ESP32S3-CARRIER
+  document_id: DOC-ESP32S3-CARRIER
+  title: Example carrier board of this pack (notes)
+  version: example-1
+  level: open_board
+  url: https://example.invalid/hardware-packs/espressif/esp32-s3-wroom-1-n8r8/example/carrier-notes.md
+  retrieved: '2026-11-16'
+  sha256: 9b7e0bae770efa77ab9b1ec8dc08b80ce1ce5823ed3f10b7cc884059caa1a165
+  applies_to:
+  - DEV-ESP32S3-WROOM1-N8R8
+peripheral_blocks:
+- id: BLK-ESP-LED
+  title: 用户状态灯（AI 可以添加的外设块）
+  kind: generic
+  modifiability: ai_editable
+  components:
+  - role: led
+    kind: led
+    min_count: 1
+  - role: series
+    kind: resistor
+    min_count: 1
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Free area
+    quote: 'Example block: a status LED D1 with a series resistor R2 of 330 ohm in series with D1.'
+    basis: observed
+rules:
+- id: C-ESP-OUTLINE
+  kind: mechanical_fixed
+  modifiability: fixed
+  title: 载板外形（含天线处的缺口）不得改变
+  subject:
+    region: REG-ESP-OUTLINE
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: 'Board outline: (0, 5.25), (12, 5.25), (12, 12.25), (47, 12.25), (47, 40), (0, 40).'
+    basis: observed
+- id: C-ESP-MOUNT-H1
+  kind: mechanical_fixed
+  modifiability: fixed
+  title: 安装孔 H1
+  subject:
+    region: REG-ESP-H1
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H1 at (4, 9.25) mm, diameter 3.2 mm.
+    basis: observed
+- id: C-ESP-MOUNT-H2
+  kind: mechanical_fixed
+  modifiability: fixed
+  title: 安装孔 H2
+  subject:
+    region: REG-ESP-H2
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H2 at (4, 36) mm, diameter 3.2 mm.
+    basis: observed
+- id: C-ESP-MOUNT-H3
+  kind: mechanical_fixed
+  modifiability: fixed
+  title: 安装孔 H3
+  subject:
+    region: REG-ESP-H3
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H3 at (43, 36) mm, diameter 3.2 mm.
+    basis: observed
+regions:
+- id: REG-ESP-OUTLINE
+  kind: board_outline
+  title: 示例载板外形
+  unit: mm
+  modifiability: fixed
+  polygon:
+  - - 0
+    - 5.25
+  - - 12
+    - 5.25
+  - - 12
+    - 12.25
+  - - 47
+    - 12.25
+  - - 47
+    - 40
+  - - 0
+    - 40
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: 'Board outline: (0, 5.25), (12, 5.25), (12, 12.25), (47, 12.25), (47, 40), (0, 40).'
+    basis: observed
+- id: REG-ESP-H1
+  kind: mount_hole
+  unit: mm
+  modifiability: fixed
+  circle:
+    center:
+    - 4
+    - 9.25
+    radius_mm: 1.6
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H1 at (4, 9.25) mm, diameter 3.2 mm.
+    basis: observed
+- id: REG-ESP-H2
+  kind: mount_hole
+  unit: mm
+  modifiability: fixed
+  circle:
+    center:
+    - 4
+    - 36
+    radius_mm: 1.6
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H2 at (4, 36) mm, diameter 3.2 mm.
+    basis: observed
+- id: REG-ESP-H3
+  kind: mount_hole
+  unit: mm
+  modifiability: fixed
+  circle:
+    center:
+    - 43
+    - 36
+    radius_mm: 1.6
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Board
+    quote: Mounting hole H3 at (43, 36) mm, diameter 3.2 mm.
+    basis: observed
+- id: REG-ESP-USER
+  kind: editable
+  title: 载板上的自由原型区
+  unit: mm
+  modifiability: ai_editable
+  polygon:
+  - - 7
+    - 16
+  - - 21
+    - 16
+  - - 21
+    - 34
+  - - 7
+    - 34
+  layers:
+  - all
+  evidence:
+  - source_id: SRC-ESP32S3-CARRIER
+    locator:
+      section: Free area
+    quote: 'Free prototyping area: (7, 16) to (21, 34) mm, on both layers, nothing placed in it.'
+    basis: observed
+base_design:
+  id: BASE-ESP32S3-CARRIER
+  title: 示例载板 carrier.kicad_pcb（模组、连接器、板框、安装孔与天线禁布区固定）
+  binding:
+    files:
+    - path: carrier.kicad_pcb
+      sha256: fc9f0fb32489a6c1502c11ef428e34e9b4f6c7666150bb99b91faaf3ff749c90
+  immutable:
+    components:
+    - U1
+    - J1
+    - J2
+    - C1
+    - C2
+    - C3
+    - R1
+    - R3
+    - SW1
+    connectors:
+    - J1
+    - J2
+    board_outline: true
+    mount_holes: true
+    regions:
+    - REG-ESP-ANT
+  editable_regions:
+  - region: REG-ESP-USER
+    allowed_blocks:
+    - BLK-ESP-LED
+    pin_pool:
+    - device: DEV-ESP32S3-WROOM1-N8R8
+      pins:
+      - '4'
+      - '5'
+    allowed_ops:
+    - add_component
+    - connect
+    - add_track
+    - add_via

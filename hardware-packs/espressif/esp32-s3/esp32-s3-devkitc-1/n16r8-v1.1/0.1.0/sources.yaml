@@ -1,0 +1,39 @@
+sources_version: '1.0'
+documents:
+- document_id: DOC-DEVKITC1-UG-V11
+  title: ESP32-S3-DevKitC-1 v1.1 User Guide
+  level: official_devkit
+  version: latest-2026-11-17
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
+  sha256: 5120d2d6e8c55bb937a4b36b6b1a554e8c04193b993c74127f6991de046c6ff1
+  retrieved: 2026-11-17
+  status: active
+  license_note: 'Espressif document; keep the cached copy for review and quote it, do not redistribute it. The disclaimer page says:
+    No licenses express or implied, by estoppel or otherwise, to any intellectual property rights are granted herein.'
+- document_id: DOC-DEVKITC1-SCH-V11
+  title: ESP32-S3-DevKitC-1 Board Schematic V1.1 (2022-11-30)
+  level: official_devkit
+  version: V1.1_20221130
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://dl.espressif.com/dl/schematics/SCH_ESP32-S3-DevKitC-1_V1.1_20221130.pdf
+  sha256: f116b5d9f1fdce126e9a63d8450388eb11295d8322d831502fbc9729442b72e4
+  retrieved: 2026-11-17
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-DEVKITC1-DXF-V11
+  title: ESP32-S3-DevKitC-1 Dimensions source file V1.1 (DXF, 2022-04-29)
+  level: official_devkit
+  version: V1.1_20220429
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://dl.espressif.com/dl/schematics/esp_idf/DXF_ESP32-S3-DevKitC-1_V1.1_20220429.dxf
+  sha256: 02c88dea5acf89ef20c8073acd19f1c5fd1ac908fc57a5c0fd005cd021304983
+  retrieved: 2026-11-17
+  status: active
+  license_note: Espressif document; keep the cached copy for review and measure it, do not redistribute it.

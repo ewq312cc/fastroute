@@ -1,0 +1,44 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "Use 0.1 mm clearance on the USB nets to fit the pair."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "clearance",
+      "strength": "hard",
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "params": {
+        "clearance_mm": 0.1
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Use 0.1 mm clearance on the USB nets"
+        }
+      ]
+    }
+  ]
+}

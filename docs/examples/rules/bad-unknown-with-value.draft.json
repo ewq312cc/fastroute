@@ -1,0 +1,47 @@
+{
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "created_by": {
+    "kind": "ai",
+    "tool": "example-assistant",
+    "model": null
+  },
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "text": "The USB pair needs controlled impedance."
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1",
+      "kind": "impedance",
+      "strength": "unknown",
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "params": {
+        "target_ohm": 90
+      },
+      "needed": [
+        "target impedance"
+      ],
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "controlled impedance"
+        }
+      ]
+    }
+  ]
+}

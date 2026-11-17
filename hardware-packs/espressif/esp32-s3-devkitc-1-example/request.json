@@ -1,0 +1,36 @@
+{
+  "request_version": "1.0",
+  "board": {
+    "id": "espressif/esp32-s3/esp32-s3-devkitc-1/n16r8-v1.1",
+    "version": "0.1.0",
+    "hardware_revision": "v1.1",
+    "canonical_sha256": "46ac681cd7f3f275c4e5c26acfbdd49c9694174aa0052c7ea87ab23c0a079cf2"
+  },
+  "carrier": {
+    "name": "sensor-carrier",
+    "outline": {
+      "x_mm": 0,
+      "y_mm": 0,
+      "width_mm": 80,
+      "height_mm": 100
+    }
+  },
+  "placement": {
+    "ref": "U1",
+    "origin_mm": [
+      27.3,
+      37.1
+    ],
+    "rotation_deg": 0
+  },
+  "targets": [
+    {
+      "name": "temperature sensor (I2C)",
+      "block": "BLK-DK-PERIPHERAL",
+      "pins": [
+        "J1.4",
+        "J1.5"
+      ]
+    }
+  ]
+}

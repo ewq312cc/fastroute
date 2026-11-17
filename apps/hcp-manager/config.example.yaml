@@ -1,0 +1,69 @@
+# Example of <workspace>/embedding.yaml for hcp-manager. Copy it to your workspace and keep what you need.
+#
+# - Without this file the local `hashing` provider and the SQLite store are used: nothing is sent anywhere, no model is needed.
+# - Several named profiles can be defined; exactly one is in force (`active_profile`, or `--profile NAME` on a command). The vectors in
+#   the index are bound to the configuration they were made with: another model, dimension or address is a NEW generation of vectors,
+#   the old one is kept (never mixed in, never deleted by a build) until `hcp-manager index prune`.
+# - API keys never go in this file. Name an environment variable (`api_key_env`) or an external program that prints the key
+#   (`api_key_command`); the key is not stored, logged or shown.
+# - A service on this machine (localhost) is local. Any other address is REMOTE: nothing is sent unless allow_remote is true here,
+#   the command is run with --authorize-remote, AND the document says `embed_remote: true` in sources.yaml. Queries of a search are
+#   sent under the first two. `hcp-manager embedding show` says whether text leaves this machine.
+# - Every profile below was checked against the schema and against a protocol mock in the tests; none of them was tried against the
+#   named service.
+
+active_profile: local
+
+profiles:
+  # Built in, deterministic, lexical (words, word pairs, character trigrams): finds spelling variants and parts of identifiers, not
+  # synonyms. No model, no network.
+  local:
+    provider: hashing
+    dim: 384
+
+  # An OpenAI-compatible embeddings service (the shape of POST /v1/embeddings). `base_url` may include /v1 or not; the request goes to
+  # <base_url>/v1/embeddings (a prefix that already ends in a version such as /v4 is kept). `dim` is checked on every answer.
+  openai:
+    provider: openai
+    base_url: https://api.openai.com
+    model: text-embedding-3-small
+    dim: 1536
+    api_key_env: OPENAI_API_KEY
+    allow_remote: false          # the text of your documents goes to this service only if you change this AND authorise each run AND mark each document
+    batch: 64                    # texts per request
+    timeout_s: 60
+    retries: 2                   # after a timeout, a 429 or a 5xx answer; nothing else is retried
+    retry_backoff_ms: 500        # doubled each time; a Retry-After header is honoured up to 30 s
+    # send_dimensions: true      # models that can shorten their vectors: sends `dimensions: <dim>`
+
+  # A model served on this machine (llama.cpp server, Ollama's OpenAI-compatible endpoint, vLLM, ...): local, so nothing needs authorising.
+  # A key is optional; without api_key_* no Authorization header is sent.
+  local-server:
+    provider: openai
+    base_url: http://localhost:11434/v1
+    model: nomic-embed-text
+    dim: 768
+
+  # Another service with its own path: embeddings_path replaces everything after the host.
+  other-vendor:
+    provider: openai
+    base_url: https://embeddings.example.com
+    embeddings_path: /api/paas/v4/embeddings
+    model: some-model
+    dim: 1024
+    api_key_command: ["pass", "show", "embeddings/example"]   # a program that prints the key; no shell
+    allow_remote: false
+
+  # A local program: reads {"texts": [...]} on stdin, writes {"model", "version", "dim", "vectors"} on stdout.
+  program:
+    provider: command
+    command: ["python3", "tools/embed.py"]     # relative to the workspace directory
+    model: my-model
+    version: "1"
+    dim: 384
+
+# Where the derived index is kept. Each backend has its own location and is built and removed on its own.
+#   sqlite  derived/index.db     one file (default)
+#   jsonl   derived/jsonl/       plain JSON Lines files with a manifest and checksums: for small workspaces and for reading with any tool
+store:
+  backend: sqlite

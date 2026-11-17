@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fastroute.invalid/hcp/edit-draft-v1.schema.json",
+  "title": "HCP edit draft v1",
+  "description": "What an AI hands over instead of redrawing a board: a list of changes inside the regions that the knowledge pack authorises, bound to the exact pack and base design it was made for. It is checked by `fastroute constraints check-edit`; it never overwrites the base project. The draft cannot grant itself anything: `claims` is checked against the pack and refused if it asks for more.",
+  "type": "object",
+  "required": ["format", "draft_version", "pack", "base", "changes"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "fastroute-hcp-edit-draft" },
+    "draft_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "title": { "type": "string" },
+    "requirement": { "type": "string", "description": "The project requirement in words, copied from the request." },
+    "pack": {
+      "type": "object",
+      "required": ["id", "version", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["id", "binding_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "binding_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "claims": {
+      "type": "object",
+      "description": "What the generator believes it may use, copied from the request. Checked, never trusted: anything beyond the pack's whitelist is refused.",
+      "additionalProperties": false,
+      "properties": {
+        "regions": { "type": "array", "items": { "type": "string" } },
+        "blocks": { "type": "array", "items": { "type": "string" } },
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["device", "pins"],
+            "additionalProperties": false,
+            "properties": { "device": { "type": "string" }, "pins": { "type": "array", "items": { "type": "string" } } }
+          }
+        }
+      }
+    },
+    "recall": {
+      "type": "array",
+      "description": "What a search found (blocks, documents). Information for the reader: it grants nothing.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["block", "document", "region", "pin"] },
+          "id": { "type": "string", "minLength": 1 },
+          "source": { "enum": ["keyword", "vector", "manual"] },
+          "score": { "type": "number" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "stop": {
+      "type": "object",
+      "description": "The generator could not finish: what is missing. No changes may come with it.",
+      "required": ["reason"],
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "type": "string", "minLength": 1 },
+        "missing": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/change" }
+    }
+  },
+  "$defs": {
+    "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "ref": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+    "change": {
+      "type": "object",
+      "required": ["id", "op", "region"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^CH-[A-Za-z0-9_-]+$" },
+        "op": { "enum": ["add_component", "move_component", "remove_component", "connect", "disconnect", "add_track", "add_via"] },
+        "region": { "type": "string", "pattern": "^REG-[A-Z0-9][A-Z0-9_-]*$" },
+        "reason": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "add_component" } } },
+          "then": {
+            "required": ["block", "role", "ref", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "block": { "type": "string", "pattern": "^BLK-[A-Z0-9][A-Z0-9_-]*$" },
+              "role": { "type": "string", "minLength": 1 },
+              "ref": { "$ref": "#/$defs/ref" },
+              "value": { "type": "string" },
+              "footprint": { "type": "string" },
+              "at": { "$ref": "#/$defs/point" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "move_component" } } },
+          "then": {
+            "required": ["ref", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "ref": { "$ref": "#/$defs/ref" },
+              "uuid": { "type": "string" },
+              "to": { "$ref": "#/$defs/point" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "remove_component" } } },
+          "then": {
+            "required": ["ref"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "ref": { "$ref": "#/$defs/ref" },
+              "uuid": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "connect" } } },
+          "then": {
+            "required": ["ref", "pin", "net"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "ref": { "$ref": "#/$defs/ref" },
+              "uuid": { "type": "string" },
+              "pin": { "type": "string", "minLength": 1 },
+              "net": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "disconnect" } } },
+          "then": {
+            "required": ["ref", "pin"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "ref": { "$ref": "#/$defs/ref" },
+              "uuid": { "type": "string" },
+              "pin": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "add_track" } } },
+          "then": {
+            "required": ["net", "layer", "width_mm", "points"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "net": { "type": "string", "minLength": 1 },
+              "layer": { "type": "string", "minLength": 1 },
+              "width_mm": { "type": "number", "exclusiveMinimum": 0 },
+              "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } }
+            }
+          }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "const": "add_via" } } },
+          "then": {
+            "required": ["net", "at", "diameter_mm"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {}, "op": {}, "region": {}, "reason": {},
+              "net": { "type": "string", "minLength": 1 },
+              "at": { "$ref": "#/$defs/point" },
+              "diameter_mm": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

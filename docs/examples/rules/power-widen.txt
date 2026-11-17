@@ -1,0 +1,1 @@
+Widen the power traces to 0.5 mm. GND should be at least 0.4 mm wide.

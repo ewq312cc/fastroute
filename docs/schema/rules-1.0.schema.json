@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fastroute rules.json written by ai-pack (format_version 1.x)",
+  "description": "The design rules of the board as the router sees them. If you pass your own file with `ai-pack --rules`, that file is included unchanged and is not described by this schema.",
+  "type": "object",
+  "required": ["format", "format_version", "fastroute_version", "generated_by", "source", "units", "layers", "net_classes", "note"],
+  "properties": {
+    "format": { "const": "fastroute-rules" },
+    "format_version": { "type": "string" },
+    "fastroute_version": { "type": "string" },
+    "generated_by": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "file", "sha256"],
+      "properties": { "kind": { "enum": ["dsn"] }, "file": { "type": "string" }, "sha256": { "type": "string" } }
+    },
+    "units": { "const": "mm" },
+    "layers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "note": { "type": "string" },
+    "net_classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "nets", "trace_width_mm", "clearance_mm", "ignored_by_autorouter", "min_length_mm", "max_length_mm"],
+        "properties": {
+          "name": { "type": "string" },
+          "nets": { "type": "array", "items": { "type": "string" } },
+          "trace_width_mm": { "type": "array", "items": { "type": "object", "required": ["layer", "value_mm"], "properties": { "layer": { "type": "string" }, "value_mm": { "type": "number" } } } },
+          "clearance_mm": { "type": "array", "items": { "type": "object", "required": ["layer", "value_mm"], "properties": { "layer": { "type": "string" }, "value_mm": { "type": "number" } } } },
+          "ignored_by_autorouter": { "type": "boolean" },
+          "min_length_mm": { "type": ["number", "null"] },
+          "max_length_mm": { "type": ["number", "null"] }
+        }
+      }
+    }
+  }
+}

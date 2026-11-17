@@ -1,0 +1,14 @@
+[package]
+name = "fr-render"
+description = "Offline PNG renderer for fastroute boards: pure-Rust rasterisation of plain mm geometry"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+# pure-Rust rasteriser; no SIMD so the pixels do not depend on the CPU the binary runs on
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "png-format"] }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }

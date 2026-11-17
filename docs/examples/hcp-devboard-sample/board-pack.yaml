@@ -1,0 +1,283 @@
+# SAMPLE, FICTIONAL: a made-up development board, not a product of any company. Written for this project's tests and documentation and released under CC0-1.0
+# (see LICENSE.txt in this directory). The "documents" it cites do not exist; every quotation is invented. It shows the shape of a `kind: board` pack.
+hcp_version: '1.1'
+pack:
+  id: acme/devs/devboard/rev-b
+  kind: board
+  title: Acme DevBoard rev B (fictional)
+  version: 0.1.0
+  created: 2026-11-16
+  language: en
+  extractor:
+    kind: human
+  review:
+    status: draft
+sources:
+- source_id: SRC-DB-UG
+  document_id: DOC-DB-UG
+  title: DevBoard user guide (fictional)
+  version: v1.1
+  level: official_devkit
+  url: https://example.invalid/ug
+  retrieved: 2026-11-16
+  sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+  applies_to:
+  - DEV-DEVBOARD
+devices:
+- id: DEV-DEVBOARD
+  vendor: Acme
+  part_number: DEVBOARD-B
+  revision: B
+  package: development board
+  pins:
+  - number: J1.1
+    name: 3V3
+    class: power
+  - number: J1.2
+    name: GND
+    class: ground
+  - number: J1.3
+    name: RST
+    class: reset
+  - number: J1.4
+    name: GPIO4
+    class: gpio
+  - number: J1.5
+    name: GPIO5
+    class: gpio
+  - number: J1.6
+    name: GPIO6
+    class: reserved
+  - number: J3.1
+    name: GND
+    class: ground
+  - number: J3.2
+    name: TX
+    class: uart
+  - number: J3.3
+    name: RX
+    class: uart
+  - number: J3.4
+    name: GPIO0
+    class: boot
+  - number: J3.5
+    name: GPIO7
+    class: gpio
+peripheral_blocks:
+- id: BLK-ONBOARD-RESET
+  title: Reset button and RC on the board
+  kind: reset_circuit
+  modifiability: fixed
+  device: DEV-DEVBOARD
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 4
+    quote: The Reset button restarts the system.
+    basis: explicit
+- id: BLK-ONBOARD-BOOT
+  title: Boot button on the board
+  kind: boot_button
+  modifiability: fixed
+  device: DEV-DEVBOARD
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 4
+    quote: Holding down Boot and pressing Reset starts download mode.
+    basis: explicit
+- id: BLK-SENSOR
+  title: A sensor on the carrier
+  kind: generic
+  modifiability: ai_editable
+  components:
+  - role: sensor
+    kind: ic
+    min_count: 1
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 5
+    quote: Any peripheral may be connected to the free GPIO pins.
+    basis: observed
+rules:
+- id: C-DB-RSVD
+  kind: reserved_pin
+  modifiability: fixed
+  subject:
+    device: DEV-DEVBOARD
+  params:
+    pins:
+    - J1.6
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 3
+    quote: GPIO6 is used by the on-board flash.
+    basis: explicit
+regions:
+- id: REG-DB-OUTLINE
+  kind: board_outline
+  unit: mm
+  frame: device
+  device: DEV-DEVBOARD
+  polygon:
+  - - 0
+    - 0
+  - - 20
+    - 0
+  - - 20
+    - 60
+  - - 0
+    - 60
+  modifiability: fixed
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 2
+    quote: Board size 20 mm x 60 mm.
+    basis: explicit
+- id: REG-DB-ANT
+  kind: antenna_keepout
+  unit: mm
+  frame: device
+  device: DEV-DEVBOARD
+  polygon:
+  - - 2
+    - 60
+  - - 18
+    - 60
+  - - 18
+    - 64
+  - - 2
+    - 64
+  modifiability: fixed
+  evidence:
+  - source_id: SRC-DB-UG
+    locator:
+      page: 2
+    quote: The antenna end must stay clear.
+    basis: explicit
+board_integration:
+  hardware_revision: B
+  board_device: DEV-DEVBOARD
+  frame:
+    unit: mm
+    origin: lower-left corner of the board outline, top view
+    orientation: x to the right, y up; the antenna end is at +y
+  exposed_headers:
+  - id: J1
+    pitch_mm: 2.54
+    pins:
+    - number: '1'
+      name: 3V3
+      position:
+      - 1.27
+      - 58.0
+      kind: power
+      usability: reserved
+      reason: power rail of the board
+    - number: '2'
+      name: GND
+      position:
+      - 1.27
+      - 55.46
+      kind: ground
+      usability: reserved
+      reason: ground
+    - number: '3'
+      name: RST
+      position:
+      - 1.27
+      - 52.92
+      kind: reset
+      usability: onboard
+      reason: the reset button and its RC are on the board
+    - number: '4'
+      name: GPIO4
+      position:
+      - 1.27
+      - 50.38
+      kind: gpio
+      usability: usable
+      evidence:
+      - source_id: SRC-DB-UG
+        locator:
+          page: 3
+        quote: J1 pin 4 is GPIO4
+        basis: explicit
+    - number: '5'
+      name: GPIO5
+      position:
+      - 1.27
+      - 47.84
+      kind: gpio
+      usability: usable
+      evidence:
+      - source_id: SRC-DB-UG
+        locator:
+          page: 3
+        quote: J1 pin 5 is GPIO5
+        basis: explicit
+    - number: '6'
+      name: GPIO6
+      position:
+      - 1.27
+      - 45.3
+      kind: gpio
+      usability: reserved
+      reason: used by the on-board flash
+  - id: J3
+    pitch_mm: 2.54
+    pins:
+    - number: '1'
+      name: GND
+      position:
+      - 18.73
+      - 58.0
+      kind: ground
+      usability: reserved
+      reason: ground
+    - number: '2'
+      name: TX
+      position:
+      - 18.73
+      - 55.46
+      kind: uart
+      usability: onboard
+      reason: connected to the USB-UART bridge
+    - number: '3'
+      name: RX
+      position:
+      - 18.73
+      - 52.92
+      kind: uart
+      usability: onboard
+      reason: connected to the USB-UART bridge
+    - number: '4'
+      name: GPIO0
+      position:
+      - 18.73
+      - 50.38
+      kind: boot
+      usability: onboard
+      reason: the boot button is on the board
+    - number: '5'
+      name: GPIO7
+      position:
+      - 18.73
+      - 47.84
+      kind: gpio
+      usability: reserved
+      reason: kept free by the board design (stated)
+  onboard_blocks:
+  - BLK-ONBOARD-RESET
+  - BLK-ONBOARD-BOOT
+  carrier:
+    allowed_blocks:
+    - BLK-SENSOR
+    allowed_ops:
+    - add_component
+    - connect
+    - add_track
+    margin_mm: 0

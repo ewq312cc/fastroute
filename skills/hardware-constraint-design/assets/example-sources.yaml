@@ -1,0 +1,42 @@
+# An inventory of FICTIONAL documents for the fictional Acme FM-100 module (see example-device.yaml).
+# hcp-manager reads this file; `hcp-manager sources sync` fills in sha256 / retrieved after a download.
+# The document ids are the ones an HCP's `sources[].document_id` refers to.
+sources_version: "1.0"
+documents:
+  - document_id: DOC-FM100-DS
+    title: Acme FM-100 datasheet (fictional)
+    level: official_manual
+    version: v1.0
+    applies_to:
+      - { part_number: FM-100, revision: A }
+    url: https://example.invalid/fm-100/datasheet.pdf
+    license_note: Excerpts only; keep the cached copy for review, do not redistribute.
+  - document_id: DOC-FM100-ERRATA
+    title: Acme FM-100 errata (fictional)
+    level: official_errata
+    version: v1.1
+    applies_to:
+      - { part_number: FM-100, revision: A }
+    url: https://example.invalid/fm-100/errata.pdf
+  - document_id: DOC-FM100-HDG
+    title: Acme FM-100 hardware design guide (fictional)
+    level: official_guide
+    version: v1.0
+    applies_to:
+      - { part_number: FM-100 }
+    url: https://example.invalid/fm-100/hardware-design-guide.pdf
+  - document_id: DOC-FM100U-DS
+    title: Acme FM-100U datasheet (fictional; a similar model, NOT the FM-100)
+    level: official_manual
+    version: v1.0
+    applies_to:
+      - { part_number: FM-100U }
+    url: https://example.invalid/fm-100u/datasheet.pdf
+  - document_id: DOC-OPENBOARD
+    title: Open FM-100 carrier board (fictional), commit abc
+    level: open_board
+    version: abc
+    applies_to:
+      - { part_number: FM-100 }
+    url: https://example.invalid/open-board
+    note: An open board shows what one design does; it never overrides the manufacturer's documents.

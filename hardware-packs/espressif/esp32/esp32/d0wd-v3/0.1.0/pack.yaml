@@ -1,0 +1,52 @@
+# The manifest of this pack. The authored part is above `files`; `files`, `hcp_canonical_sha256`, `source_digests` and the digests
+# of the dependencies are written by `hcp-manager release seal` and checked by `hcp-manager release index` / `packs builtin verify`.
+manifest_version: '1.0'
+id: espressif/esp32/esp32/d0wd-v3
+kind: chip
+identity:
+  vendor: espressif
+  family: esp32
+  device: esp32
+  variant: d0wd-v3
+  part_number: ESP32-D0WD-V3
+  package: QFN48
+version: 0.1.0
+content: full
+review: draft
+compatibility:
+  hcp_schema_version: '1.1'
+  ir_version: '1.0'
+  min_app_version: 0.1.14
+dependencies: []
+files:
+  hcp:
+    path: hcp.yaml
+    sha256: fe15606189c654390c75271f662e7ba781a3212324ea8583392d02c32aa53c3a
+  sources:
+    path: sources.yaml
+    sha256: f19ce5bd3546685b830b15e2e1017fd817fd8742f102fa6f456dfdd693207d68
+  reports:
+  - path: reports/pack-report.zh.md
+    sha256: 9212c8bc036edf2c753dbfe453a65a0b8b1d6e0423408fc7fc07d38be13be8d2
+hcp_canonical_sha256: 26ed68fe3ef923030f3edb5e2bebea5b3e5baaad4c23ca9e9fb7602a647e13ab
+source_digests:
+- document_id: DOC-ESP32-DS
+  version: v5.3
+  sha256: a7917e6b47528c9dcab06837a49d452e582751335797db879f1cf2d17cd29adf
+  url: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+  redistribution: reference_only
+- document_id: DOC-ESP32-HDG-SCH
+  version: latest-2026-11-16
+  sha256: db4527861d48b04850b0b58d6849edda637b9d4e0def4a0360e36903b2c7991c
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/schematic-checklist.html
+  redistribution: reference_only
+license:
+  pack: GPL-3.0-or-later
+  documents:
+  - document_id: DOC-ESP32-DS
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  - document_id: DOC-ESP32-HDG-SCH
+    redistribution: reference_only
+    note: 'Espressif document: only its URL, version, SHA-256, page locators and short quotations are kept'
+  note: The pack states facts with short quotations and page locators; the original documents are not part of it.

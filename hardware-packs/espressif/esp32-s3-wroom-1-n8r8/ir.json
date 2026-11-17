@@ -1,0 +1,2198 @@
+{
+  "ir_version": "1.0",
+  "compiler": {
+    "name": "fr-constraint",
+    "version": "0.1.14"
+  },
+  "pack": {
+    "id": "espressif/esp32-s3-wroom-1-n8r8",
+    "version": "0.1.0",
+    "sha256": "837cf0feddf66c25f50bf78cd616fd926306b633bd4d0390e749fbe3786e8753",
+    "review": "draft"
+  },
+  "sources": [
+    {
+      "source_id": "SRC-ESP32S3-CARRIER",
+      "document_id": "DOC-ESP32S3-CARRIER",
+      "title": "Example carrier board of this pack (notes)",
+      "version": "example-1",
+      "level": "open_board",
+      "sha256": "9b7e0bae770efa77ab9b1ec8dc08b80ce1ce5823ed3f10b7cc884059caa1a165",
+      "applies_to": [
+        "DEV-ESP32S3-WROOM1-N8R8"
+      ],
+      "url": "https://example.invalid/hardware-packs/espressif/esp32-s3-wroom-1-n8r8/example/carrier-notes.md"
+    },
+    {
+      "source_id": "SRC-ESP32S3-DS",
+      "document_id": "DOC-ESP32S3-DS",
+      "title": "ESP32-S3 Series Datasheet",
+      "version": "v2.2",
+      "level": "official_manual",
+      "sha256": "2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f",
+      "applies_to": [
+        "DEV-ESP32S3-WROOM1-N8R8"
+      ],
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf"
+    },
+    {
+      "source_id": "SRC-ESP32S3-HDG-PCB",
+      "document_id": "DOC-ESP32S3-HDG-PCB",
+      "title": "ESP32-S3 Hardware Design Guidelines - PCB Layout Design",
+      "version": "latest-2026-11-16",
+      "level": "official_guide",
+      "sha256": "92318f21920eb2fc7d2ea0dc158c27edaa735e467a45b0f4e648759feaccc7a6",
+      "applies_to": [
+        "DEV-ESP32S3-WROOM1-N8R8"
+      ],
+      "url": "https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/pcb-layout-design.html"
+    },
+    {
+      "source_id": "SRC-ESP32S3-HDG-SCH",
+      "document_id": "DOC-ESP32S3-HDG-SCH",
+      "title": "ESP32-S3 Hardware Design Guidelines - Schematic Checklist",
+      "version": "latest-2026-11-16",
+      "level": "official_guide",
+      "sha256": "6cc621dfa1caec2c39105dfd96ab9917d8748ed4cb449c1544eca63c89c6b6c9",
+      "applies_to": [
+        "DEV-ESP32S3-WROOM1-N8R8"
+      ],
+      "url": "https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html"
+    },
+    {
+      "source_id": "SRC-ESP32S3-WROOM1-DS",
+      "document_id": "DOC-ESP32S3-WROOM1-DS",
+      "title": "ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet",
+      "version": "v1.8",
+      "level": "official_manual",
+      "sha256": "27d71971da07c280c6068d08c74720d1a25b8f20cf8494dc1765bdd28d40d435",
+      "applies_to": [
+        "DEV-ESP32S3-WROOM1-N8R8"
+      ],
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf"
+    }
+  ],
+  "devices": [
+    {
+      "id": "DEV-ESP32S3-WROOM1-N8R8",
+      "vendor": "Espressif",
+      "part_number": "ESP32-S3-WROOM-1-N8R8",
+      "package": "Module, 41 pins (18.0 x 25.5 x 3.1 mm), PCB antenna",
+      "pins": [
+        {
+          "number": "1",
+          "name": "GND",
+          "class": "ground",
+          "functions": [
+            "GND"
+          ]
+        },
+        {
+          "number": "2",
+          "name": "3V3",
+          "class": "power",
+          "functions": [
+            "Power supply"
+          ]
+        },
+        {
+          "number": "3",
+          "name": "EN",
+          "class": "reset",
+          "functions": [
+            "EN"
+          ]
+        },
+        {
+          "number": "4",
+          "name": "IO4",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO4",
+            "GPIO4",
+            "TOUCH4",
+            "ADC1_CH3"
+          ]
+        },
+        {
+          "number": "5",
+          "name": "IO5",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO5",
+            "GPIO5",
+            "TOUCH5",
+            "ADC1_CH4"
+          ]
+        },
+        {
+          "number": "6",
+          "name": "IO6",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO6",
+            "GPIO6",
+            "TOUCH6",
+            "ADC1_CH5"
+          ]
+        },
+        {
+          "number": "7",
+          "name": "IO7",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO7",
+            "GPIO7",
+            "TOUCH7",
+            "ADC1_CH6"
+          ]
+        },
+        {
+          "number": "8",
+          "name": "IO15",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO15",
+            "GPIO15",
+            "U0RTS",
+            "ADC2_CH4",
+            "XTAL_32K_P"
+          ]
+        },
+        {
+          "number": "9",
+          "name": "IO16",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO16",
+            "GPIO16",
+            "U0CTS",
+            "ADC2_CH5",
+            "XTAL_32K_N"
+          ]
+        },
+        {
+          "number": "10",
+          "name": "IO17",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO17",
+            "GPIO17",
+            "U1TXD",
+            "ADC2_CH6"
+          ]
+        },
+        {
+          "number": "11",
+          "name": "IO18",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO18",
+            "GPIO18",
+            "U1RXD",
+            "ADC2_CH7",
+            "CLK_OUT3"
+          ]
+        },
+        {
+          "number": "12",
+          "name": "IO8",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO8",
+            "GPIO8",
+            "TOUCH8",
+            "ADC1_CH7",
+            "SUBSPICS1"
+          ]
+        },
+        {
+          "number": "13",
+          "name": "IO19",
+          "class": "usb",
+          "functions": [
+            "RTC_GPIO19",
+            "GPIO19",
+            "U1RTS",
+            "ADC2_CH8",
+            "CLK_OUT2",
+            "USB_D-"
+          ]
+        },
+        {
+          "number": "14",
+          "name": "IO20",
+          "class": "usb",
+          "functions": [
+            "RTC_GPIO20",
+            "GPIO20",
+            "U1CTS",
+            "ADC2_CH9",
+            "CLK_OUT1",
+            "USB_D+"
+          ]
+        },
+        {
+          "number": "15",
+          "name": "IO3",
+          "class": "strapping",
+          "functions": [
+            "RTC_GPIO3",
+            "GPIO3",
+            "TOUCH3",
+            "ADC1_CH2"
+          ]
+        },
+        {
+          "number": "16",
+          "name": "IO46",
+          "class": "strapping",
+          "functions": [
+            "GPIO46"
+          ]
+        },
+        {
+          "number": "17",
+          "name": "IO9",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO9",
+            "GPIO9",
+            "TOUCH9",
+            "ADC1_CH8",
+            "FSPIHD",
+            "SUBSPIHD"
+          ]
+        },
+        {
+          "number": "18",
+          "name": "IO10",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO10",
+            "GPIO10",
+            "TOUCH10",
+            "ADC1_CH9",
+            "FSPICS0",
+            "FSPIIO4",
+            "SUBSPICS0"
+          ]
+        },
+        {
+          "number": "19",
+          "name": "IO11",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO11",
+            "GPIO11",
+            "TOUCH11",
+            "ADC2_CH0",
+            "FSPID",
+            "FSPIIO5",
+            "SUBSPID"
+          ]
+        },
+        {
+          "number": "20",
+          "name": "IO12",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO12",
+            "GPIO12",
+            "TOUCH12",
+            "ADC2_CH1",
+            "FSPICLK",
+            "FSPIIO6",
+            "SUBSPICLK"
+          ]
+        },
+        {
+          "number": "21",
+          "name": "IO13",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO13",
+            "GPIO13",
+            "TOUCH13",
+            "ADC2_CH2",
+            "FSPIQ",
+            "FSPIIO7",
+            "SUBSPIQ"
+          ]
+        },
+        {
+          "number": "22",
+          "name": "IO14",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO14",
+            "GPIO14",
+            "TOUCH14",
+            "ADC2_CH3",
+            "FSPIWP",
+            "FSPIDQS",
+            "SUBSPIWP"
+          ]
+        },
+        {
+          "number": "23",
+          "name": "IO21",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO21",
+            "GPIO21"
+          ]
+        },
+        {
+          "number": "24",
+          "name": "IO47",
+          "class": "gpio",
+          "functions": [
+            "SPICLK_P_DIFF",
+            "GPIO47",
+            "SUBSPICLK_P_DIFF"
+          ]
+        },
+        {
+          "number": "25",
+          "name": "IO48",
+          "class": "gpio",
+          "functions": [
+            "SPICLK_N_DIFF",
+            "GPIO48",
+            "SUBSPICLK_N_DIFF"
+          ]
+        },
+        {
+          "number": "26",
+          "name": "IO45",
+          "class": "strapping",
+          "functions": [
+            "GPIO45"
+          ]
+        },
+        {
+          "number": "27",
+          "name": "IO0",
+          "class": "strapping",
+          "functions": [
+            "RTC_GPIO0",
+            "GPIO0"
+          ]
+        },
+        {
+          "number": "28",
+          "name": "IO35",
+          "class": "reserved",
+          "functions": [
+            "SPIIO6",
+            "GPIO35",
+            "FSPID",
+            "SUBSPID"
+          ]
+        },
+        {
+          "number": "29",
+          "name": "IO36",
+          "class": "reserved",
+          "functions": [
+            "SPIIO7",
+            "GPIO36",
+            "FSPICLK",
+            "SUBSPICLK"
+          ]
+        },
+        {
+          "number": "30",
+          "name": "IO37",
+          "class": "reserved",
+          "functions": [
+            "SPIDQS",
+            "GPIO37",
+            "FSPIQ",
+            "SUBSPIQ"
+          ]
+        },
+        {
+          "number": "31",
+          "name": "IO38",
+          "class": "gpio",
+          "functions": [
+            "GPIO38",
+            "FSPIWP",
+            "SUBSPIWP"
+          ]
+        },
+        {
+          "number": "32",
+          "name": "IO39",
+          "class": "gpio",
+          "functions": [
+            "MTCK",
+            "GPIO39",
+            "CLK_OUT3",
+            "SUBSPICS1"
+          ]
+        },
+        {
+          "number": "33",
+          "name": "IO40",
+          "class": "gpio",
+          "functions": [
+            "MTDO",
+            "GPIO40",
+            "CLK_OUT2"
+          ]
+        },
+        {
+          "number": "34",
+          "name": "IO41",
+          "class": "gpio",
+          "functions": [
+            "MTDI",
+            "GPIO41",
+            "CLK_OUT1"
+          ]
+        },
+        {
+          "number": "35",
+          "name": "IO42",
+          "class": "gpio",
+          "functions": [
+            "MTMS",
+            "GPIO42"
+          ]
+        },
+        {
+          "number": "36",
+          "name": "RXD0",
+          "class": "uart",
+          "functions": [
+            "U0RXD",
+            "GPIO44",
+            "CLK_OUT2"
+          ]
+        },
+        {
+          "number": "37",
+          "name": "TXD0",
+          "class": "uart",
+          "functions": [
+            "U0TXD",
+            "GPIO43",
+            "CLK_OUT1"
+          ]
+        },
+        {
+          "number": "38",
+          "name": "IO2",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO2",
+            "GPIO2",
+            "TOUCH2",
+            "ADC1_CH1"
+          ]
+        },
+        {
+          "number": "39",
+          "name": "IO1",
+          "class": "gpio",
+          "functions": [
+            "RTC_GPIO1",
+            "GPIO1",
+            "TOUCH1",
+            "ADC1_CH0"
+          ]
+        },
+        {
+          "number": "40",
+          "name": "GND",
+          "class": "ground",
+          "functions": [
+            "GND"
+          ]
+        },
+        {
+          "number": "41",
+          "name": "EPAD",
+          "class": "ground",
+          "functions": [
+            "GND"
+          ]
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "BLK-ESP-BOOT",
+      "title": "GPIO0 下拉入口（按键或跳线），用于进入下载模式",
+      "kind": "boot_button",
+      "modifiability": "configurable",
+      "device": "DEV-ESP32S3-WROOM1-N8R8",
+      "components": [
+        {
+          "role": "button",
+          "kind": "switch",
+          "min_count": 1
+        }
+      ],
+      "connects": [
+        {
+          "pin": "27",
+          "net_pattern": "*"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "table": "Table 4-3. Chip Boot Mode Control"
+          },
+          "quote": "SPI Boot 1 Any value Joint Download Boot 2 0 0",
+          "basis": "derived"
+        }
+      ]
+    },
+    {
+      "id": "BLK-ESP-LED",
+      "title": "用户状态灯（AI 可以添加的外设块）",
+      "kind": "generic",
+      "modifiability": "ai_editable",
+      "components": [
+        {
+          "role": "led",
+          "kind": "led",
+          "min_count": 1
+        },
+        {
+          "role": "series",
+          "kind": "resistor",
+          "min_count": 1
+        }
+      ],
+      "connects": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Free area"
+          },
+          "quote": "Example block: a status LED D1 with a series resistor R2 of 330 ohm in series with D1.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "id": "BLK-ESP-POWER",
+      "title": "电源入口大电容（至少 10 µF）",
+      "kind": "power_decoupling",
+      "modifiability": "configurable",
+      "device": "DEV-ESP32S3-WROOM1-N8R8",
+      "components": [
+        {
+          "role": "bulk",
+          "kind": "capacitor",
+          "min_count": 1,
+          "min_value_nf": 10000
+        }
+      ],
+      "connects": [
+        {
+          "pin": "2",
+          "net_pattern": "*"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Power Supply"
+          },
+          "quote": "It is suggested to add an ESD protection diode and at least 10 μF capacitor at the main power entrance (where the external power supply enters the PCB).",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "id": "BLK-ESP-RESET",
+      "title": "EN 引脚 RC 延时电路（通常 10 kΩ + 1 µF）",
+      "kind": "reset_circuit",
+      "modifiability": "configurable",
+      "device": "DEV-ESP32S3-WROOM1-N8R8",
+      "components": [
+        {
+          "role": "pull_up",
+          "kind": "resistor",
+          "min_count": 1,
+          "value_ohm": 10000
+        },
+        {
+          "role": "delay",
+          "kind": "capacitor",
+          "min_count": 1,
+          "min_value_nf": 1000
+        }
+      ],
+      "connects": [
+        {
+          "pin": "3",
+          "net_pattern": "*"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 41,
+            "section": "9 Peripheral Schematics"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 µF.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Chip Power-up and Reset Timing"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 μF.",
+          "basis": "explicit"
+        }
+      ]
+    },
+    {
+      "id": "BLK-ESP-UART-DL",
+      "title": "UART0 下载/日志接口（连接器接在 TXD0 与 RXD0 上）",
+      "kind": "programming_interface",
+      "modifiability": "configurable",
+      "device": "DEV-ESP32S3-WROOM1-N8R8",
+      "components": [
+        {
+          "role": "header",
+          "kind": "connector",
+          "min_count": 1
+        }
+      ],
+      "connects": [
+        {
+          "pin": "37",
+          "net_pattern": "*"
+        },
+        {
+          "pin": "36",
+          "net_pattern": "*"
+        }
+      ],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "UART"
+          },
+          "quote": "Usually, UART0 is used as the serial port for download and log printing.",
+          "basis": "explicit"
+        }
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "id": "REG-ESP-ANT",
+      "kind": "antenna_keepout",
+      "frame": "device",
+      "device": "DEV-ESP32S3-WROOM1-N8R8",
+      "polygon": [
+        [
+          -24.0,
+          -13.75
+        ],
+        [
+          11.0,
+          -13.75
+        ],
+        [
+          11.0,
+          -6.75
+        ],
+        [
+          -24.0,
+          -6.75
+        ]
+      ],
+      "layers": [
+        "all"
+      ],
+      "modifiability": "fixed",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "General Principles of PCB Layout for Modules",
+            "figure": "Keepout Zone for ESP32-S3 Module's Antenna (Antenna feed point on the right)"
+          },
+          "quote": "Keepout Zone for ESP32-S3 Module’s Antenna (Antenna feed point on the right)",
+          "basis": "pending"
+        }
+      ]
+    },
+    {
+      "id": "REG-ESP-H1",
+      "kind": "mount_hole",
+      "frame": "board",
+      "circle": {
+        "center": [
+          4,
+          9.25
+        ],
+        "radius_mm": 1.6
+      },
+      "layers": [
+        "all"
+      ],
+      "modifiability": "fixed",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H1 at (4, 9.25) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "id": "REG-ESP-H2",
+      "kind": "mount_hole",
+      "frame": "board",
+      "circle": {
+        "center": [
+          4,
+          36
+        ],
+        "radius_mm": 1.6
+      },
+      "layers": [
+        "all"
+      ],
+      "modifiability": "fixed",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H2 at (4, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "id": "REG-ESP-H3",
+      "kind": "mount_hole",
+      "frame": "board",
+      "circle": {
+        "center": [
+          43,
+          36
+        ],
+        "radius_mm": 1.6
+      },
+      "layers": [
+        "all"
+      ],
+      "modifiability": "fixed",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H3 at (43, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "id": "REG-ESP-OUTLINE",
+      "kind": "board_outline",
+      "frame": "board",
+      "polygon": [
+        [
+          0.0,
+          5.25
+        ],
+        [
+          12.0,
+          5.25
+        ],
+        [
+          12.0,
+          12.25
+        ],
+        [
+          47.0,
+          12.25
+        ],
+        [
+          47.0,
+          40.0
+        ],
+        [
+          0.0,
+          40.0
+        ]
+      ],
+      "layers": [
+        "all"
+      ],
+      "modifiability": "fixed",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Board outline: (0, 5.25), (12, 5.25), (12, 12.25), (47, 12.25), (47, 40), (0, 40).",
+          "basis": "observed"
+        }
+      ]
+    },
+    {
+      "id": "REG-ESP-USER",
+      "kind": "editable",
+      "frame": "board",
+      "polygon": [
+        [
+          7.0,
+          16.0
+        ],
+        [
+          21.0,
+          16.0
+        ],
+        [
+          21.0,
+          34.0
+        ],
+        [
+          7.0,
+          34.0
+        ]
+      ],
+      "layers": [
+        "all"
+      ],
+      "modifiability": "ai_editable",
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Free area"
+          },
+          "quote": "Free prototyping area: (7, 16) to (21, 34) mm, on both layers, nothing placed in it.",
+          "basis": "observed"
+        }
+      ]
+    }
+  ],
+  "base_design": {
+    "id": "BASE-ESP32S3-CARRIER",
+    "title": "示例载板 carrier.kicad_pcb（模组、连接器、板框、安装孔与天线禁布区固定）",
+    "binding": {
+      "files": [
+        {
+          "path": "carrier.kicad_pcb",
+          "sha256": "fc9f0fb32489a6c1502c11ef428e34e9b4f6c7666150bb99b91faaf3ff749c90"
+        }
+      ]
+    },
+    "immutable": {
+      "components": [
+        "U1",
+        "J1",
+        "J2",
+        "C1",
+        "C2",
+        "C3",
+        "R1",
+        "R3",
+        "SW1"
+      ],
+      "connectors": [
+        "J1",
+        "J2"
+      ],
+      "board_outline": true,
+      "mount_holes": true,
+      "regions": [
+        "REG-ESP-ANT"
+      ]
+    },
+    "editable_regions": [
+      {
+        "region": "REG-ESP-USER",
+        "allowed_blocks": [
+          "BLK-ESP-LED"
+        ],
+        "pin_pool": [
+          {
+            "device": "DEV-ESP32S3-WROOM1-N8R8",
+            "pins": [
+              "4",
+              "5"
+            ]
+          }
+        ],
+        "allowed_ops": [
+          "add_component",
+          "connect",
+          "add_track",
+          "add_via"
+        ]
+      }
+    ]
+  },
+  "rules": [
+    {
+      "rule_id": "C-ESP-ANT-KEEPOUT",
+      "kind": "keepout",
+      "modifiability": "required",
+      "severity": "error",
+      "status": "executable",
+      "title": "模组 PCB 天线的禁布区：此区域内不得有走线、过孔、元件和铜皮",
+      "subject": {
+        "region": "REG-ESP-ANT"
+      },
+      "params": {
+        "forbid": [
+          "track",
+          "via",
+          "component",
+          "zone"
+        ]
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 10,
+            "figure": "Figure 3-1. Pin Layout (Top View)"
+          },
+          "quote": "To learn more about the keepout zone for module’s antenna on the base board, please refer to ESP32-S3 Hardware Design Guidelines > Section General Principles of PCB Layout for Modules.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "General Principles of PCB Layout for Modules"
+          },
+          "quote": "Then cut off the base board on both sides of the antenna and below it to minimize the impact of the base board material on the PCB antenna and provide a sufficiently large clearance area for the PCB antenna.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "unsupported",
+        "reason": "fastroute: keepouts come from the design (the DSN); a rule file cannot add one - a new core capability would be needed"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-BOOT-IO0",
+      "kind": "boot_pin",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "GPIO0 与 GPIO46 同为 0 时进入联合下载启动模式",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "27"
+      },
+      "params": {
+        "boot_level": "low",
+        "mode": "Joint Download Boot (UART or USB download)"
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "section": "4.1 Chip Boot Mode Control"
+          },
+          "quote": "GPIO0 and GPIO46 control the boot mode after the reset is released.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "table": "Table 4-3. Chip Boot Mode Control"
+          },
+          "quote": "SPI Boot 1 Any value Joint Download Boot 2 0 0",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-ELECTRICAL-VDD33",
+      "kind": "electrical",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "unsupported",
+      "title": "供电电压 3.0 V 至 3.6 V，外部电源至少能提供 0.5 A",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8"
+      },
+      "params": {
+        "quantity": "VDD33 supply voltage and current",
+        "condition": "recommended operating conditions (Table 6-2)",
+        "min_v": 3.0,
+        "typ_v": 3.3,
+        "max_v": 3.6,
+        "min_current_a": 0.5
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 27,
+            "table": "Table 6-2. Recommended Operating Conditions"
+          },
+          "quote": "VDD33 Power supply voltage 3.0 3.3 3.6 V",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 27,
+            "table": "Table 6-2. Recommended Operating Conditions"
+          },
+          "quote": "Current delivered by external power supply 0.5",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "unsupported",
+        "fastroute": "not_applicable",
+        "reason": "validator: there is no electrical model; a limit of the device is reported, not checked"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-EN",
+      "kind": "reset_pin",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "EN 引脚低电平关闭芯片，不得悬空",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "3"
+      },
+      "params": {
+        "active_level": "low"
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "Low: off, the chip powers off.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "Note: Do not leave the EN pin floating.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-EN-RC-VALUES",
+      "kind": "required_block",
+      "modifiability": "unknown",
+      "severity": "error",
+      "status": "unknown",
+      "title": "EN 的 RC 延时电路的最终数值（图 9-1 中 R1、C2 标为 TBD）",
+      "subject": {
+        "block": "BLK-ESP-RESET"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [],
+      "derived_from": [],
+      "execution": {
+        "validator": "unsupported",
+        "fastroute": "unsupported",
+        "reason": "a rule that is unknown is never executed"
+      },
+      "missing": "Figure 9-1 of the module datasheet v1.8 (page 41) shows R1 and C2 of the EN circuit as \"TBD\". The text of the same page and the Hardware Design Guidelines say \"usually R = 10 kΩ and C = 1 µF\" and tell the designer to adjust the values to the power-up timing of the module and the chip (rule C-ESP-NEED-RESET keeps the usual values as a recommendation). The final values depend on the supply ramp of the project, which no document gives: the project has to decide them and test the power-up.",
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-GND-1",
+      "kind": "fixed_net",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "引脚 1 接地",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8"
+      },
+      "params": {
+        "pin": "1",
+        "net_pattern": "GND*"
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 1 P GND",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-GND-40",
+      "kind": "fixed_net",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "引脚 40 接地",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8"
+      },
+      "params": {
+        "pin": "40",
+        "net_pattern": "GND*"
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 40 P GND",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H1",
+      "kind": "mechanical_fixed",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "安装孔 H1",
+      "subject": {
+        "region": "REG-ESP-H1"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H1 at (4, 9.25) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H2",
+      "kind": "mechanical_fixed",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "安装孔 H2",
+      "subject": {
+        "region": "REG-ESP-H2"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H2 at (4, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-MOUNT-H3",
+      "kind": "mechanical_fixed",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "安装孔 H3",
+      "subject": {
+        "region": "REG-ESP-H3"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Mounting hole H3 at (43, 36) mm, diameter 3.2 mm.",
+          "basis": "observed"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-NEED-BOOT",
+      "kind": "required_block",
+      "modifiability": "derived",
+      "severity": "warning",
+      "status": "executable",
+      "title": "下载模式需要把 GPIO0 拉低：板上应有按键、跳线或下载工具驱动的入口",
+      "subject": {
+        "block": "BLK-ESP-BOOT"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 14,
+            "table": "Table 4-3. Chip Boot Mode Control"
+          },
+          "quote": "SPI Boot 1 Any value Joint Download Boot 2 0 0",
+          "basis": "derived"
+        }
+      ],
+      "derived_from": [
+        "C-ESP-BOOT-IO0"
+      ],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-NEED-POWER",
+      "kind": "required_block",
+      "modifiability": "configurable",
+      "severity": "error",
+      "status": "executable",
+      "title": "电源入口至少 10 µF 电容（发射时电流突增会使电源轨塌陷）",
+      "subject": {
+        "block": "BLK-ESP-POWER"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Power Supply"
+          },
+          "quote": "It is suggested to add an ESD protection diode and at least 10 μF capacitor at the main power entrance (where the external power supply enters the PCB).",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-NEED-RESET",
+      "kind": "required_block",
+      "modifiability": "configurable",
+      "severity": "warning",
+      "status": "executable",
+      "title": "建议在 EN 上加 RC 延时电路（通常 10 kΩ + 1 µF，需按实际上电时序调整）",
+      "subject": {
+        "block": "BLK-ESP-RESET"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 41,
+            "section": "9 Peripheral Schematics"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 µF.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 41,
+            "section": "9 Peripheral Schematics"
+          },
+          "quote": "However, specific parameters should be adjusted based on the power-up timing of the module and the power-up and reset sequence timing of the chip.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Chip Power-up and Reset Timing"
+          },
+          "quote": "The recommended setting for the RC delay circuit is usually R = 10 kΩ and C = 1 μF.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "Chip Power-up and Reset Timing"
+          },
+          "quote": "However, specific parameters should be adjusted based on the characteristics of the actual power supply and the power-up and reset timing of the chip.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-NEED-UART",
+      "kind": "required_block",
+      "modifiability": "configurable",
+      "severity": "warning",
+      "status": "executable",
+      "title": "通常用 UART0 下载和打印日志，建议留出 TXD0/RXD0 接口",
+      "subject": {
+        "block": "BLK-ESP-UART-DL"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "UART"
+          },
+          "quote": "Usually, UART0 is used as the serial port for download and log printing.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-OUTLINE",
+      "kind": "mechanical_fixed",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "载板外形（含天线处的缺口）不得改变",
+      "subject": {
+        "region": "REG-ESP-OUTLINE"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-CARRIER",
+          "locator": {
+            "section": "Board"
+          },
+          "quote": "Board outline: (0, 5.25), (12, 5.25), (12, 12.25), (47, 12.25), (47, 40), (0, 40).",
+          "basis": "observed"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-RESERVED-PSRAM",
+      "kind": "reserved_pin",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "IO35、IO36、IO37 接在模组内部的八线 PSRAM 上，不能另作他用",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8"
+      },
+      "params": {
+        "pins": [
+          "28",
+          "29",
+          "30"
+        ],
+        "reason": "connected to the Octal SPI PSRAM inside the module"
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 3,
+            "table": "Table 1-1. ESP32-S3-WROOM-1 Series Comparison"
+          },
+          "quote": "ESP32-S3-WROOM-1-N8R8 8 MB (Quad SPI) 8 MB (Octal SPI)",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions, note b"
+          },
+          "quote": "pins IO35, IO36, and IO37 are connected to the Octal SPI PSRAM and are not available for other uses.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO0",
+      "kind": "strapping",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "GPIO0 是 strapping 引脚，默认弱上拉（1）",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "27"
+      },
+      "params": {
+        "sampled_at": "reset",
+        "default_level": "high",
+        "external_drive_allowed": true
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO0 Weak pull-up 1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-DS",
+          "locator": {
+            "page": 32,
+            "table": "Table 3-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO0 Weak pull-up 1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "section": "4 Boot Configurations"
+          },
+          "quote": "the strapping pin voltage levels can also be controlled by the host MCU.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO3",
+      "kind": "strapping",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "GPIO3 是 strapping 引脚，没有内部上下拉",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "15"
+      },
+      "params": {
+        "sampled_at": "reset",
+        "default_level": "floating",
+        "external_drive_allowed": true
+      },
+      "applies_when": [
+        "GPIO3 is used to select the JTAG signal source (Table 4-5: EFUSE_STRAP_JTAG_SEL = 1)"
+      ],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 15,
+            "section": "4.4 JTAG Signal Source Control"
+          },
+          "quote": "This pin does not have any internal pull resistors and the strapping value must be controlled by the external circuit that cannot be in a high impedance state.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO45",
+      "kind": "strapping",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "GPIO45 是 strapping 引脚，默认弱下拉（0）",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "26"
+      },
+      "params": {
+        "sampled_at": "reset",
+        "default_level": "low",
+        "external_drive_allowed": true
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO45 Weak pull-down 0",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-STRAP-IO46",
+      "kind": "strapping",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "GPIO46 是 strapping 引脚，默认弱下拉（0）",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8",
+        "pin": "16"
+      },
+      "params": {
+        "sampled_at": "reset",
+        "default_level": "low",
+        "external_drive_allowed": true
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 13,
+            "table": "Table 4-1. Default Configuration of Strapping Pins"
+          },
+          "quote": "GPIO46 Weak pull-down 0",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-USB",
+      "kind": "high_speed",
+      "modifiability": "configurable",
+      "severity": "error",
+      "status": "executable",
+      "title": "USB 差分对：90 Ω ±10%，平行等长走线",
+      "subject": {},
+      "params": {
+        "nets": [
+          "USB_DP",
+          "USB_DM",
+          "USB_D+",
+          "USB_D-"
+        ],
+        "differential": true,
+        "impedance_ohm": 90,
+        "impedance_tolerance_pct": 10
+      },
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-HDG-PCB",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "Use differential pairs and route them in parallel at equal lengths. Maintain a differential pair impedance of 90 Ω with a tolerance of ±10%.",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-HDG-SCH",
+          "locator": {
+            "section": "USB"
+          },
+          "quote": "GPIO19 and GPIO20 can be used as D- and D+ of USB respectively.",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "unsupported",
+        "reason": "fastroute: no spacing, skew or length parameter to hand to the router",
+        "unchecked_params": [
+          "impedance_ohm"
+        ],
+        "unmapped_params": [
+          "impedance_ohm"
+        ]
+      },
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-USB-GAP",
+      "kind": "high_speed",
+      "modifiability": "unknown",
+      "severity": "error",
+      "status": "unknown",
+      "title": "USB 差分对的线间距",
+      "subject": {},
+      "params": {
+        "nets": [
+          "USB_DP",
+          "USB_DM",
+          "USB_D+",
+          "USB_D-"
+        ],
+        "differential": true,
+        "gap_mm": null
+      },
+      "applies_when": [],
+      "evidence": [],
+      "derived_from": [],
+      "execution": {
+        "validator": "unsupported",
+        "fastroute": "unsupported",
+        "reason": "a rule that is unknown is never executed"
+      },
+      "missing": "The gap between the two traces depends on the stack-up and the trace width; the documents read give the 90 Ω target but no spacing. The stack-up of the board is needed (the plugin's impedance tool can derive widths from it).",
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "C-ESP-USB-SKEW",
+      "kind": "high_speed",
+      "modifiability": "unknown",
+      "severity": "error",
+      "status": "unknown",
+      "title": "USB 差分对的长度差上限",
+      "subject": {},
+      "params": {
+        "nets": [
+          "USB_DP",
+          "USB_DM",
+          "USB_D+",
+          "USB_D-"
+        ],
+        "differential": true,
+        "skew_mm": null
+      },
+      "applies_when": [],
+      "evidence": [],
+      "derived_from": [],
+      "execution": {
+        "validator": "unsupported",
+        "fastroute": "unsupported",
+        "reason": "a rule that is unknown is never executed"
+      },
+      "missing": "The PCB Layout Design guideline says to route the pair \"in parallel at equal lengths\" and gives no number. No document read for this pack gives a skew limit in millimetres; do not use a typical value.",
+      "origin": "hcp"
+    },
+    {
+      "rule_id": "PINMUX-ESP32S3-WROOM1-N8R8",
+      "kind": "pin_functions",
+      "modifiability": "fixed",
+      "severity": "error",
+      "status": "executable",
+      "title": "Pin functions of DEV-ESP32S3-WROOM1-N8R8",
+      "subject": {
+        "device": "DEV-ESP32S3-WROOM1-N8R8"
+      },
+      "params": {},
+      "applies_when": [],
+      "evidence": [
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 1 P GND",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "3V3 2 P Power supply",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "EN 3 I",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO4 4 I/O/T RTC_GPIO4, GPIO4, TOUCH4, ADC1_CH3",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO5 5 I/O/T RTC_GPIO5, GPIO5, TOUCH5, ADC1_CH4",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO6 6 I/O/T RTC_GPIO6, GPIO6, TOUCH6, ADC1_CH5",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO7 7 I/O/T RTC_GPIO7, GPIO7, TOUCH7, ADC1_CH6",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO15 8 I/O/T RTC_GPIO15, GPIO15, U0RTS, ADC2_CH4, XTAL_32K_P",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO16 9 I/O/T RTC_GPIO16, GPIO16, U0CTS, ADC2_CH5, XTAL_32K_N",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO17 10 I/O/T RTC_GPIO17, GPIO17, U1TXD, ADC2_CH6",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO18 11 I/O/T RTC_GPIO18, GPIO18, U1RXD, ADC2_CH7, CLK_OUT3",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO8 12 I/O/T RTC_GPIO8, GPIO8, TOUCH8, ADC1_CH7, SUBSPICS1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO19 13 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO20 14 I/O/T RTC_GPIO20, GPIO20, U1CTS, ADC2_CH9, CLK_OUT1, USB_D+",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO3 15 I/O/T RTC_GPIO3, GPIO3, TOUCH3, ADC1_CH2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO46 16 I/O/T GPIO46",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO9 17 I/O/T RTC_GPIO9, GPIO9, TOUCH9, ADC1_CH8, FSPIHD, SUBSPIHD",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO10 18 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO11 19 I/O/T RTC_GPIO11, GPIO11, TOUCH11, ADC2_CH0, FSPID, FSPIIO5, SUBSPID",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO12 20 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO13 21 I/O/T RTC_GPIO13, GPIO13, TOUCH13, ADC2_CH2, FSPIQ, FSPIIO7, SUBSPIQ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO14 22 I/O/T",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO21 23 I/O/T RTC_GPIO21, GPIO21",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO47 c 24 I/O/T SPICLK_P_DIFF,GPIO47, SUBSPICLK_P_DIFF",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO48 c 25 I/O/T SPICLK_N_DIFF,GPIO48, SUBSPICLK_N_DIFF",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO45 26 I/O/T GPIO45",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO0 27 I/O/T RTC_GPIO0, GPIO0",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO35 b 28 I/O/T SPIIO6, GPIO35, FSPID, SUBSPID",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO36 b 29 I/O/T SPIIO7, GPIO36, FSPICLK, SUBSPICLK",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO37 b 30 I/O/T SPIDQS, GPIO37, FSPIQ, SUBSPIQ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 11,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO38 31 I/O/T GPIO38, FSPIWP, SUBSPIWP ",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO39 32 I/O/T MTCK, GPIO39, CLK_OUT3, SUBSPICS1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO40 33 I/O/T MTDO, GPIO40, CLK_OUT2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO41 34 I/O/T MTDI, GPIO41, CLK_OUT1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO42 35 I/O/T MTMS, GPIO42",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "RXD0 36 I/O/T U0RXD, GPIO44, CLK_OUT2",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "TXD0 37 I/O/T U0TXD, GPIO43, CLK_OUT1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO2 38 I/O/T RTC_GPIO2, GPIO2, TOUCH2, ADC1_CH1",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "IO1 39 I/O/T RTC_GPIO1, GPIO1, TOUCH1, ADC1_CH0",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "GND 40 P GND",
+          "basis": "explicit"
+        },
+        {
+          "source_id": "SRC-ESP32S3-WROOM1-DS",
+          "locator": {
+            "page": 12,
+            "table": "Table 3-1. Pin Definitions"
+          },
+          "quote": "EPAD 41 P GND",
+          "basis": "explicit"
+        }
+      ],
+      "derived_from": [],
+      "execution": {
+        "validator": "supported",
+        "fastroute": "not_applicable"
+      },
+      "origin": "pin_table"
+    }
+  ],
+  "diagnostics": [],
+  "integrity": {
+    "algorithm": "sha256-canonical-json",
+    "sha256": "e3e34d20d2e007c53260b800d6484061663bfd67bc6f160479c5177a9843f038"
+  }
+}

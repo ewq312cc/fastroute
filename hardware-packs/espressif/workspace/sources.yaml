@@ -1,0 +1,186 @@
+sources_version: '1.0'
+documents:
+- document_id: DOC-DEVKITC1-DXF-V11
+  title: ESP32-S3-DevKitC-1 Dimensions source file V1.1 (DXF, 2022-04-29)
+  level: official_devkit
+  version: V1.1_20220429
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://dl.espressif.com/dl/schematics/esp_idf/DXF_ESP32-S3-DevKitC-1_V1.1_20220429.dxf
+  sha256: 02c88dea5acf89ef20c8073acd19f1c5fd1ac908fc57a5c0fd005cd021304983
+  retrieved: 2026-11-17
+  status: active
+  license_note: Espressif document; keep the cached copy for review and measure it, do not redistribute it.
+- document_id: DOC-DEVKITC1-SCH-V11
+  title: ESP32-S3-DevKitC-1 Board Schematic V1.1 (2022-11-30)
+  level: official_devkit
+  version: V1.1_20221130
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://dl.espressif.com/dl/schematics/SCH_ESP32-S3-DevKitC-1_V1.1_20221130.pdf
+  sha256: f116b5d9f1fdce126e9a63d8450388eb11295d8322d831502fbc9729442b72e4
+  retrieved: 2026-11-17
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-DEVKITC1-UG-V11
+  title: ESP32-S3-DevKitC-1 v1.1 User Guide
+  level: official_devkit
+  version: latest-2026-11-17
+  applies_to:
+  - part_number: ESP32-S3-DevKitC-1-N16R8
+    revision: v1.1
+  url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
+  sha256: 5120d2d6e8c55bb937a4b36b6b1a554e8c04193b993c74127f6991de046c6ff1
+  retrieved: 2026-11-17
+  status: active
+  license_note: 'Espressif document; keep the cached copy for review and quote it, do not redistribute it. The disclaimer page says: No licenses express or implied, by estoppel or otherwise, to any intellectual property rights are granted herein.'
+- document_id: DOC-ESP32-DS
+  title: ESP32 Series Datasheet
+  level: official_manual
+  version: v5.3
+  applies_to:
+  - part_number: ESP32-D0WD-V3
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+  sha256: a7917e6b47528c9dcab06837a49d452e582751335797db879f1cf2d17cd29adf
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32-HDG-PCB
+  title: ESP32 Hardware Design Guidelines - PCB Layout Design
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-D0WD-V3
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/pcb-layout-design.html
+  sha256: 46453e31d98c1c23ebf2a6cc6e4f938b7b03cd81c4f52730f8c6b1e3d0f49ad2
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32-HDG-SCH
+  title: ESP32 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-D0WD-V3
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32/schematic-checklist.html
+  sha256: db4527861d48b04850b0b58d6849edda637b9d4e0def4a0360e36903b2c7991c
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32-WROOM32E-DS
+  title: ESP32-WROOM-32E & ESP32-WROOM-32UE Datasheet
+  level: official_manual
+  version: v2.1
+  applies_to:
+  - part_number: ESP32-WROOM-32E-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf
+  sha256: 4c7a345d1c1bfec34c38665639e39a7f43b79a35a12f6adcc2c7c0f83850f8b8
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-DS
+  title: ESP32-C3 Series Datasheet
+  level: official_manual
+  version: v2.5
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf
+  sha256: fede706c39ce663c861136724ffe32dff3f1407fa7f2dac18bbd0d21f0634205
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-HDG-PCB
+  title: ESP32-C3 Hardware Design Guidelines - PCB Layout Design
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/pcb-layout-design.html
+  sha256: 1dc118cbe00ee1fc6273d751798d64ef95ea53f42666dab962aa0ab433542ba1
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-HDG-SCH
+  title: ESP32-C3 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-C3
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/schematic-checklist.html
+  sha256: 43cd800e9ab35b5c3d43bb61fce39ea59462e18b200a7597110a88ffc6d933b6
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32C3-WROOM02-DS
+  title: ESP32-C3-WROOM-02 & ESP32-C3-WROOM-02U Datasheet
+  level: official_manual
+  version: v1.7
+  applies_to:
+  - part_number: ESP32-C3-WROOM-02-N4
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-c3-wroom-02_datasheet_en.pdf
+  sha256: 622db737a711a75e89185aed850f3854c77d515c32ddf0ba9886653663cfdabe
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+- document_id: DOC-ESP32S3-DS
+  title: ESP32-S3 Series Datasheet
+  level: official_manual
+  version: v2.2
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
+  - part_number: ESP32-S3
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+  sha256: 2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: The chip datasheet; it applies to the module through its chip (the module datasheet points to it for pin names and boot configuration).
+- document_id: DOC-ESP32S3-HDG-PCB
+  title: ESP32-S3 Hardware Design Guidelines - PCB Layout Design
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
+  - part_number: ESP32-S3
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/pcb-layout-design.html
+  sha256: 92318f21920eb2fc7d2ea0dc158c27edaa735e467a45b0f4e648759feaccc7a6
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: A web page that has no version number; the digest is what identifies the text that was read. The dimensions of the antenna clearance are only in its figure "Keepout Zone for ESP32-S3 Module's Antenna".
+- document_id: DOC-ESP32S3-HDG-SCH
+  title: ESP32-S3 Hardware Design Guidelines - Schematic Checklist
+  level: official_guide
+  version: latest-2026-11-16
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
+  - part_number: ESP32-S3
+  url: https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html
+  sha256: 6cc621dfa1caec2c39105dfd96ab9917d8748ed4cb449c1544eca63c89c6b6c9
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.
+  note: A web page that has no version number; the digest is what identifies the text that was read.
+- document_id: DOC-ESP32S3-WROOM1-DS
+  title: ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet
+  level: official_manual
+  version: v1.8
+  applies_to:
+  - part_number: ESP32-S3-WROOM-1-N8R8
+  - part_number: ESP32-S3-WROOM-1-N16R8
+  url: https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf
+  sha256: 27d71971da07c280c6068d08c74720d1a25b8f20cf8494dc1765bdd28d40d435
+  retrieved: 2026-11-16
+  status: active
+  license_note: Espressif document; keep the cached copy for review and quote it, do not redistribute it.

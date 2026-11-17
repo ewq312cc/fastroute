@@ -1,0 +1,90 @@
+{
+  "created_by": {
+    "kind": "script",
+    "model": null,
+    "tool": "fastroute rules draft (keyword prototype)"
+  },
+  "design": {
+    "input_sha256": "706420f86c80688382d5a2e5d09f2e65b7b89dc543f637e905dfc00de2731c55",
+    "inspect_sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+  },
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "sha256": "86eb30f7e3e07121b4340721b42da704f3588c9c86d9d51571abab64cec4e1c9",
+      "text": "USB D+/D- must be routed as a differential pair with a gap of 0.15 mm and a skew of 0.1 mm. The USB pair should have 90 ohm differential impedance.\n"
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json",
+      "sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+    }
+  ],
+  "notes": [
+    "\"USB D+/D- must be routed as a differential pair with a gap of 0.15 mm and a skew of 0.1 mm\": read as the pair USB_DP / USB_DN of the design",
+    "\"The USB pair should have 90 ohm differential impedance\": read as the pair USB_DP / USB_DN of the design",
+    "made by the keyword prototype of `fastroute rules draft`; it quotes the sentence of every rule and never guesses a value. Check it with `fastroute rules check` like any other draft"
+  ],
+  "rules": [
+    {
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "USB D+/D- must be routed as a differential pair with a gap of 0.15 mm and a skew of 0.1 mm"
+        },
+        {
+          "input": "pack",
+          "kind": "design_data",
+          "ref": "nets[USB_DP].class"
+        }
+      ],
+      "id": "R1",
+      "kind": "diff_pair",
+      "params": {
+        "gap_mm": 0.15,
+        "skew_mm": 0.1
+      },
+      "rationale": "pairs are routed first and coupled at the gap, then length-matched",
+      "strength": "hard"
+    },
+    {
+      "applies_to": {
+        "nets": [
+          "USB_DP",
+          "USB_DN"
+        ]
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "The USB pair should have 90 ohm differential impedance"
+        },
+        {
+          "input": "pack",
+          "kind": "design_data",
+          "ref": "nets[USB_DP].class"
+        }
+      ],
+      "id": "R2",
+      "kind": "impedance",
+      "params": {
+        "differential": true,
+        "target_ohm": 90.0
+      },
+      "rationale": "the number is the one written in the requirement; the widths follow from the board's stackup (impedance_cli.py)",
+      "strength": "soft"
+    }
+  ]
+}

@@ -107,6 +107,21 @@ x64 and arm64 builds (cargo-zigbuild, glibc 2.17): `scripts/build-linux.sh` →
 dist/windows/fastroute.exe windows-x64 --bin dist/windows-arm64/fastroute.exe windows-arm64
 --bin dist/linux-x64/fastroute linux-x64 ...`.
 
+### Commands
+
+`fastroute` has six commands next to the original flags above (which keep working unchanged);
+all have `--help`, clear errors, exit codes and never overwrite an existing file without `--force`.
+Details: [docs/CLI.md](docs/CLI.md).
+
+| Command | |
+|---|---|
+| `fastroute route board.dsn` | autoroute; writes `board.routed.ses`, exit code 5 if connections remain (`--allow-partial`), `--json` summary; also takes a `.kicad_pcb` through the KiCad adapter |
+| `fastroute render -i board.dsn -s routed.ses -o board.png` | the whole board or a region (`--around U1`, `--net NAME`, `--region-mm`, …) as a PNG, offline, with grid, labels and a manifest ([docs/RENDERING.md](docs/RENDERING.md)) |
+| `fastroute inspect -i board.dsn -s routed.ses -o inspect.json` | the board as structured data: nets, pads, unrouted connections and violations with coordinates, rules, check statuses ([docs/AI_DATA_FORMAT.md](docs/AI_DATA_FORMAT.md)) |
+| `fastroute rules check draft.json --ai-pack pack/` | rule drafts from people, scripts or AI models: a deterministic offline checker (evidence, values that cannot be guessed, no silent loosening of the design, no geometry), a named person's confirmation, and `apply` to pairs / tune / `.kicad_dru` inputs — acceptance stays with the real DRC ([docs/AI_RULES.md](docs/AI_RULES.md)) |
+| `fastroute ai-pack -i board.dsn -s routed.ses -o pack/` | pictures + data + rules + KiCad's DRC (if `kicad-cli` is there; otherwise an explicit status, never "passed") in one local directory ([docs/AI_PACK.md](docs/AI_PACK.md)) |
+| `fastroute constraints check\|compile\|validate\|report\|export-fastroute\|check-edit ...` | hardware constraint packs (HCP): what a part requires, with page-level evidence, compiled to a deterministic IR that an offline validator and the router both use; a KiCad board is read-only; an AI may edit only a whitelisted area of a fixed base board ([docs/HCP.md](docs/HCP.md), [docs/CLI.md](docs/CLI.md)). `hcp-manager` (`apps/hcp-manager`) manages the documents; the Skill is in `skills/hardware-constraint-design/`; an example pack for the ESP32-S3-WROOM-1-N8R8 is in `hardware-packs/` |
+
 Freerouting's options are accepted: `-mp <passes>`, `--router.<path>=<value>` (e.g.
 `--router.optimizer.enabled=false`, `--router.scoring.via_costs=80`); GUI/API options such
 as `--gui.enabled` are ignored. fastroute adds:

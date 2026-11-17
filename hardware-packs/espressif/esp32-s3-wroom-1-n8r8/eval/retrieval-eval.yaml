@@ -1,0 +1,64 @@
+# The retrieval evaluation set of the ESP32-S3-WROOM-1-N8R8 workspace: what a search must find, in which version of which document,
+# and what it must never return. Run by crates/fastroute/tests/esp32s3_documents.rs against the locked documents, with hcp-manager's
+# keyword search and its hybrid search (keywords plus the vectors of the local default provider).
+#
+# A search is a lead, never an authority: the pack's evidence is checked with `hcp-manager evidence verify`, not by search rank.
+# hcp-manager orders hits by source level first (official manual, then guide, ...) and by score second, so a fact that only a
+# design guide states is looked for with `source_level: official_guide`.
+eval_version: "1.0"
+device: ESP32-S3-WROOM-1-N8R8
+cases:
+  - id: R-PSRAM-PINS
+    query: IO35 IO36 IO37 are connected to the Octal SPI PSRAM and are not available for other uses
+    expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 12, version: v1.8, top_k: 1 }
+  - id: R-EN-FLOATING
+    query: Do not leave the EN pin floating
+    expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 11, version: v1.8, top_k: 1 }
+  - id: R-BOOT-MODE
+    query: GPIO0 and GPIO46 control the boot mode after the reset is released
+    expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 14, version: v1.8, top_k: 3 }
+  - id: R-ANTENNA-KEEPOUT
+    query: keepout zone for module’s antenna on the base board
+    expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 10, version: v1.8, top_k: 1 }
+  - id: R-SUPPLY-RANGE
+    query: Current delivered by external power supply
+    expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 27, version: v1.8, top_k: 3 }
+  - id: R-EN-RC
+    query: recommended setting for the RC delay circuit R = 10 kΩ and C = 1 μF
+    source_level: official_guide
+    expect: { document_id: DOC-ESP32S3-HDG-SCH, top_k: 1 }
+  - id: R-UART-DOWNLOAD
+    query: Usually, UART0 is used as the serial port for download and log printing
+    source_level: official_guide
+    expect: { document_id: DOC-ESP32S3-HDG-SCH, top_k: 1 }
+  - id: R-USB-IMPEDANCE
+    query: differential pair impedance of 90 Ω with a tolerance
+    source_level: official_guide
+    expect: { document_id: DOC-ESP32S3-HDG-PCB, top_k: 1 }
+  - id: R-ANTENNA-CLEARANCE
+    query: cut off the base board on both sides of the antenna
+    source_level: official_guide
+    expect: { document_id: DOC-ESP32S3-HDG-PCB, top_k: 1 }
+# Questions in other words (no wording of the document). They are measured, not promised: the vectors of the default provider are
+# lexical (words, word pairs, character trigrams), so they help with spelling variants and word parts, not with synonyms. A real
+# embedding model is plugged in with embedding.yaml (provider `command` or `http`). The test only guards against breakage; the numbers
+# are in acceptance.md.
+paraphrases:
+  - { id: P-PSRAM-PINS, query: which module pins are taken by the octal PSRAM and cannot be used, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 12 } }
+  - { id: P-EN-UNCONNECTED, query: what happens if the enable pin is left unconnected, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 11 } }
+  - { id: P-DOWNLOAD-MODE, query: how do I put the chip into download mode, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 14 } }
+  - { id: P-BOOT-CONFIG, query: which pins decide the boot configuration at power up, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 13 } }
+  - { id: P-SUPPLY, query: supply voltage range and current the module needs, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 27 } }
+  - { id: P-KEEPOUT, query: where is the keepout zone for the antenna defined, expect: { document_id: DOC-ESP32S3-WROOM1-DS, page: 10 } }
+  - { id: P-RESET-RC, query: resistor and capacitor values for the reset delay circuit, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-SCH } }
+  - { id: P-USB-IMPEDANCE, query: impedance required for the USB data lines, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-PCB } }
+  - { id: P-ANTENNA-CUTOUT, query: cutting the base board away around the antenna, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-PCB } }
+  - { id: P-FLASHING-PORT, query: which serial port is used for flashing the firmware, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-SCH } }
+  - { id: P-USB-SERIES-R, query: series resistors on the USB traces, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-SCH } }
+  - { id: P-POWER-INPUT-CAP, query: capacitor at the power input of the board, source_level: official_guide, expect: { document_id: DOC-ESP32S3-HDG-SCH } }
+# What a search for this device must never return: the datasheet of a similar module (the WROOM-2 has a different pin use).
+isolation:
+  - id: I-SIMILAR-MODEL
+    query: IO35 IO36 IO37
+    never_return: [DOC-ESP32S3-WROOM2-DS]
+    note: Without the device filter the WROOM-2 datasheet is searched too (it is in the inventory); with it the document is excluded with the reason.

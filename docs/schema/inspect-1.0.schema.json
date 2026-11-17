@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fastroute inspect.json (format_version 1.x)",
+  "description": "The board as structured data. Coordinates are millimetres, x right, y down. Readers must ignore properties they do not know; minor versions only add properties. With status \"error\" only input, session, warnings and errors are meaningful.",
+  "type": "object",
+  "required": ["format", "format_version", "fastroute_version", "generated_by", "status", "input", "session", "coordinate_system", "warnings", "errors"],
+  "properties": {
+    "format": { "const": "fastroute-inspect" },
+    "format_version": { "type": "string", "description": "MAJOR.MINOR; MAJOR changes when a property changes its meaning or is removed" },
+    "fastroute_version": { "type": "string" },
+    "generated_by": { "type": "string" },
+    "status": { "enum": ["ok", "error"] },
+    "input": { "$ref": "#/$defs/file_info_or_null" },
+    "session": { "$ref": "#/$defs/file_info_or_null" },
+    "coordinate_system": {
+      "type": "object",
+      "required": ["unit", "x_axis", "y_axis", "origin"],
+      "properties": { "unit": { "const": "mm" }, "x_axis": { "const": "right" }, "y_axis": { "const": "down" }, "origin": { "type": "string" } }
+    },
+    "board": {
+      "type": "object",
+      "required": ["name", "outline_bbox_mm", "outline", "layers", "component_count", "net_count", "pad_count"],
+      "properties": {
+        "name": { "type": "string" },
+        "outline_bbox_mm": { "type": ["object", "null"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number" }, "height": { "type": "number" } }, "required": ["x", "y", "width", "height"] },
+        "outline": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/point" } } },
+        "layers": {
+          "type": "array",
+          "items": { "type": "object", "required": ["index", "name", "type"], "properties": { "index": { "type": "integer", "minimum": 0 }, "name": { "type": "string" }, "type": { "enum": ["signal", "power"] } } }
+        },
+        "component_count": { "type": "integer", "minimum": 0 },
+        "net_count": { "type": "integer", "minimum": 0 },
+        "pad_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "side", "x", "y", "rotation_deg", "bbox_mm", "pad_count"],
+        "properties": {
+          "ref": { "type": "string" },
+          "side": { "enum": ["front", "back"] },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "rotation_deg": { "type": "number" },
+          "bbox_mm": { "$ref": "#/$defs/region" },
+          "pad_count": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "pads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component", "pin", "net", "layers", "x", "y", "shape", "bbox_mm"],
+        "properties": {
+          "component": { "type": "string" },
+          "pin": { "type": "string" },
+          "net": { "type": ["string", "null"] },
+          "layers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "shape": { "enum": ["circle", "polygon"] },
+          "bbox_mm": { "$ref": "#/$defs/region" }
+        }
+      }
+    },
+    "nets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "class", "pad_count", "status", "unrouted_connections", "trace_count", "trace_length_mm", "via_count", "has_plane"],
+        "properties": {
+          "name": { "type": "string" },
+          "class": { "type": "string" },
+          "pad_count": { "type": "integer", "minimum": 0 },
+          "status": { "enum": ["complete", "incomplete", "not_applicable"] },
+          "unrouted_connections": { "type": "integer", "minimum": 0 },
+          "trace_count": { "type": "integer", "minimum": 0 },
+          "trace_length_mm": { "type": "number", "minimum": 0 },
+          "via_count": { "type": "integer", "minimum": 0 },
+          "has_plane": { "type": "boolean" }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "required": ["status", "unrouted_connections", "unrouted_in_ignored_classes", "trace_count", "trace_length_mm", "via_count", "clearance_violations", "clearance_violations_unfixable"],
+      "properties": {
+        "status": { "enum": ["complete", "incomplete"] },
+        "unrouted_connections": { "type": "integer", "minimum": 0 },
+        "unrouted_in_ignored_classes": { "type": "integer", "minimum": 0 },
+        "trace_count": { "type": "integer", "minimum": 0 },
+        "trace_length_mm": { "type": "number", "minimum": 0 },
+        "via_count": { "type": "integer", "minimum": 0 },
+        "clearance_violations": { "type": "integer", "minimum": 0 },
+        "clearance_violations_unfixable": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "unrouted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "net", "length_mm", "ignored_class", "from", "to"],
+        "properties": {
+          "id": { "type": "string", "description": "OPEN1, OPEN2, ..." },
+          "net": { "type": "string" },
+          "length_mm": { "type": "number", "minimum": 0 },
+          "ignored_class": { "type": "boolean" },
+          "from": { "$ref": "#/$defs/endpoint" },
+          "to": { "$ref": "#/$defs/endpoint" }
+        }
+      }
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "layer", "x", "y", "required_mm", "actual_mm", "unfixable", "first", "second"],
+        "properties": {
+          "id": { "type": "string", "description": "CLR1, CLR2, ..." },
+          "layer": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "required_mm": { "type": "number" },
+          "actual_mm": { "type": "number" },
+          "unfixable": { "type": "boolean" },
+          "first": { "$ref": "#/$defs/item" },
+          "second": { "$ref": "#/$defs/item" }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "required": ["source", "file", "net_classes", "note"],
+      "properties": {
+        "source": { "enum": ["dsn"] },
+        "file": { "type": "string" },
+        "note": { "type": "string" },
+        "net_classes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "nets", "trace_width_mm", "clearance_mm", "ignored_by_autorouter", "min_length_mm", "max_length_mm"],
+            "properties": {
+              "name": { "type": "string" },
+              "nets": { "type": "array", "items": { "type": "string" } },
+              "trace_width_mm": { "type": "array", "items": { "$ref": "#/$defs/layer_value" } },
+              "clearance_mm": { "type": "array", "items": { "$ref": "#/$defs/layer_value" } },
+              "ignored_by_autorouter": { "type": "boolean" },
+              "min_length_mm": { "type": ["number", "null"] },
+              "max_length_mm": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["connectivity", "fastroute_clearance", "drc"],
+      "properties": {
+        "connectivity": { "$ref": "#/$defs/check" },
+        "fastroute_clearance": { "$ref": "#/$defs/check" },
+        "drc": {
+          "type": "object",
+          "description": "KiCad's design rule check. not_run / unavailable / error / timeout are never to be read as a pass; passed only comes from a readable report without violations and without unconnected items.",
+          "required": ["status", "tool", "tool_version", "detail", "report_file", "violations", "unconnected", "errors", "warnings", "issues"],
+          "properties": {
+            "status": { "enum": ["not_run", "unavailable", "error", "timeout", "failed", "passed"] },
+            "tool": { "type": ["string", "null"] },
+            "tool_version": { "type": ["string", "null"] },
+            "detail": { "type": ["string", "null"] },
+            "report_file": { "type": ["string", "null"] },
+            "violations": { "type": ["integer", "null"], "minimum": 0 },
+            "unconnected": { "type": ["integer", "null"], "minimum": 0 },
+            "errors": { "type": ["integer", "null"], "minimum": 0 },
+            "warnings": { "type": ["integer", "null"], "minimum": 0 },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "kind", "type", "severity", "description", "x", "y", "items"],
+                "properties": {
+                  "id": { "type": "string", "description": "DRC1, DRC2, ..." },
+                  "kind": { "enum": ["violation", "unconnected"] },
+                  "type": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "description": { "type": "string" },
+                  "x": { "type": "number" },
+                  "y": { "type": "number" },
+                  "items": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": {
+      "type": "array",
+      "items": { "type": "object", "required": ["code", "message"], "properties": { "code": { "enum": ["usage", "input_invalid", "output", "failed"] }, "message": { "type": "string" } } }
+    }
+  },
+  "if": { "properties": { "status": { "const": "ok" } } },
+  "then": { "required": ["board", "components", "pads", "nets", "routing", "unrouted", "violations", "rules", "checks"] },
+  "$defs": {
+    "file_info_or_null": {
+      "type": ["object", "null"],
+      "required": ["path", "bytes", "sha256"],
+      "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0 }, "sha256": { "type": "string" } }
+    },
+    "point": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+    "region": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number" }, "height": { "type": "number" } }
+    },
+    "layer_value": { "type": "object", "required": ["layer", "value_mm"], "properties": { "layer": { "type": "string" }, "value_mm": { "type": "number" } } },
+    "item": {
+      "type": "object",
+      "required": ["kind", "layers"],
+      "properties": {
+        "kind": { "enum": ["pin", "via", "trace", "keepout", "plane", "outline", "board_outline"] },
+        "component": { "type": "string" },
+        "pin": { "type": "string" },
+        "layers": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "endpoint": {
+      "type": "object",
+      "required": ["x", "y", "item"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "item": { "$ref": "#/$defs/item" } }
+    },
+    "check": {
+      "type": "object",
+      "required": ["tool", "status", "count", "detail"],
+      "properties": { "tool": { "type": "string" }, "status": { "enum": ["completed"] }, "count": { "type": "integer", "minimum": 0 }, "detail": { "type": "string" } }
+    }
+  }
+}

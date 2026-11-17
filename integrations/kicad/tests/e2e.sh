@@ -38,7 +38,7 @@ run() { # name board flavour args...
   name=$1 board=$2 flavour=$3; shift 3
   out="$OUT/$name.$flavour.kicad_pcb"
   start=$(python3 -c 'import time;print(time.time())')
-  "$PY" "$ROOT/integrations/kicad/plugins/route_cli.py" "$board" -o "$out" --clear -q "$@" \
+  "$PY" "$ROOT/integrations/kicad/plugins/route_cli.py" "$board" -o "$out" --force --clear -q "$@" \
     2>&1 | grep -v "^swig\|assert\|^WARN" | tail -1
   end=$(python3 -c 'import time;print(time.time())')
   "$KCLI" pcb drc --format json -o "$out.drc.json" "$out" >/dev/null 2>&1 || true

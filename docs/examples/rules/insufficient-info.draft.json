@@ -1,0 +1,74 @@
+{
+  "created_by": {
+    "kind": "script",
+    "model": null,
+    "tool": "fastroute rules draft (keyword prototype)"
+  },
+  "design": {
+    "input_sha256": "706420f86c80688382d5a2e5d09f2e65b7b89dc543f637e905dfc00de2731c55",
+    "inspect_sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+  },
+  "format": "fastroute-rule-draft",
+  "format_version": "1.0",
+  "inputs": [
+    {
+      "id": "nl1",
+      "kind": "natural_language",
+      "sha256": "09aed7fba551af287cae3e7c8139b050035d4b50c5409d81ef27f9da680d1025",
+      "text": "Make the USB signals good for high-speed operation. The power supply must carry a lot of current. Keep the design quiet.\n"
+    },
+    {
+      "id": "pack",
+      "kind": "inspect_json",
+      "path": "design-inspect.json",
+      "sha256": "bf825a6345b5ea2b5010ac0c6d78609e0b502adaba2c52ff4f1f7c1fa949044b"
+    }
+  ],
+  "notes": [
+    "not understood, no rule made: \"Keep the design quiet\"",
+    "made by the keyword prototype of `fastroute rules draft`; it quotes the sentence of every rule and never guesses a value. Check it with `fastroute rules check` like any other draft"
+  ],
+  "rules": [
+    {
+      "applies_to": {
+        "all": true
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "Make the USB signals good for high-speed operation"
+        }
+      ],
+      "id": "R1",
+      "kind": "timing_delay",
+      "needed": [
+        "the maximum delay or skew in ps / ns",
+        "the propagation model (stackup)"
+      ],
+      "rationale": "timing is mentioned without a value",
+      "strength": "unknown"
+    },
+    {
+      "applies_to": {
+        "all": true
+      },
+      "evidence": [
+        {
+          "input": "nl1",
+          "kind": "natural_language",
+          "quote": "The power supply must carry a lot of current"
+        }
+      ],
+      "id": "R2",
+      "kind": "current_capacity",
+      "needed": [
+        "the current in A",
+        "the allowed temperature rise",
+        "copper thickness"
+      ],
+      "rationale": "current is mentioned without a value; it cannot be read off a board",
+      "strength": "unknown"
+    }
+  ]
+}

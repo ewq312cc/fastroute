@@ -1,0 +1,29 @@
+[package]
+name = "hcp-manager"
+description = "Document, source and knowledge-pack manager for hardware constraint packs (sources, cache, embedded index with keyword and vector search, evidence checks)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "hcp_manager"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hcp-manager"
+path = "src/main.rs"
+
+[dependencies]
+fr-constraint = { path = "../../crates/fr-constraint" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+serde_yaml = "0.9"
+sha2 = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+tar = { version = "0.4", default-features = false }
+flate2 = "1"
+
+[dev-dependencies]
+tar = { version = "0.4", default-features = false }
+flate2 = "1"

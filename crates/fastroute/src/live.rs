@@ -362,7 +362,7 @@ fn first_net(board: &BasicBoard, key: ItemKey) -> NetNo {
 }
 
 fn board_json(board: &BasicBoard, name: &str) -> String {
-    let upm = board.communication.resolution.max(1) as f64 * 1000.0;
+    let upm = crate::extract::units_per_mm(board);
     let bb = board.bounding_box();
     let mut out = String::new();
     let _ = write!(out, "{{\"name\":{},\"upm\":{upm},\"bbox\":[{},{},{},{}],\"layers\":[", json_str(name), bb.ll.x, bb.ll.y, bb.ur.x, bb.ur.y);
@@ -434,7 +434,7 @@ fn board_json(board: &BasicBoard, name: &str) -> String {
 /// The wiring: `traces` `[id,layer,half_width,net,fixed,x0,y0,x1,y1,...]`, `vias`
 /// `[id,x,y,radius,net,fixed]`, `air` (the unrouted connections) `[net,x0,y0,x1,y1]`.
 fn frame_json(board: &RoutingBoard, t: f64) -> String {
-    let upm = board.communication.resolution.max(1) as f64 * 1000.0;
+    let upm = crate::extract::units_per_mm(board);
     let max_net = board.rules.nets.max_net_number().max(0) as usize;
     let mut net_items: Vec<Vec<ItemKey>> = vec![Vec::new(); max_net];
     let (mut traces, mut vias) = (String::new(), String::new());

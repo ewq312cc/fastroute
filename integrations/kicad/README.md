@@ -44,6 +44,19 @@ $PY integrations/kicad/plugins/route_cli.py board.kicad_pcb -o routed.kicad_pcb 
     -- --router.autorouter.ignore_net_classes=GUC
 ```
 
+The input board is **never overwritten by default**: without `-o` the result is written to
+`<board>.routed.kicad_pcb` next to it, and an output file that already exists is refused (exit
+code 4, before any work is done) unless `--force` is given. To replace the board itself, say so:
+`-o board.kicad_pcb --force`. `--json` prints one JSON summary line on standard output (the text
+goes to standard error), `--fail-on-partial` makes the exit code 5 when connections remain
+unrouted (the result is written either way). Exit codes: 0 done, 1 routing failed, 2 the board
+cannot be used, 4 output refused or not writable. Scripts that relied on `route_cli.py` replacing
+its input must now pass `-o <the board> --force`.
+
+`fastroute route board.kicad_pcb` (the unified command, see [docs/CLI.md](../../docs/CLI.md))
+runs this script for you, finds a Python with `pcbnew` and says what is missing if there is none.
+The adapter's tests need no KiCad: `python3 -m unittest discover -s integrations/kicad/tests`.
+
 From Python, `core.Router(board, extra_args=..., max_time=seconds)` does the same.
 fastroute rewrites its session file with the best board so far after every
 improvement; if the process ends abnormally (killed, crashed) the router still
@@ -146,6 +159,23 @@ KiCad 10 DRC after re-routing from scratch (unconnected items / routing violatio
 
 - Uses the classic `pcbnew` Python action-plugin API (KiCad 7–10). The KiCad 10
   IPC plugin API has no Specctra export yet.
+- `.kicad_dru` clearance rules reach the router as class-pair clearances: without a condition for
+  every pair of net classes; with `A.NetName` / `A.NetClass` terms the nets that match get a class of
+  their own (same circuit, width and via rules). `A.Type`, area terms and `B.` terms on nets are
+  reported as `NOT applied`; a `(layer ...)` restriction is applied to all layers (stricter).
+- `.kicad_dru` `track_width` rules reach the router as class widths: for every class (no condition),
+  for a net class, or for the nets of an `A.NetName` / `A.NetClass` condition (a class of their own);
+  with a `(layer ...)` only that layer. The width is `opt`, else the middle of `min` and `max`, else
+  `min`. These classes get no neck-down, so the width holds up to the pads. A rule on nets overrides
+  the per-class and layer widths of the impedance rules.
+- Nets of a net class in `--router.autorouter.ignore_net_classes` stay in their class, because a class
+  of their own would be routed. A width rule is not applied to them (printed); a clearance rule is
+  applied to the whole class and only raises it (printed: the other nets of the class get it too).
+  The names are compared as the router does, ignoring case, with `Default` for the default class.
+- `route_cli.py` (no GUI) needs **KiCad 8 or newer**: in KiCad 7 `pcbnew.ImportSpecctraSES` takes only
+  a file name and works on the board open in the PCB editor, so the headless import is impossible.
+  `route_cli.py` checks this first and exits 2 with that message instead of failing after the
+  routing run (`--export-only` still works). The action plugin inside the editor is not affected.
 - Differential pairs run side by side where there is room next to the first net's
   path; pad pairs in swapped order, branches and intra-pair length matching are not
   handled (see docs/IMPROVEMENTS.md).
